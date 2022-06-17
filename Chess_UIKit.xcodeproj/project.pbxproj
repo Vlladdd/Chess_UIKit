@@ -7,23 +7,39 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		74027DD3285B92CA00806401 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74027DD2285B92CA00806401 /* Player.swift */; };
+		741394892856555900159033 /* GameLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 741394882856555900159033 /* GameLogic.swift */; };
+		7413948B2856563300159033 /* Square.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948A2856563300159033 /* Square.swift */; };
+		7413948D2856566500159033 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948C2856566500159033 /* Enums.swift */; };
+		7413948F28565EEB00159033 /* GameBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948E28565EEB00159033 /* GameBoard.swift */; };
 		74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74613E6F285649BB00FF1EF2 /* AppDelegate.swift */; };
 		74613E72285649BB00FF1EF2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74613E71285649BB00FF1EF2 /* SceneDelegate.swift */; };
-		74613E74285649BB00FF1EF2 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74613E73285649BB00FF1EF2 /* ViewController.swift */; };
-		74613E77285649BB00FF1EF2 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 74613E75285649BB00FF1EF2 /* Main.storyboard */; };
+		74613E74285649BB00FF1EF2 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74613E73285649BB00FF1EF2 /* GameViewController.swift */; };
 		74613E79285649BD00FF1EF2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 74613E78285649BD00FF1EF2 /* Assets.xcassets */; };
 		74613E7C285649BD00FF1EF2 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 74613E7A285649BD00FF1EF2 /* LaunchScreen.storyboard */; };
+		74660A9228591B22006FBF70 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74660A9128591B22006FBF70 /* Theme.swift */; };
+		74660A9428591E22006FBF70 /* Figure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74660A9328591E22006FBF70 /* Figure.swift */; };
+		74700158285B49CB00CB7692 /* Turn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74700157285B49CB00CB7692 /* Turn.swift */; };
+		7483B516285754B100BF3447 /* UIExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7483B515285754B100BF3447 /* UIExtensions.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		74027DD2285B92CA00806401 /* Player.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
+		741394882856555900159033 /* GameLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLogic.swift; sourceTree = "<group>"; };
+		7413948A2856563300159033 /* Square.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Square.swift; sourceTree = "<group>"; };
+		7413948C2856566500159033 /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
+		7413948E28565EEB00159033 /* GameBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoard.swift; sourceTree = "<group>"; };
 		74613E6C285649BB00FF1EF2 /* Chess_UIKit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chess_UIKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		74613E6F285649BB00FF1EF2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		74613E71285649BB00FF1EF2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		74613E73285649BB00FF1EF2 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
-		74613E76285649BB00FF1EF2 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		74613E73285649BB00FF1EF2 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		74613E78285649BD00FF1EF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		74613E7B285649BD00FF1EF2 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		74613E7D285649BD00FF1EF2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		74660A9128591B22006FBF70 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		74660A9328591E22006FBF70 /* Figure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Figure.swift; sourceTree = "<group>"; };
+		74700157285B49CB00CB7692 /* Turn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Turn.swift; sourceTree = "<group>"; };
+		7483B515285754B100BF3447 /* UIExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIExtensions.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,15 +72,47 @@
 		74613E6E285649BB00FF1EF2 /* Chess_UIKit */ = {
 			isa = PBXGroup;
 			children = (
+				74613E852856548900FF1EF2 /* Extensions */,
+				74613E842856547400FF1EF2 /* Model */,
+				74613E832856545B00FF1EF2 /* Views & Controllers */,
 				74613E6F285649BB00FF1EF2 /* AppDelegate.swift */,
 				74613E71285649BB00FF1EF2 /* SceneDelegate.swift */,
-				74613E73285649BB00FF1EF2 /* ViewController.swift */,
-				74613E75285649BB00FF1EF2 /* Main.storyboard */,
 				74613E78285649BD00FF1EF2 /* Assets.xcassets */,
 				74613E7A285649BD00FF1EF2 /* LaunchScreen.storyboard */,
 				74613E7D285649BD00FF1EF2 /* Info.plist */,
 			);
 			path = Chess_UIKit;
+			sourceTree = "<group>";
+		};
+		74613E832856545B00FF1EF2 /* Views & Controllers */ = {
+			isa = PBXGroup;
+			children = (
+				74613E73285649BB00FF1EF2 /* GameViewController.swift */,
+			);
+			path = "Views & Controllers";
+			sourceTree = "<group>";
+		};
+		74613E842856547400FF1EF2 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				741394882856555900159033 /* GameLogic.swift */,
+				74700157285B49CB00CB7692 /* Turn.swift */,
+				7413948E28565EEB00159033 /* GameBoard.swift */,
+				74660A9128591B22006FBF70 /* Theme.swift */,
+				7413948A2856563300159033 /* Square.swift */,
+				74660A9328591E22006FBF70 /* Figure.swift */,
+				74027DD2285B92CA00806401 /* Player.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		74613E852856548900FF1EF2 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				7413948C2856566500159033 /* Enums.swift */,
+				7483B515285754B100BF3447 /* UIExtensions.swift */,
+			);
+			path = Extensions;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -127,7 +175,6 @@
 			files = (
 				74613E7C285649BD00FF1EF2 /* LaunchScreen.storyboard in Resources */,
 				74613E79285649BD00FF1EF2 /* Assets.xcassets in Resources */,
-				74613E77285649BB00FF1EF2 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,8 +185,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				74613E74285649BB00FF1EF2 /* ViewController.swift in Sources */,
+				74660A9228591B22006FBF70 /* Theme.swift in Sources */,
+				7413948B2856563300159033 /* Square.swift in Sources */,
+				741394892856555900159033 /* GameLogic.swift in Sources */,
+				74660A9428591E22006FBF70 /* Figure.swift in Sources */,
+				74027DD3285B92CA00806401 /* Player.swift in Sources */,
+				74613E74285649BB00FF1EF2 /* GameViewController.swift in Sources */,
+				7483B516285754B100BF3447 /* UIExtensions.swift in Sources */,
+				7413948F28565EEB00159033 /* GameBoard.swift in Sources */,
 				74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */,
+				74700158285B49CB00CB7692 /* Turn.swift in Sources */,
+				7413948D2856566500159033 /* Enums.swift in Sources */,
 				74613E72285649BB00FF1EF2 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -147,14 +203,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
-		74613E75285649BB00FF1EF2 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				74613E76285649BB00FF1EF2 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
 		74613E7A285649BD00FF1EF2 /* LaunchScreen.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -294,7 +342,6 @@
 				INFOPLIST_FILE = Chess_UIKit/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -322,7 +369,6 @@
 				INFOPLIST_FILE = Chess_UIKit/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
