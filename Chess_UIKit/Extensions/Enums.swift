@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Some usefull enums
 
-// columns in chess called files
+//columns in chess called files
 enum BoardFiles: String, CaseIterable, Equatable, Comparable {
     
     case A
@@ -23,6 +23,27 @@ enum BoardFiles: String, CaseIterable, Equatable, Comparable {
     
     static func < (lhs: BoardFiles, rhs: BoardFiles) -> Bool {
         lhs.rawValue < rhs.rawValue
+    }
+    
+    var index: Int {
+        switch self {
+        case .A:
+            return 1
+        case .B:
+            return 2
+        case .C:
+            return 3
+        case .D:
+            return 4
+        case .E:
+            return 5
+        case .F:
+            return 6
+        case .G:
+            return 7
+        case .H:
+            return 8
+        }
     }
     
 }
