@@ -28,8 +28,11 @@ class GameLogic {
     private(set) var longCastle = false
     //pawn to be destroyed after en passant
     private(set) var pawnSquare: Square?
+    private(set) var players: [Player]
+    private(set) var gameMode: GameModes
     
-    private var players: [Player]
+    let squaresTheme: SquaresTheme
+    
     //if after player will move current picked figure, there will be check
     //in other words this figure blocking check
     private var possibleCheck = false
@@ -59,8 +62,11 @@ class GameLogic {
     // MARK: - Inits
     
     init() {
-        players = [Player(name: "Player1", type: .player1), Player(name: "Player2", type: .player2)]
-        currentPlayer = players.first!
+        let randomBool = Bool.random()
+        players = [Player(name: "Player1", type: .player1, figuresColor: randomBool ? .white : .black), Player(name: "Player2", type: .player2, figuresColor: randomBool ? .black : .white)]
+        currentPlayer = players.first(where: {$0.figuresColor == .white})!
+        squaresTheme = players.randomElement()!.squaresTheme
+        gameMode = .oneScreen
     }
     
     // MARK: - Methods

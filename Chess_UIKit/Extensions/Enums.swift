@@ -67,12 +67,33 @@ enum GameColors: String {
     case black
 }
 
-enum Themes: String {
+enum Colors: String {
+    case white
+    case black
+    case blue
+    case orange
+    case red
+    case green
+}
+
+enum SquaresThemes: String {
+    case defaultTheme
+}
+
+enum FiguresThemes: String {
+    case defaultTheme
+}
+
+enum BoardThemes: String {
     case defaultTheme
 }
 
 enum Frames: String {
     case defaultFrame
+}
+
+enum Backgrounds: String {
+    case defaultBackground
 }
 
 enum Ranks: String {
@@ -81,4 +102,9 @@ enum Ranks: String {
     case gold
     case diamond
     case master
+}
+
+enum GameModes: String {
+    case oneScreen
+    case multiplayer
 }

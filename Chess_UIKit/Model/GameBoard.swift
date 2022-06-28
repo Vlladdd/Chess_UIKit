@@ -13,7 +13,6 @@ struct GameBoard {
     // MARK: - Properties
     
     var squares: [Square]
-    var theme = Theme(name: .defaultTheme, darkMode: true)
     static let availableRows = GameBoard_Constants.allRows
     static let availableColumns = BoardFiles.allCases
     
