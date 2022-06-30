@@ -16,6 +16,7 @@ class GameViewController: UIViewController {
         super.viewDidLoad()
         makeUI()
         updateUI()
+        updateCurrentPlayer()
     }
     
     // MARK: - Properties
@@ -74,6 +75,7 @@ class GameViewController: UIViewController {
             updateUI()
         }
         else if gameLogic.pickedSquares.count > 1 {
+            updateCurrentPlayer()
             if let turn = gameLogic.turns.last{
                 if gameLogic.pawnWizard {
                     if let square = turn.squares.first, let figure = square.figure {
@@ -82,6 +84,17 @@ class GameViewController: UIViewController {
                 }
                 animateTurn(turn)
             }
+        }
+    }
+    
+    private func updateCurrentPlayer() {
+        switch gameLogic.currentPlayer.type {
+        case .player1:
+            player1FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
+            player2FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
+        case .player2:
+            player1FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
+            player2FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
         }
     }
     
@@ -300,45 +313,80 @@ class GameViewController: UIViewController {
     
     // MARK: - UI Properties
     
-    private let pawnPicker = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-    private let gameBoard = UIStackView(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: 0)
+    private let pawnPicker = UIStackView()
+    private let gameBoard = UIStackView()
     //2 stacks for destroyed figures, 8 figures each
-    private let player1DestroyedFigures1 = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-    private let player1DestroyedFigures2 = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-    private let player2DestroyedFigures1 = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-    private let player2DestroyedFigures2 = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+    private let player1DestroyedFigures1 = UIStackView()
+    private let player1DestroyedFigures2 = UIStackView()
+    private let player2DestroyedFigures1 = UIStackView()
+    private let player2DestroyedFigures2 = UIStackView()
     
     private var squares = [UIImageView]()
+    private var destroyedFigures1 = UIView()
+    private var destroyedFigures2 = UIView()
+    private var player1FrameView = PlayerFrame()
+    private var player2FrameView = PlayerFrame()
     
     //letters line on top and bottom of the board
     private var lettersLine: UIStackView {
-        let squaresThemeName = gameLogic.squaresTheme.name.rawValue
-        let lettersLine = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-        lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "squaresThemes/\(squaresThemeName)/letter")))
+        let boardTheme = gameLogic.boardTheme.rawValue
+        let lettersLine = UIStackView()
+        lettersLine.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter")))
         for column in GameBoard.availableColumns {
-            lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "squaresThemes/\(squaresThemeName)/letter_\(column.rawValue)")))
+            lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter_\(column.rawValue)")))
         }
-        lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "squaresThemes/\(squaresThemeName)/letter")))
+        lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter")))
         return lettersLine
     }
     
     // MARK: - UI Methods
     
     private func makeUI() {
+        setupViews()
+        addPlayersBackgrounds()
         makeGameBoard()
+        makeDestroyedFiguresViews()
+        makePlayersFrames()
+    }
+    
+    private func setupViews() {
+        pawnPicker.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        gameBoard.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        player1DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        player1DestroyedFigures2.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        player2DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        player2DestroyedFigures2.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+    }
+    
+    private func makePlayersFrames() {
+        let width = min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash
+        let height = min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForFrame
+        let player1Background = gameLogic.players.first!.playerBackground
+        let player1Frame = gameLogic.players.first!.frame
+        let player2Background = gameLogic.players.second!.playerBackground
+        let player2Frame = gameLogic.players.second!.frame
+        player1FrameView = PlayerFrame(frame: CGRect(x: 0, y: 0, width: width, height: height), background: player1Background, playerFrame: player1Frame)
+        player2FrameView = PlayerFrame(frame: CGRect(x: 0, y: 0, width: width, height: height), background: player2Background, playerFrame: player2Frame)
+        player1FrameView.translatesAutoresizingMaskIntoConstraints = false
+        player2FrameView.translatesAutoresizingMaskIntoConstraints = false
+        player1FrameView.backgroundColor = .clear
+        player2FrameView.backgroundColor = .clear
+        let player1Data = makeLabel(text: gameLogic.players.first!.name + " " + String(gameLogic.players.first!.points))
+        let player2Data = makeLabel(text: gameLogic.players.second!.name + " " + String(gameLogic.players.second!.points))
+        view.addSubview(player1FrameView)
+        view.addSubview(player2FrameView)
+        player1FrameView.addSubview(player1Data)
+        player2FrameView.addSubview(player2Data)
+        let playersFramesViewConstraints = [player1FrameView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player2FrameView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player1FrameView.topAnchor.constraint(equalTo: destroyedFigures2.bottomAnchor, constant: constants.distanceForDestroyedFigures), player2FrameView.bottomAnchor.constraint(equalTo: destroyedFigures1.topAnchor, constant: -constants.distanceForDestroyedFigures), player1FrameView.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash), player1FrameView.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForFrame), player2FrameView.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash), player2FrameView.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForFrame)]
+        let playerDataConstaints = [player1Data.leadingAnchor.constraint(equalTo: player1FrameView.leadingAnchor, constant: constants.distanceForTextInFrame), player1Data.centerYAnchor.constraint(equalTo: player1FrameView.centerYAnchor), player2Data.leadingAnchor.constraint(equalTo: player2FrameView.leadingAnchor, constant: constants.distanceForTextInFrame), player2Data.centerYAnchor.constraint(equalTo: player2FrameView.centerYAnchor), player1Data.trailingAnchor.constraint(equalTo: player1FrameView.trailingAnchor, constant: -constants.distanceForTextInFrame), player2Data.trailingAnchor.constraint(equalTo: player2FrameView.trailingAnchor, constant: -constants.distanceForTextInFrame)]
+        NSLayoutConstraint.activate(playersFramesViewConstraints + playerDataConstaints)
+        if gameLogic.gameMode == .oneScreen {
+            player2FrameView.transform = CGAffineTransform(rotationAngle: .pi)
+        }
     }
     
     private func makeGameBoard() {
-        var destroyedFigures1 = UIView()
-        //in oneScreen second stack should be first, in other words upside down
-        if gameLogic.gameMode == .oneScreen {
-            destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures2, destoyedFigures2: player1DestroyedFigures1, player2: true)
-        }
-        else if gameLogic.gameMode == .multiplayer{
-            destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures1, destoyedFigures2: player1DestroyedFigures2, player2: true)
-        }
-        let destroyedFigures2 = makeDestroyedFiguresView(destoyedFigures1: player2DestroyedFigures1, destoyedFigures2: player2DestroyedFigures2)
-        addPlayersBackgrounds()
         let lettersLineTop = lettersLine
         //upside down for player 2
         for subview in lettersLineTop.arrangedSubviews {
@@ -348,17 +396,32 @@ class GameViewController: UIViewController {
         configureGameBoard()
         gameBoard.addArrangedSubview(lettersLine)
         view.addSubview(gameBoard)
-        view.addSubview(destroyedFigures1)
-        view.addSubview(destroyedFigures2)
-        let gameBoardConstraints = [destroyedFigures1.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.distanceForDestroyedFigures), destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForDestroyedFigures), destroyedFigures1.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), destroyedFigures2.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), gameBoard.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), gameBoard.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor)]
+        let gameBoardConstraints = [gameBoard.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), gameBoard.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor)]
         NSLayoutConstraint.activate(gameBoardConstraints)
     }
     
+    private func makeDestroyedFiguresViews() {
+        //in oneScreen second stack should be first, in other words upside down
+        if gameLogic.gameMode == .oneScreen {
+            destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures2, destoyedFigures2: player1DestroyedFigures1, player2: true)
+        }
+        else if gameLogic.gameMode == .multiplayer{
+            destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures1, destoyedFigures2: player1DestroyedFigures2, player2: true)
+        }
+        destroyedFigures2 = makeDestroyedFiguresView(destoyedFigures1: player2DestroyedFigures1, destoyedFigures2: player2DestroyedFigures2)
+        view.addSubview(destroyedFigures1)
+        view.addSubview(destroyedFigures2)
+        let destroyedFiguresConstraints = [destroyedFigures1.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.distanceForDestroyedFigures), destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForDestroyedFigures), destroyedFigures1.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), destroyedFigures2.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor)]
+        NSLayoutConstraint.activate(destroyedFiguresConstraints)
+    }
+    
     private func addPlayersBackgrounds() {
-        let bottomPlayerBackground = UIImageView(cornerRadius: constants.cornerRadius)
+        let bottomPlayerBackground = UIImageView()
+        bottomPlayerBackground.defaultSettings()
         bottomPlayerBackground.image = UIImage(named: "backgrounds/\(gameLogic.players.second!.background.rawValue)")
         if gameLogic.gameMode == .multiplayer {
-            let topPlayerBackground = UIImageView(cornerRadius: constants.cornerRadius)
+            let topPlayerBackground = UIImageView()
+            topPlayerBackground.defaultSettings()
             topPlayerBackground.image = UIImage(named: "backgrounds/\(gameLogic.players.first!.background.rawValue)")
             view.addSubview(topPlayerBackground)
             view.addSubview(bottomPlayerBackground)
@@ -378,7 +441,8 @@ class GameViewController: UIViewController {
         let colorToRotate: GameColors = gameLogic.players.first!.figuresColor == .white ? .black : .white
         for coordinate in GameBoard.availableRows.sorted(by: operation) {
             //line contains number at the start and end and 8 squares
-            let line = UIStackView(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+            let line = UIStackView()
+            line.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
             line.addArrangedSubview(getNumberSquareView(number: coordinate))
             for column in GameBoard.availableColumns {
                 if let square = gameLogic.gameBoard[column, coordinate] {
@@ -422,10 +486,12 @@ class GameViewController: UIViewController {
     }
     
     private func getSquareView(image: UIImage? = nil, multiplier: CGFloat = 1) -> UIImageView {
-        let square = UIImageView(width: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * multiplier)
+        let square = UIImageView()
+        square.rectangleView(width: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * multiplier)
         //we are adding image in this way, so we can move figure separately from square
         if image != nil {
-            let imageView = UIImageView(width: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * multiplier)
+            let imageView = UIImageView()
+            imageView.rectangleView(width: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * multiplier)
             imageView.layer.borderWidth = 0
             imageView.image = image
             square.addSubview(imageView)
@@ -436,9 +502,9 @@ class GameViewController: UIViewController {
     //according to current design, we need to make number image smaller
     private func getNumberSquareView(number: Int) -> UIImageView {
         var square = UIImageView()
-        let squaresThemeName = gameLogic.squaresTheme.name.rawValue
-        square = getSquareView(image: UIImage(named: "squaresThemes/\(squaresThemeName)/letter"))
-        let numberView = getSquareView(image: UIImage(named: "squaresThemes/\(squaresThemeName)/number_\(number)"), multiplier: constants.multiplierForNumberView)
+        let boardTheme = gameLogic.boardTheme.rawValue
+        square = getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter"))
+        let numberView = getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/number_\(number)"), multiplier: constants.multiplierForNumberView)
         numberView.layer.borderWidth = 0
         square.addSubview(numberView)
         let numberViewConstraints = [numberView.centerXAnchor.constraint(equalTo: square.centerXAnchor), numberView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
@@ -447,7 +513,9 @@ class GameViewController: UIViewController {
     }
     
     private func makeLabel(text: String) -> UILabel {
-        return UILabel(text: text, alignment: .center, font: UIFont.systemFont(ofSize: view.frame.width / GameVC_Constants.dividerForFont))
+        let label = UILabel()
+        label.setup(text: text, alignment: .center, font: UIFont.systemFont(ofSize: view.frame.width / GameVC_Constants.dividerForFont))
+        return label
     }
     
     private func makePawnPicker(figureColor: GameColors, squareColor: GameColors) {
@@ -467,7 +535,8 @@ class GameViewController: UIViewController {
     }
 
     private func makeDestroyedFiguresView(destoyedFigures1: UIStackView, destoyedFigures2: UIStackView, player2: Bool = false) -> UIView {
-        let destroyedFigures = UIImageView(cornerRadius: constants.cornerRadius)
+        let destroyedFigures = UIImageView()
+        destroyedFigures.defaultSettings()
         destroyedFigures.addSubview(destoyedFigures1)
         destroyedFigures.addSubview(destoyedFigures2)
         let destroyedFiguresConstraints1 = [destroyedFigures.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash), destroyedFigures.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForTrash)]
@@ -493,6 +562,8 @@ class GameViewController: UIViewController {
 }
 
 private struct GameVC_Constants {
+    static let defaultPlayerDataColor = UIColor.white
+    static let currentPlayerDataColor = UIColor.green
     static let multiplierForBackground: CGFloat = 0.5
     static let alphaForBackground: CGFloat = 1
     static let distanceForFigureInTrash: CGFloat = 3
@@ -500,11 +571,12 @@ private struct GameVC_Constants {
     static let distanceForDestroyedFigures: CGFloat = 20
     static let animationDuration = 0.5
     static let maxFiguresInTrashLine = 8
-    static let cornerRadius: CGFloat = 10
     static let dividerForFont: CGFloat = 13
     static let dividerForSquare: CGFloat = 11
     static let widthDividerForTrash: CGFloat = 8.5
     static let heightDividerForTrash: CGFloat = 2.5
+    static let heightDividerForFrame: CGFloat = 1.5
+    static let distanceForTextInFrame: CGFloat = 30
     static let keyNameForSquare = "Square"
     
     static func convertLogicColor(_ color: Colors) -> UIColor {

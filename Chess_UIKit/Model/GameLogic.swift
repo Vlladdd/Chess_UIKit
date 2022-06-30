@@ -32,6 +32,7 @@ class GameLogic {
     private(set) var gameMode: GameModes
     
     let squaresTheme: SquaresTheme
+    let boardTheme: BoardThemes
     
     //if after player will move current picked figure, there will be check
     //in other words this figure blocking check
@@ -66,6 +67,7 @@ class GameLogic {
         players = [Player(name: "Player1", type: .player1, figuresColor: randomBool ? .white : .black), Player(name: "Player2", type: .player2, figuresColor: randomBool ? .black : .white)]
         currentPlayer = players.first(where: {$0.figuresColor == .white})!
         squaresTheme = players.randomElement()!.squaresTheme
+        boardTheme = players.randomElement()!.boardTheme
         gameMode = .oneScreen
     }
     

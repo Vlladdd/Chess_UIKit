@@ -11,8 +11,7 @@ import UIKit
 
 extension UIStackView {
     
-    convenience init(axis: NSLayoutConstraint.Axis, alignment: UIStackView.Alignment, distribution: UIStackView.Distribution, spacing: CGFloat) {
-        self.init()
+    func setup(axis: NSLayoutConstraint.Axis, alignment: UIStackView.Alignment, distribution: UIStackView.Distribution, spacing: CGFloat) {
         translatesAutoresizingMaskIntoConstraints = false
         self.alignment = alignment
         self.distribution = distribution
@@ -24,8 +23,7 @@ extension UIStackView {
 
 extension UILabel {
     
-    convenience init(text: String, alignment: NSTextAlignment, font: UIFont) {
-        self.init()
+    func setup(text: String, alignment: NSTextAlignment, font: UIFont) {
         translatesAutoresizingMaskIntoConstraints = false
         self.text = text
         self.textAlignment = alignment
@@ -46,12 +44,11 @@ extension UILabel {
 
 extension UIImageView {
     
-    convenience init(cornerRadius: CGFloat) {
-        self.init()
+    func defaultSettings() {
         translatesAutoresizingMaskIntoConstraints = false
         contentMode = .scaleAspectFill
         layer.borderWidth = Constants.borderWidth
-        layer.cornerRadius = cornerRadius
+        layer.cornerRadius = Constants.cornerRadius
         layer.masksToBounds = true
         if traitCollection.userInterfaceStyle == .dark {
             backgroundColor = Constants.darkModeBackgroundColor
@@ -63,8 +60,7 @@ extension UIImageView {
     }
     
     //rectangle view
-    convenience init(width: CGFloat) {
-        self.init()
+    func rectangleView(width: CGFloat) {
         contentMode = .scaleAspectFit
         isUserInteractionEnabled = true
         translatesAutoresizingMaskIntoConstraints = false
@@ -79,6 +75,7 @@ extension UIImageView {
     }
     
     private struct Constants {
+        static let cornerRadius: CGFloat = 10
         static let borderWidth: CGFloat = 1
         static let darkModeBackgroundColor = UIColor.black
         static let lightBackgroundColor = UIColor.white

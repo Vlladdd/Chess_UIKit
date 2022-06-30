@@ -12,6 +12,7 @@
 		7413948B2856563300159033 /* Square.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948A2856563300159033 /* Square.swift */; };
 		7413948D2856566500159033 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948C2856566500159033 /* Enums.swift */; };
 		7413948F28565EEB00159033 /* GameBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948E28565EEB00159033 /* GameBoard.swift */; };
+		74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74482B69286C59A7004EC83C /* PlayerFrame.swift */; };
 		74610B7D286B27510081EDF9 /* SquaresTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74610B7C286B27510081EDF9 /* SquaresTheme.swift */; };
 		74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74613E6F285649BB00FF1EF2 /* AppDelegate.swift */; };
 		74613E72285649BB00FF1EF2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74613E71285649BB00FF1EF2 /* SceneDelegate.swift */; };
@@ -30,6 +31,7 @@
 		7413948A2856563300159033 /* Square.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Square.swift; sourceTree = "<group>"; };
 		7413948C2856566500159033 /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
 		7413948E28565EEB00159033 /* GameBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoard.swift; sourceTree = "<group>"; };
+		74482B69286C59A7004EC83C /* PlayerFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerFrame.swift; sourceTree = "<group>"; };
 		74610B7C286B27510081EDF9 /* SquaresTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquaresTheme.swift; sourceTree = "<group>"; };
 		74613E6C285649BB00FF1EF2 /* Chess_UIKit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chess_UIKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		74613E6F285649BB00FF1EF2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				74613E73285649BB00FF1EF2 /* GameViewController.swift */,
+				74482B69286C59A7004EC83C /* PlayerFrame.swift */,
 			);
 			path = "Views & Controllers";
 			sourceTree = "<group>";
@@ -194,6 +197,7 @@
 				74027DD3285B92CA00806401 /* Player.swift in Sources */,
 				74613E74285649BB00FF1EF2 /* GameViewController.swift in Sources */,
 				7483B516285754B100BF3447 /* UIExtensions.swift in Sources */,
+				74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */,
 				7413948F28565EEB00159033 /* GameBoard.swift in Sources */,
 				7463DC8A2864EE9000619495 /* Extensions.swift in Sources */,
 				74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */,
