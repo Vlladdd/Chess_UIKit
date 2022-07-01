@@ -30,9 +30,9 @@ class PlayerFrame: UIView {
     
     // MARK: - Methods
     
-    private func createFrame(frame: CGRect) -> UIBezierPath {
-        let height = frame.height
-        let width = frame.width
+    private func createPlayerFrameShape(with size: CGRect) -> UIBezierPath {
+        let height = size.height
+        let width = size.width
         let path = UIBezierPath()
         path.move(to: CGPoint(x: constants.edgeSideLength, y: 0))
         path.addLine(to: CGPoint(x: width - constants.edgeSideLength, y: 0))
@@ -51,10 +51,10 @@ class PlayerFrame: UIView {
         frameBackground.defaultSettings()
         frameBorder.translatesAutoresizingMaskIntoConstraints = true
         frameBackground.translatesAutoresizingMaskIntoConstraints = true
-        let path = createFrame(frame: frame).cgPath
+        let path = createPlayerFrameShape(with: frame).cgPath
         backgroundLayer.path = path
         textLayer.path = path
-        frameLayer.path = createFrame(frame: frameBorder.frame).cgPath
+        frameLayer.path = createPlayerFrameShape(with: frameBorder.frame).cgPath
         textLayer.fillColor = UIColor.white.withAlphaComponent(constants.alphaForTextBackground).cgColor
         let backgroundImage = UIImage(named: "backgrounds/\(background.rawValue)")
         let frameImage = UIImage(named: "frames/\(playerFrame.rawValue)")

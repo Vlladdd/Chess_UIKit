@@ -90,6 +90,7 @@ enum BoardThemes: String {
 
 enum Frames: String {
     case defaultFrame
+    case ukraineFlag
 }
 
 enum Backgrounds: String {
@@ -102,6 +103,12 @@ enum Ranks: String {
     case gold
     case diamond
     case master
+}
+
+enum Titles: String {
+    case novice
+    case admin
+    case the_Chosen_One
 }
 
 enum GameModes: String {

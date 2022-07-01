@@ -18,12 +18,13 @@ struct Player: Equatable {
     var background: Backgrounds = .defaultBackground
     //background of player trash and name
     var playerBackground: Backgrounds = .defaultBackground
-    var frame: Frames = .defaultFrame
+    var frame: Frames = .ukraineFlag
     var figuresTheme: FiguresThemes = .defaultTheme
     var boardTheme: BoardThemes = .defaultTheme
     var coins: Int = 0
     var points: Int = 0
     var rank: Ranks = .bronze
+    var title: Titles = .novice
     var shortCastleAvailable = true
     var longCastleAvailable = true
     let type: GamePlayers

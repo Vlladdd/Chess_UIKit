@@ -326,6 +326,8 @@ class GameViewController: UIViewController {
     private var destroyedFigures2 = UIView()
     private var player1FrameView = PlayerFrame()
     private var player2FrameView = PlayerFrame()
+    private var player1TitleView = PlayerFrame()
+    private var player2TitleView = PlayerFrame()
     
     //letters line on top and bottom of the board
     private var lettersLine: UIStackView {
@@ -348,6 +350,7 @@ class GameViewController: UIViewController {
         makeGameBoard()
         makeDestroyedFiguresViews()
         makePlayersFrames()
+        makePlayersTitles()
     }
     
     private func setupViews() {
@@ -360,8 +363,8 @@ class GameViewController: UIViewController {
     }
     
     private func makePlayersFrames() {
-        let width = min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash
-        let height = min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForFrame
+        let width = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * constants.widthDividerForTrash
+        let height = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * constants.heightDividerForFrame
         let player1Background = gameLogic.players.first!.playerBackground
         let player1Frame = gameLogic.players.first!.frame
         let player2Background = gameLogic.players.second!.playerBackground
@@ -372,17 +375,54 @@ class GameViewController: UIViewController {
         player2FrameView.translatesAutoresizingMaskIntoConstraints = false
         player1FrameView.backgroundColor = .clear
         player2FrameView.backgroundColor = .clear
-        let player1Data = makeLabel(text: gameLogic.players.first!.name + " " + String(gameLogic.players.first!.points))
-        let player2Data = makeLabel(text: gameLogic.players.second!.name + " " + String(gameLogic.players.second!.points))
+        let player1Data = UIStackView()
+        let player2Data = UIStackView()
+        player1Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.spacingForPlayerData)
+        player2Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.spacingForPlayerData)
+        let player1Name = makeLabel(text: gameLogic.players.first!.name)
+        let player2Name = makeLabel(text: gameLogic.players.second!.name)
+        let player1Points = makeLabel(text: String(gameLogic.players.first!.points))
+        let player2Points = makeLabel(text: String(gameLogic.players.second!.points))
+        player1Data.addArrangedSubview(player1Name)
+        player1Data.addArrangedSubview(player1Points)
+        player2Data.addArrangedSubview(player2Name)
+        player2Data.addArrangedSubview(player2Points)
         view.addSubview(player1FrameView)
         view.addSubview(player2FrameView)
         player1FrameView.addSubview(player1Data)
         player2FrameView.addSubview(player2Data)
-        let playersFramesViewConstraints = [player1FrameView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player2FrameView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player1FrameView.topAnchor.constraint(equalTo: destroyedFigures2.bottomAnchor, constant: constants.distanceForDestroyedFigures), player2FrameView.bottomAnchor.constraint(equalTo: destroyedFigures1.topAnchor, constant: -constants.distanceForDestroyedFigures), player1FrameView.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash), player1FrameView.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForFrame), player2FrameView.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash), player2FrameView.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForFrame)]
-        let playerDataConstaints = [player1Data.leadingAnchor.constraint(equalTo: player1FrameView.leadingAnchor, constant: constants.distanceForTextInFrame), player1Data.centerYAnchor.constraint(equalTo: player1FrameView.centerYAnchor), player2Data.leadingAnchor.constraint(equalTo: player2FrameView.leadingAnchor, constant: constants.distanceForTextInFrame), player2Data.centerYAnchor.constraint(equalTo: player2FrameView.centerYAnchor), player1Data.trailingAnchor.constraint(equalTo: player1FrameView.trailingAnchor, constant: -constants.distanceForTextInFrame), player2Data.trailingAnchor.constraint(equalTo: player2FrameView.trailingAnchor, constant: -constants.distanceForTextInFrame)]
-        NSLayoutConstraint.activate(playersFramesViewConstraints + playerDataConstaints)
+        let playersFramesViewConstraints = [player1FrameView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player2FrameView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player1FrameView.topAnchor.constraint(equalTo: destroyedFigures2.bottomAnchor, constant: constants.distanceForDestroyedFigures), player2FrameView.bottomAnchor.constraint(equalTo: destroyedFigures1.topAnchor, constant: -constants.distanceForDestroyedFigures), player1FrameView.widthAnchor.constraint(equalToConstant: width), player1FrameView.heightAnchor.constraint(equalToConstant: height), player2FrameView.widthAnchor.constraint(equalToConstant: width), player2FrameView.heightAnchor.constraint(equalToConstant: height)]
+        let playersDataConstaints = [player1Data.leadingAnchor.constraint(greaterThanOrEqualTo: player1FrameView.leadingAnchor, constant: constants.distanceForTextInFrame), player1Data.centerYAnchor.constraint(equalTo: player1FrameView.centerYAnchor), player2Data.leadingAnchor.constraint(greaterThanOrEqualTo: player2FrameView.leadingAnchor, constant: constants.distanceForTextInFrame), player2Data.centerYAnchor.constraint(equalTo: player2FrameView.centerYAnchor), player1Data.trailingAnchor.constraint(lessThanOrEqualTo: player1FrameView.trailingAnchor, constant: -constants.distanceForTextInFrame), player2Data.trailingAnchor.constraint(lessThanOrEqualTo: player2FrameView.trailingAnchor, constant: -constants.distanceForTextInFrame), player1Data.centerXAnchor.constraint(equalTo: player1FrameView.centerXAnchor), player2Data.centerXAnchor.constraint(equalTo: player2FrameView.centerXAnchor)]
+        NSLayoutConstraint.activate(playersFramesViewConstraints + playersDataConstaints)
         if gameLogic.gameMode == .oneScreen {
-            player2FrameView.transform = CGAffineTransform(rotationAngle: .pi)
+            player2FrameView.transform = player2FrameView.transform.rotated(by: .pi)
+        }
+    }
+    
+    private func makePlayersTitles() {
+        let width = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * constants.widthDividerForTrash
+        let height = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * constants.heightDividerForTitle
+        let player1Background = gameLogic.players.first!.playerBackground
+        let player1Frame = gameLogic.players.first!.frame
+        let player2Background = gameLogic.players.second!.playerBackground
+        let player2Frame = gameLogic.players.second!.frame
+        player1TitleView = PlayerFrame(frame: CGRect(x: 0, y: 0, width: width, height: height), background: player1Background, playerFrame: player1Frame)
+        player2TitleView = PlayerFrame(frame: CGRect(x: 0, y: 0, width: width, height: height), background: player2Background, playerFrame: player2Frame)
+        player1TitleView.translatesAutoresizingMaskIntoConstraints = false
+        player2TitleView.translatesAutoresizingMaskIntoConstraints = false
+        player1TitleView.backgroundColor = .clear
+        player2TitleView.backgroundColor = .clear
+        let player1Title = makeLabel(text: gameLogic.players.first!.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
+        let player2Title = makeLabel(text: gameLogic.players.second!.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
+        view.addSubview(player1TitleView)
+        view.addSubview(player2TitleView)
+        player1TitleView.addSubview(player1Title)
+        player2TitleView.addSubview(player2Title)
+        let playersTitlesViewConstraints = [player1TitleView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player2TitleView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player1TitleView.topAnchor.constraint(equalTo: player1FrameView.bottomAnchor, constant: constants.distanceForTitle), player2TitleView.bottomAnchor.constraint(equalTo: player2FrameView.topAnchor, constant: -constants.distanceForTitle), player1TitleView.widthAnchor.constraint(equalToConstant: width), player1TitleView.heightAnchor.constraint(equalToConstant: height), player2TitleView.widthAnchor.constraint(equalToConstant: width), player2TitleView.heightAnchor.constraint(equalToConstant: height)]
+        let playersTitlesConstraints = [player1Title.leadingAnchor.constraint(equalTo: player1TitleView.leadingAnchor, constant: constants.distanceForTextInFrame), player1Title.centerYAnchor.constraint(equalTo: player1TitleView.centerYAnchor), player2Title.leadingAnchor.constraint(equalTo: player2TitleView.leadingAnchor, constant: constants.distanceForTextInFrame), player2Title.centerYAnchor.constraint(equalTo: player2TitleView.centerYAnchor), player1Title.trailingAnchor.constraint(equalTo: player1TitleView.trailingAnchor, constant: -constants.distanceForTextInFrame), player2Title.trailingAnchor.constraint(equalTo: player2TitleView.trailingAnchor, constant: -constants.distanceForTextInFrame)]
+        NSLayoutConstraint.activate(playersTitlesViewConstraints + playersTitlesConstraints)
+        if gameLogic.gameMode == .oneScreen {
+            player2TitleView.transform = player2TitleView.transform.rotated(by: .pi)
         }
     }
     
@@ -401,8 +441,17 @@ class GameViewController: UIViewController {
     }
     
     private func makeDestroyedFiguresViews() {
+        let player1Frame = UIImageView()
+        let player2Frame = UIImageView()
+        player1Frame.defaultSettings()
+        player2Frame.defaultSettings()
+        player1Frame.image = UIImage(named: "frames/\(gameLogic.players.first!.frame.rawValue)")
+        player2Frame.image = UIImage(named: "frames/\(gameLogic.players.second!.frame.rawValue)")
+        view.addSubview(player1Frame)
+        view.addSubview(player2Frame)
         //in oneScreen second stack should be first, in other words upside down
         if gameLogic.gameMode == .oneScreen {
+            player2Frame.transform = player2Frame.transform.rotated(by: .pi)
             destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures2, destoyedFigures2: player1DestroyedFigures1, player2: true)
         }
         else if gameLogic.gameMode == .multiplayer{
@@ -411,8 +460,9 @@ class GameViewController: UIViewController {
         destroyedFigures2 = makeDestroyedFiguresView(destoyedFigures1: player2DestroyedFigures1, destoyedFigures2: player2DestroyedFigures2)
         view.addSubview(destroyedFigures1)
         view.addSubview(destroyedFigures2)
+        let playersFramesConstraints = [player1Frame.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForDestroyedFigures / 2), player2Frame.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.distanceForDestroyedFigures / 2), player1Frame.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player2Frame.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), player1Frame.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.distanceForDestroyedFigures), player1Frame.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.distanceForDestroyedFigures), player2Frame.widthAnchor.constraint(equalTo: destroyedFigures2.widthAnchor, constant: constants.distanceForDestroyedFigures), player2Frame.heightAnchor.constraint(equalTo: destroyedFigures2.heightAnchor, constant: constants.distanceForDestroyedFigures)]
         let destroyedFiguresConstraints = [destroyedFigures1.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.distanceForDestroyedFigures), destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForDestroyedFigures), destroyedFigures1.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), destroyedFigures2.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor)]
-        NSLayoutConstraint.activate(destroyedFiguresConstraints)
+        NSLayoutConstraint.activate(destroyedFiguresConstraints + playersFramesConstraints)
     }
     
     private func addPlayersBackgrounds() {
@@ -487,11 +537,11 @@ class GameViewController: UIViewController {
     
     private func getSquareView(image: UIImage? = nil, multiplier: CGFloat = 1) -> UIImageView {
         let square = UIImageView()
-        square.rectangleView(width: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * multiplier)
+        square.rectangleView(width: min(view.frame.width, view.frame.height)  / constants.dividerForSquare * multiplier)
         //we are adding image in this way, so we can move figure separately from square
         if image != nil {
             let imageView = UIImageView()
-            imageView.rectangleView(width: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * multiplier)
+            imageView.rectangleView(width: min(view.frame.width, view.frame.height)  / constants.dividerForSquare * multiplier)
             imageView.layer.borderWidth = 0
             imageView.image = image
             square.addSubview(imageView)
@@ -514,7 +564,7 @@ class GameViewController: UIViewController {
     
     private func makeLabel(text: String) -> UILabel {
         let label = UILabel()
-        label.setup(text: text, alignment: .center, font: UIFont.systemFont(ofSize: view.frame.width / GameVC_Constants.dividerForFont))
+        label.setup(text: text, alignment: .center, font: UIFont.systemFont(ofSize: view.frame.width / constants.dividerForFont))
         return label
     }
     
@@ -539,7 +589,7 @@ class GameViewController: UIViewController {
         destroyedFigures.defaultSettings()
         destroyedFigures.addSubview(destoyedFigures1)
         destroyedFigures.addSubview(destoyedFigures2)
-        let destroyedFiguresConstraints1 = [destroyedFigures.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.widthDividerForTrash), destroyedFigures.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / GameVC_Constants.dividerForSquare * constants.heightDividerForTrash)]
+        let destroyedFiguresConstraints1 = [destroyedFigures.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / constants.dividerForSquare * constants.widthDividerForTrash), destroyedFigures.heightAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height)  / constants.dividerForSquare * constants.heightDividerForTrash)]
         let destroyedFiguresConstraints2 = [destoyedFigures1.topAnchor.constraint(equalTo: destroyedFigures.topAnchor, constant: constants.distanceForFigureInTrash), destoyedFigures2.bottomAnchor.constraint(equalTo: destroyedFigures.bottomAnchor, constant: -constants.distanceForFigureInTrash)]
         var destroyedFiguresConstraints3: [NSLayoutConstraint] = []
         //here we add this, because stacks start from left side, but for player 2 they should start from right side
@@ -576,6 +626,9 @@ private struct GameVC_Constants {
     static let widthDividerForTrash: CGFloat = 8.5
     static let heightDividerForTrash: CGFloat = 2.5
     static let heightDividerForFrame: CGFloat = 1.5
+    static let heightDividerForTitle: CGFloat = 0.8
+    static let distanceForTitle: CGFloat = 1
+    static let spacingForPlayerData: CGFloat = 5
     static let distanceForTextInFrame: CGFloat = 30
     static let keyNameForSquare = "Square"
     

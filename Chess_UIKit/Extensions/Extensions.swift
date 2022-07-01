@@ -33,3 +33,15 @@ extension Array {
     }
     
 }
+
+extension String {
+    
+    func capitalizingFirstLetter() -> String {
+      return prefix(1).uppercased() + self.dropFirst()
+    }
+
+    mutating func capitalizeFirstLetter() {
+      self = self.capitalizingFirstLetter()
+    }
+    
+}
