@@ -103,6 +103,83 @@ enum Ranks: String {
     case gold
     case diamond
     case master
+    
+    var minimumPoints: Int {
+        switch self {
+        case .bronze:
+            return 0
+        case .silver:
+            return 501
+        case .gold:
+            return 1501
+        case .diamond:
+            return 3001
+        case .master:
+            return 10001
+        }
+    }
+    
+    var maximumPoints: Int {
+        switch self {
+        case .bronze:
+            return 500
+        case .silver:
+            return 1500
+        case .gold:
+            return 3000
+        case .diamond:
+            return 10000
+        case .master:
+            return Int.max
+        }
+    }
+    
+    var nextRank: Self {
+        switch self {
+        case .bronze:
+            return .silver
+        case .silver:
+            return .gold
+        case .gold:
+            return .diamond
+        case .diamond:
+            return .master
+        case .master:
+            return .master
+        }
+    }
+    
+    var previousRank: Self {
+        switch self {
+        case .bronze:
+            return .bronze
+        case .silver:
+            return .bronze
+        case .gold:
+            return .silver
+        case .diamond:
+            return .gold
+        case .master:
+            return .diamond
+        }
+    }
+    
+    //used in points calculation
+    var factor: Int {
+        switch self {
+        case .bronze:
+            return 2
+        case .silver:
+            return 4
+        case .gold:
+            return 8
+        case .diamond:
+            return 16
+        case .master:
+            return 32
+        }
+    }
+    
 }
 
 enum Titles: String {

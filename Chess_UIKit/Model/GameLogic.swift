@@ -30,9 +30,13 @@ class GameLogic {
     private(set) var pawnSquare: Square?
     private(set) var players: [Player]
     private(set) var gameMode: GameModes
+    private(set) var winner: Player?
+    private(set) var gameEnded = false
+    private(set) var draw = false
     
     let squaresTheme: SquaresTheme
     let boardTheme: BoardThemes
+    let maximumCoinsForWheel: Int
     
     //if after player will move current picked figure, there will be check
     //in other words this figure blocking check
@@ -54,9 +58,6 @@ class GameLogic {
     //so this square will not be available for her, but we need to make him available,
     //so we can check, if a king can actually eat a figure, which made check
     private var checkingKingSquaresWhenCheck = false
-    private var gameEnded = false
-    private var winner: Player?
-    private var draw = false
     
     private typealias constants = GameLogic_Constants
     
@@ -69,6 +70,12 @@ class GameLogic {
         squaresTheme = players.randomElement()!.squaresTheme
         boardTheme = players.randomElement()!.boardTheme
         gameMode = .oneScreen
+        if gameMode == .multiplayer {
+            maximumCoinsForWheel = Int.random(in: constants.rangeForCoins)
+        }
+        else {
+            maximumCoinsForWheel = 0
+        }
     }
     
     // MARK: - Methods
@@ -500,7 +507,22 @@ class GameLogic {
             findAvailableSquares(kingSquare)
             if availableSquares.isEmpty {
                 gameEnded = true
-                winner = currentPlayer == players.first! ? players.second! : players.first!
+                winner = currentPlayer
+                if gameMode == .multiplayer {
+                    var points = (abs(players.first!.points - players.second!.points)) / players.first!.rank.factor
+                    if points < constants.minimumPointsForGame {
+                        points = constants.minimumPointsForGame
+                    }
+                    else if points > constants.maximumPointsForGame {
+                        points = constants.maximumPointsForGame
+                    }
+                    if winner != players.first! {
+                        points = -points
+                    }
+                    if let index = players.firstIndex(where: {$0.type == .player1}) {
+                        players[index].addPoints(points)
+                    }
+                }
             }
         }
     }
@@ -516,6 +538,8 @@ class GameLogic {
         if allAvailableSquares.isEmpty {
             gameEnded = true
             draw = true
+            //just for proper UI update
+            winner = currentPlayer
         }
     }
     
@@ -565,4 +589,7 @@ private struct GameLogic_Constants {
     static let rightBishopStartColumn: BoardFiles = .F
     static let rightKnightStartColumn: BoardFiles = .G
     static let rightRookStartColumn: BoardFiles = .H
+    static let rangeForCoins = 50...500
+    static let minimumPointsForGame = 10
+    static let maximumPointsForGame = 150
 }

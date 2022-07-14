@@ -22,7 +22,17 @@ struct Player: Equatable {
     var figuresTheme: FiguresThemes = .defaultTheme
     var boardTheme: BoardThemes = .defaultTheme
     var coins: Int = 0
-    var points: Int = 0
+    var points: Int = 0 {
+        didSet {
+            if points > rank.maximumPoints {
+                rank = rank.nextRank
+            }
+            else if points < rank.minimumPoints {
+                rank = rank.previousRank
+            }
+        }
+    }
+    var pointsForGame = 0
     var rank: Ranks = .bronze
     var title: Titles = .novice
     var shortCastleAvailable = true
@@ -36,4 +46,10 @@ struct Player: Equatable {
         shortCastleAvailable = short
         longCastleAvailable = long
     }
+    
+    mutating func addPoints(_ points: Int) {
+        pointsForGame = points
+        self.points += pointsForGame
+    }
+    
 }
