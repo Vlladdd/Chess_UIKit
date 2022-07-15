@@ -33,6 +33,7 @@ class GameLogic {
     private(set) var winner: Player?
     private(set) var gameEnded = false
     private(set) var draw = false
+    private(set) var timerEnabled = true
     
     let squaresTheme: SquaresTheme
     let boardTheme: BoardThemes
@@ -58,6 +59,10 @@ class GameLogic {
     //so this square will not be available for her, but we need to make him available,
     //so we can check, if a king can actually eat a figure, which made check
     private var checkingKingSquaresWhenCheck = false
+    private var timer: Timer?
+    private var timeLeft = 300
+    //every time player makes a turn, he got extra time for that
+    private var additionalTime = 2
     
     private typealias constants = GameLogic_Constants
     
@@ -89,6 +94,7 @@ class GameLogic {
         }
         else if pickedSquares.count == 1 && !pickedSquares.contains(square){
             if availableSquares.contains(square) || shortCastle || longCastle {
+                timer?.invalidate()
                 pickedSquares.append(square)
                 turns.append(Turn(squares: pickedSquares))
                 gameBoard.updateSquares(firstSquare: pickedSquares.first!, secondSquare: pickedSquares.second!)
@@ -101,6 +107,10 @@ class GameLogic {
                 }
                 if currentPlayer.longCastleAvailable || currentPlayer.shortCastleAvailable {
                     checkForCastle()
+                }
+                if timerEnabled, let index = players.firstIndex(where: {$0 == currentPlayer}) {
+                    players[index].timeLeft = timeLeft + additionalTime
+                    currentPlayer = players[index]
                 }
                 if !shortCastle && !longCastle {
                     currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
@@ -411,7 +421,7 @@ class GameLogic {
         checkingKingSquares = true
         check = false
         blockFromCheckSquares = checkForCheck(color: color)
-        if checkSquares.contains(where: {$0.figure?.name == .king}) {
+        if checkSquares.contains(where: {$0.figure?.name == .king && $0.figure?.color != color}) {
             check = true
             checkForEndGame()
         }
@@ -508,23 +518,34 @@ class GameLogic {
             if availableSquares.isEmpty {
                 gameEnded = true
                 winner = currentPlayer
-                if gameMode == .multiplayer {
-                    var points = (abs(players.first!.points - players.second!.points)) / players.first!.rank.factor
-                    if points < constants.minimumPointsForGame {
-                        points = constants.minimumPointsForGame
-                    }
-                    else if points > constants.maximumPointsForGame {
-                        points = constants.maximumPointsForGame
-                    }
-                    if winner != players.first! {
-                        points = -points
-                    }
-                    if let index = players.firstIndex(where: {$0.type == .player1}) {
-                        players[index].addPoints(points)
-                    }
-                }
+                calculatePoints()
             }
         }
+    }
+    
+    private func calculatePoints() {
+        if gameMode == .multiplayer {
+            var points = (abs(players.first!.points - players.second!.points)) / players.first!.rank.factor
+            if points < constants.minimumPointsForGame {
+                points = constants.minimumPointsForGame
+            }
+            else if points > constants.maximumPointsForGame {
+                points = constants.maximumPointsForGame
+            }
+            if winner != players.first! {
+                points = -points
+            }
+            if let index = players.firstIndex(where: {$0.type == .player1}) {
+                players[index].addPoints(points)
+            }
+        }
+    }
+    
+    func surender() {
+        timer?.invalidate()
+        gameEnded = true
+        winner = currentPlayer == players.first! ? players.second! : players.first!
+        calculatePoints()
     }
     
     private func checkForPat() {
@@ -541,6 +562,23 @@ class GameLogic {
             //just for proper UI update
             winner = currentPlayer
         }
+    }
+    
+    // MARK: - Chess time
+    
+    func activateTime(callback: @escaping (Int) -> Void) {
+        timeLeft = currentPlayer.timeLeft - constants.timerStep
+        callback(timeLeft)
+        timer = Timer.scheduledTimer(withTimeInterval: constants.timerDelay, repeats: true, block: {[weak self] _ in
+            if let self = self {
+                self.timeLeft -= constants.timerStep
+                if self.timeLeft == 0 {
+                    self.timer?.invalidate()
+                    self.surender()
+                }
+                callback(self.timeLeft)
+            }
+        })
     }
     
     // MARK: - Other
@@ -565,6 +603,12 @@ class GameLogic {
             return  (firstSquare, secondSquare)
         }
         return (nil, nil)
+    }
+    
+    func addCoinsToPlayer(coins: Int) {
+        if let index = players.firstIndex(of: players.first!) {
+            players[index].coins += coins
+        }
     }
     
 }
@@ -592,4 +636,6 @@ private struct GameLogic_Constants {
     static let rangeForCoins = 50...500
     static let minimumPointsForGame = 10
     static let maximumPointsForGame = 150
+    static let timerDelay = 1.0
+    static let timerStep = 1
 }

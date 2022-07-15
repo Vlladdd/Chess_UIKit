@@ -39,6 +39,7 @@ struct Player: Equatable {
     var longCastleAvailable = true
     let type: GamePlayers
     let figuresColor: GameColors
+    var timeLeft = 300
     
     // MARK: - Methods
     

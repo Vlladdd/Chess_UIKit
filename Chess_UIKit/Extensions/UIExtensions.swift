@@ -9,6 +9,16 @@ import UIKit
 
 // MARK: - Some usefull UI Extensions
 
+extension UIButton {
+    
+    func buttonWith(image: UIImage?, and function: Selector) {
+        translatesAutoresizingMaskIntoConstraints = false
+        addTarget(nil, action: function, for: .touchUpInside)
+        setBackgroundImage(image, for: .normal)
+    }
+    
+}
+
 extension UIStackView {
     
     func setup(axis: NSLayoutConstraint.Axis, alignment: UIStackView.Alignment, distribution: UIStackView.Distribution, spacing: CGFloat) {
@@ -17,6 +27,27 @@ extension UIStackView {
         self.distribution = distribution
         self.spacing = spacing
         self.axis = axis
+    }
+    
+    func defaultSettings() {
+        layer.borderWidth = Constants.borderWidth
+        layer.cornerRadius = Constants.cornerRadius
+        if traitCollection.userInterfaceStyle == .dark {
+            backgroundColor = Constants.darkModeBackgroundColor
+            layer.borderColor = Constants.darkModeBorderColor
+        } else {
+            backgroundColor = Constants.lightBackgroundColor
+            layer.borderColor = Constants.lightModeBorderColor
+        }
+    }
+    
+    private struct Constants {
+        static let cornerRadius: CGFloat = 10
+        static let borderWidth: CGFloat = 1
+        static let darkModeBackgroundColor = UIColor.black
+        static let lightBackgroundColor = UIColor.white
+        static let darkModeBorderColor = UIColor.white.cgColor
+        static let lightModeBorderColor = UIColor.black.cgColor
     }
     
 }

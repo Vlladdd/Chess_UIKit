@@ -49,6 +49,55 @@ class GameViewController: UIViewController {
         animateTransition(of: endOfTheGameView, startAlpha: endOfTheGameView.alpha)
     }
     
+    //shows/hides additional buttons
+    @objc func transitAdditonalButtons(_ sender: UIButton? = nil) {
+        animateTransition(of: additionalButtons, startAlpha: additionalButtons.alpha)
+        animateTransition(of: arrowToAdditionalButtons, startAlpha: arrowToAdditionalButtons.alpha)
+    }
+    
+    //locks scrolling of game view
+    @objc func lockGameView(_ sender: UIButton? = nil) {
+        let heightForAdditionalButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
+        let config = UIImage.SymbolConfiguration(pointSize: heightForAdditionalButtons, weight: .light, scale: .small)
+        scrollViewOfGame.isScrollEnabled.toggle()
+        if let sender = sender {
+            if sender.currentBackgroundImage == UIImage(systemName: "lock.open", withConfiguration: config) {
+                sender.setBackgroundImage(UIImage(systemName: "lock", withConfiguration: config), for: .normal)
+            }
+            else {
+                sender.setBackgroundImage(UIImage(systemName: "lock.open", withConfiguration: config), for: .normal)
+            }
+        }
+    }
+    
+    //lets player surender
+    @objc func surender(_ sender: UIButton? = nil) {
+        let surenderAlert = UIAlertController(title: "Surender", message: "Are you sure?", preferredStyle: .alert)
+        surenderAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
+            if let self = self {
+                sender?.isEnabled = false
+                self.gameLogic.surender()
+                self.makeEndOfTheGameView()
+            }
+        }))
+        surenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
+        present(surenderAlert, animated: true, completion: nil)
+    }
+    
+    //TODO: -
+    
+    //shows/hides turns view
+    @objc func transitTurnsView(_ sender: UIButton? = nil) {
+        
+    }
+    
+    //exits from game
+    @objc func exit(_ sender: UIButton? = nil) {
+        
+    }
+    
+    //
+    
     // MARK: - Local Methods
     
     private func updateSquare(figure: Figure?) {
@@ -82,6 +131,25 @@ class GameViewController: UIViewController {
             updateUI()
         }
         else if gameLogic.pickedSquares.count > 1 {
+            if gameLogic.timerEnabled && !gameLogic.gameEnded {
+                player1Timer.text = prodTimeString(gameLogic.players.first!.timeLeft)
+                player2Timer.text = prodTimeString(gameLogic.players.second!.timeLeft)
+                Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
+                    if let self = self {
+                        self.gameLogic.activateTime(callback: {time in
+                            if time == 0 {
+                                self.makeEndOfTheGameView()
+                            }
+                            if self.gameLogic.currentPlayer.type == .player1 {
+                                self.player1Timer.text = self.prodTimeString(time)
+                            }
+                            else {
+                                self.player2Timer.text = self.prodTimeString(time)
+                            }
+                        })
+                    }
+                })
+            }
             updateCurrentPlayer()
             if let turn = gameLogic.turns.last{
                 if gameLogic.pawnWizard {
@@ -99,9 +167,21 @@ class GameViewController: UIViewController {
         case .player1:
             player1FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
             player2FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
+            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                if let self = self {
+                    self.player1Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    self.player2Timer.layer.backgroundColor = constants.defaultPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                }
+            })
         case .player2:
             player1FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
             player2FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
+            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                if let self = self {
+                    self.player2Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    self.player1Timer.layer.backgroundColor = constants.defaultPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                }
+            })
         }
     }
     
@@ -335,7 +415,13 @@ class GameViewController: UIViewController {
     private let player2DestroyedFigures1 = UIStackView()
     private let player2DestroyedFigures2 = UIStackView()
     private let endOfTheGameView = UIImageView()
+    private let additionalButtons = UIStackView()
+    private let showEndOfTheGameView = UIButton()
+    //just a pointer to additional buttons
+    private let arrowToAdditionalButtons = UIImageView()
     
+    private var player1Timer = UILabel()
+    private var player2Timer = UILabel()
     private var squares = [UIImageView]()
     private var destroyedFigures1 = UIView()
     private var destroyedFigures2 = UIView()
@@ -359,6 +445,50 @@ class GameViewController: UIViewController {
     
     // MARK: - UI Methods
     
+    //makes button to show/hide additional buttons
+    private func makeAdditionalButton() {
+        arrowToAdditionalButtons.defaultSettings()
+        arrowToAdditionalButtons.layer.borderWidth = 0
+        arrowToAdditionalButtons.backgroundColor = constants.backgroundForArrow
+        arrowToAdditionalButtons.alpha = 0
+        arrowToAdditionalButtons.image = UIImage(systemName: "arrow.down", withConfiguration: constants.configurationForArrow)?.withTintColor(.black, renderingMode: .alwaysOriginal)
+        scrollContentOfGame.addSubview(arrowToAdditionalButtons)
+        let additionalButton = UIButton()
+        additionalButton.buttonWith(image: UIImage(systemName: "ellipsis"), and: #selector(transitAdditonalButtons))
+        if let stackWhereToAdd = gameBoard.arrangedSubviews.last {
+            if let stackWhereToAdd = stackWhereToAdd as? UIStackView {
+                if let viewWhereToAdd = stackWhereToAdd.arrangedSubviews.first {
+                    viewWhereToAdd.addSubview(additionalButton)
+                    let additionalButtonConstraints = [additionalButton.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor, multiplier: constants.multiplierForNumberView), additionalButton.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor, multiplier: constants.multiplierForNumberView), additionalButton.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), additionalButton.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.topAnchor.constraint(equalTo: viewWhereToAdd.bottomAnchor), arrowToAdditionalButtons.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor)]
+                    NSLayoutConstraint.activate(additionalButtonConstraints)
+                }
+            }
+        }
+    }
+    
+    private func makeAdditionalButtons() {
+        let heightForAdditionalButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
+        let configForAdditionalButtons = UIImage.SymbolConfiguration(pointSize: heightForAdditionalButtons, weight: constants.weightForAddionalButtons, scale: constants.scaleForAddionalButtons)
+        let surenderButton = UIButton()
+        surenderButton.buttonWith(image: UIImage(systemName: "flag.fill", withConfiguration: configForAdditionalButtons), and: #selector(surender))
+        let lockScrolling = UIButton()
+        lockScrolling.buttonWith(image: UIImage(systemName: "lock.open", withConfiguration: configForAdditionalButtons), and: #selector(lockGameView))
+        let turnsViewButton = UIButton()
+        turnsViewButton.buttonWith(image: UIImage(systemName: "backward", withConfiguration: configForAdditionalButtons), and: #selector(transitTurnsView))
+        let exitsButton = UIButton()
+        exitsButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right", withConfiguration: configForAdditionalButtons), and: #selector(exit))
+        showEndOfTheGameView.buttonWith(image: UIImage(systemName: "doc.text.magnifyingglass", withConfiguration: configForAdditionalButtons), and: #selector(transitEndOfTheGameView))
+        additionalButtons.alpha = 0
+        additionalButtons.addArrangedSubview(showEndOfTheGameView)
+        additionalButtons.addArrangedSubview(lockScrolling)
+        additionalButtons.addArrangedSubview(surenderButton)
+        additionalButtons.addArrangedSubview(turnsViewButton)
+        additionalButtons.addArrangedSubview(exitsButton)
+        scrollContentOfGame.addSubview(additionalButtons)
+        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), additionalButtons.leadingAnchor.constraint(equalTo: scrollContentOfGame.leadingAnchor, constant: constants.optimalDistance), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor), arrowToAdditionalButtons.bottomAnchor.constraint(equalTo: additionalButtons.topAnchor)]
+        NSLayoutConstraint.activate(additionalButtonsConstraints)
+    }
+    
     private func makeUI() {
         let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
         let heightForFrame = min(view.frame.width, view.frame.height)  / constants.heightDividerForFrame
@@ -373,21 +503,32 @@ class GameViewController: UIViewController {
         makePlayer1DestroyedFiguresView()
         makePlayer1Frame(width: widthForFrame, height: heightForFrame)
         makePlayer1Title(width: widthForFrame, height: heightForTitle)
+        makeAdditionalButton()
+        makeAdditionalButtons()
+        if gameLogic.timerEnabled {
+            makeTimers()
+        }
     }
     
     private func setupViews() {
+        showEndOfTheGameView.isEnabled = false
         pawnPicker.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         gameBoard.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player1DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player1DestroyedFigures2.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player2DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player2DestroyedFigures2.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
+        additionalButtons.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.spacingForPlayerData)
         endOfTheGameView.defaultSettings()
+        player1Timer = makeLabel(text: prodTimeString(gameLogic.players.first!.timeLeft))
+        player2Timer = makeLabel(text: prodTimeString(gameLogic.players.second!.timeLeft))
+        additionalButtons.defaultSettings()
     }
     
     private func makeScrollViewOfGame() {
         scrollContentOfGame.translatesAutoresizingMaskIntoConstraints = false
         scrollViewOfGame.translatesAutoresizingMaskIntoConstraints = false
+        scrollViewOfGame.delaysContentTouches = false
         view.addSubview(scrollViewOfGame)
         scrollViewOfGame.addSubview(scrollContentOfGame)
         let contentHeight = scrollContentOfGame.heightAnchor.constraint(equalTo: scrollViewOfGame.heightAnchor)
@@ -655,6 +796,7 @@ class GameViewController: UIViewController {
     }
     
     private func makeEndOfTheGameView() {
+        showEndOfTheGameView.isEnabled = true
         frameForEndOfTheGameView.defaultSettings()
         frameForEndOfTheGameView.image = UIImage(named: "frames/\(gameLogic.winner!.frame.rawValue)")
         let winnerBackground = UIImage(named: "backgrounds/\(gameLogic.winner!.playerBackground.rawValue)")?.alpha(constants.alphaForPlayerBackground)
@@ -663,6 +805,7 @@ class GameViewController: UIViewController {
         view.addSubview(frameForEndOfTheGameView)
         view.addSubview(endOfTheGameView)
         endOfTheGameScrollView.translatesAutoresizingMaskIntoConstraints = false
+        endOfTheGameScrollView.delaysContentTouches = false
         view.addSubview(endOfTheGameScrollView)
         endOfTheGameScrollView.addSubview(data)
         for view in [data, frameForEndOfTheGameView, endOfTheGameView, endOfTheGameScrollView] {
@@ -742,13 +885,11 @@ class GameViewController: UIViewController {
     
     private func makeEndOfTheGameData() -> UIImageView {
         let hideButton = UIButton()
-        hideButton.translatesAutoresizingMaskIntoConstraints = false
-        hideButton.addTarget(self, action: #selector(transitEndOfTheGameView), for: .touchUpInside)
-        hideButton.setBackgroundImage(UIImage(systemName: "eye.slash"), for: .normal)
+        hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(transitEndOfTheGameView))
         let data = UIImageView()
         data.defaultSettings()
         data.isUserInteractionEnabled = true
-        data.backgroundColor = data.backgroundColor?.withAlphaComponent(constants.alphaForEndData)
+        data.backgroundColor = data.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
         let playerBackground = UIImage(named: "backgrounds/\(gameLogic.players.first!.playerBackground.rawValue)")?.alpha(constants.alphaForPlayerBackground)
         let playerAvatar = UIImageView()
         playerAvatar.rectangleView(width: min(view.frame.width, view.frame.height) / constants.dividerForCurrentPlayerAvatar)
@@ -756,6 +897,7 @@ class GameViewController: UIViewController {
         let radius = min(view.frame.width, view.frame.height) / constants.dividerForWheelRadius
         let wheel = WheelOfFortune(figuresTheme: gameLogic.players.first!.figuresTheme, maximumCoins: gameLogic.maximumCoinsForWheel)
         wheel.translatesAutoresizingMaskIntoConstraints = false
+        gameLogic.addCoinsToPlayer(coins: wheel.winCoins)
         var titleText = "Congrats!"
         if gameLogic.draw {
             titleText = "What a game, but it is a draw!"
@@ -781,6 +923,31 @@ class GameViewController: UIViewController {
         return data
     }
     
+    //makes chess timers
+    private func makeTimers() {
+        player1Timer.layer.cornerRadius = constants.cornerRadiusForChessTime
+        player2Timer.layer.cornerRadius = constants.cornerRadiusForChessTime
+        player1Timer.layer.masksToBounds = true
+        player2Timer.layer.masksToBounds = true
+        player1Timer.font = UIFont.monospacedDigitSystemFont(ofSize: player1Timer.font.pointSize, weight: constants.weightForChessTime)
+        player2Timer.font = UIFont.monospacedDigitSystemFont(ofSize: player2Timer.font.pointSize, weight: constants.weightForChessTime)
+        scrollContentOfGame.addSubview(player1Timer)
+        scrollContentOfGame.addSubview(player2Timer)
+        let player1TimerConstaints = [player1Timer.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), player1Timer.trailingAnchor.constraint(equalTo: scrollContentOfGame.trailingAnchor, constant: -constants.optimalDistance)]
+        let player2TimerConstaints = [player2Timer.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.optimalDistance), player2Timer.trailingAnchor.constraint(equalTo: scrollContentOfGame.trailingAnchor, constant: -constants.optimalDistance)]
+        NSLayoutConstraint.activate(player1TimerConstaints + player2TimerConstaints)
+        if gameLogic.gameMode == .oneScreen {
+            player2Timer.transform = player2Timer.transform.rotated(by: .pi)
+        }
+    }
+    
+    //converts timer time into human readable string
+    private func prodTimeString(_ time: Int) -> String {
+        let prodMinutes = time / 60 % 60
+        let prodSeconds = time % 60
+        return String(format: "%02d:%02d", prodMinutes, prodSeconds)
+    }
+    
 }
 
 private struct GameVC_Constants {
@@ -790,7 +957,7 @@ private struct GameVC_Constants {
     static let multiplierForBackground: CGFloat = 0.5
     static let alphaForTrashBackground: CGFloat = 1
     static let alphaForPlayerBackground: CGFloat = 0.5
-    static let alphaForEndData: CGFloat = 0.7
+    static let optimalAlpha: CGFloat = 0.7
     static let distanceForFigureInTrash: CGFloat = 3
     static let multiplierForNumberView: CGFloat = 0.6
     static let optimalDistance: CGFloat = 20
@@ -817,6 +984,12 @@ private struct GameVC_Constants {
     static let dividerForButton = 6.0
     static let distanceAfterWheel: CGFloat = 80
     static let backgroundColorForProgressBar = UIColor.white
+    static let backgroundForArrow = UIColor.clear
+    static let configurationForArrow = UIImage.SymbolConfiguration(weight: .heavy)
+    static let weightForAddionalButtons = UIImage.SymbolWeight.light
+    static let scaleForAddionalButtons = UIImage.SymbolScale.small
+    static let cornerRadiusForChessTime = 7.0
+    static let weightForChessTime = UIFont.Weight.regular
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

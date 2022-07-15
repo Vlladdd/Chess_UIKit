@@ -16,10 +16,12 @@ class WheelOfFortune: UIView {
     
     private var segmentsData = [SegmentData]()
     private var figuresTheme: FiguresThemes!
-    
-    private(set) var coinsText = UILabel()
-    private let figureView = UIImageView()
     private var maximumCoins: Int!
+    
+    private let coinsText = UILabel()
+    private let figureView = UIImageView()
+    
+    private(set) var winCoins = 0
     
     // MARK: - Inits
     
@@ -91,6 +93,7 @@ class WheelOfFortune: UIView {
         //this is used on last circle to slow even more
         var additionalSpeed = avgSpeed
         let winnerSegment = segmentsData[winnerIndex]
+        winCoins = winnerSegment.coinsPrize
         //we want to stop somewhere on the winner segment
         let angleModifier = Double.random(in: constants.minimumAngleModifier...constants.minimumAngleModifier + winnerSegment.angle)
         while spinsCount > 0 {
