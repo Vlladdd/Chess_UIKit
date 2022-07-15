@@ -51,8 +51,15 @@ class GameViewController: UIViewController {
     
     //shows/hides additional buttons
     @objc func transitAdditonalButtons(_ sender: UIButton? = nil) {
-        animateTransition(of: additionalButtons, startAlpha: additionalButtons.alpha)
-        animateTransition(of: arrowToAdditionalButtons, startAlpha: arrowToAdditionalButtons.alpha)
+        animateAdditionalButtons()
+        if let sender = sender {
+            if sender.currentBackgroundImage == UIImage(systemName: "arrowtriangle.up.fill") {
+                sender.setBackgroundImage(UIImage(systemName: "arrowtriangle.down.fill"), for: .normal)
+            }
+            else {
+                sender.setBackgroundImage(UIImage(systemName: "arrowtriangle.up.fill"), for: .normal)
+            }
+        }
     }
     
     //locks scrolling of game view
@@ -309,6 +316,7 @@ class GameViewController: UIViewController {
             horizontalStackView.bringSubviewToFront(figureView)
         }
         figureView.bringSubviewToFront(figureView.subviews.first!)
+        scrollContentOfGame.bringSubviewToFront(additionalButtons)
     }
     
     private func getFrameForAnimation(firstView: UIView, secondView: UIView) -> CGRect {
@@ -451,15 +459,19 @@ class GameViewController: UIViewController {
         arrowToAdditionalButtons.layer.borderWidth = 0
         arrowToAdditionalButtons.backgroundColor = constants.backgroundForArrow
         arrowToAdditionalButtons.alpha = 0
-        arrowToAdditionalButtons.image = UIImage(systemName: "arrow.down", withConfiguration: constants.configurationForArrow)?.withTintColor(.black, renderingMode: .alwaysOriginal)
+        arrowToAdditionalButtons.contentMode = .scaleAspectFit
+        let figuresThemeName = gameLogic.players.first!.figuresTheme.rawValue
+        let figureColor = traitCollection.userInterfaceStyle == .dark ? GameColors.black.rawValue : GameColors.white.rawValue
+        let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figureColor)_pawn")
+        arrowToAdditionalButtons.image = figureImage
         scrollContentOfGame.addSubview(arrowToAdditionalButtons)
         let additionalButton = UIButton()
-        additionalButton.buttonWith(image: UIImage(systemName: "ellipsis"), and: #selector(transitAdditonalButtons))
+        additionalButton.buttonWith(image: UIImage(systemName: "arrowtriangle.down.fill"), and: #selector(transitAdditonalButtons))
         if let stackWhereToAdd = gameBoard.arrangedSubviews.last {
             if let stackWhereToAdd = stackWhereToAdd as? UIStackView {
                 if let viewWhereToAdd = stackWhereToAdd.arrangedSubviews.first {
                     viewWhereToAdd.addSubview(additionalButton)
-                    let additionalButtonConstraints = [additionalButton.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor, multiplier: constants.multiplierForNumberView), additionalButton.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor, multiplier: constants.multiplierForNumberView), additionalButton.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), additionalButton.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.topAnchor.constraint(equalTo: viewWhereToAdd.bottomAnchor), arrowToAdditionalButtons.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor)]
+                    let additionalButtonConstraints = [additionalButton.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor, multiplier: constants.multiplierForNumberView), additionalButton.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor, multiplier: constants.multiplierForNumberView), additionalButton.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), additionalButton.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.topAnchor.constraint(equalTo: viewWhereToAdd.bottomAnchor), arrowToAdditionalButtons.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), arrowToAdditionalButtons.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor), arrowToAdditionalButtons.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor)]
                     NSLayoutConstraint.activate(additionalButtonConstraints)
                 }
             }
@@ -485,7 +497,7 @@ class GameViewController: UIViewController {
         additionalButtons.addArrangedSubview(turnsViewButton)
         additionalButtons.addArrangedSubview(exitsButton)
         scrollContentOfGame.addSubview(additionalButtons)
-        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), additionalButtons.leadingAnchor.constraint(equalTo: scrollContentOfGame.leadingAnchor, constant: constants.optimalDistance), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor), arrowToAdditionalButtons.bottomAnchor.constraint(equalTo: additionalButtons.topAnchor)]
+        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: arrowToAdditionalButtons.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: scrollContentOfGame.leadingAnchor, constant: constants.optimalDistance), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor)]
         NSLayoutConstraint.activate(additionalButtonsConstraints)
     }
     
@@ -829,6 +841,49 @@ class GameViewController: UIViewController {
         })
     }
     
+    //shows/hides additional buttons with animation
+    private func animateAdditionalButtons() {
+        let arrowBounds = arrowToAdditionalButtons.bounds
+        let additionalButtonsBounds = additionalButtons.bounds
+        let centerYOfArrow = arrowToAdditionalButtons.center.y
+        let centerYOfAdditionalButtons = additionalButtons.center.y
+        if additionalButtons.alpha == 0 {
+            //curtain animation
+            additionalButtons.transform = constants.transformForAdditionalButtons
+            arrowToAdditionalButtons.transform = constants.transformForAdditionalButtons
+            //as i realized, we can`t rotate and translate view at the same time, cuz weird
+            //animation occurs, so i decided to make it in this way (change center and then
+            //comeback to original value in animation block), which leads to beautiful
+            //animation (now it really looks like the additional buttons are pop out from button
+            //or enters the button, which shows/hides them), exactly as i wanted to :)
+            arrowToAdditionalButtons.center.y = centerYOfArrow - arrowBounds.maxY
+            additionalButtons.center.y = centerYOfAdditionalButtons - additionalButtonsBounds.maxY
+            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                self?.arrowToAdditionalButtons.transform = .identity.rotated(by: .pi)
+                self?.additionalButtons.transform = .identity
+                self?.additionalButtons.alpha = 1
+                self?.arrowToAdditionalButtons.alpha = 1
+                self?.arrowToAdditionalButtons.center.y = centerYOfArrow
+                self?.additionalButtons.center.y = centerYOfAdditionalButtons
+            })
+        }
+        else {
+            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                self?.additionalButtons.transform = constants.transformForAdditionalButtons
+                self?.arrowToAdditionalButtons.transform = constants.transformForAdditionalButtons
+                self?.arrowToAdditionalButtons.center.y = centerYOfArrow - arrowBounds.maxY
+                self?.additionalButtons.center.y = centerYOfAdditionalButtons - additionalButtonsBounds.maxY
+            }) {[weak self] _ in
+                self?.additionalButtons.transform = .identity
+                self?.arrowToAdditionalButtons.transform = .identity
+                self?.arrowToAdditionalButtons.alpha = 0
+                self?.additionalButtons.alpha = 0
+                self?.arrowToAdditionalButtons.center.y = centerYOfArrow
+                self?.additionalButtons.center.y = centerYOfAdditionalButtons
+            }
+        }
+    }
+    
     private func makeInfoStack() -> UIStackView {
         //just for animation
         let startPoints = gameLogic.players.first!.points - gameLogic.players.first!.pointsForGame
@@ -990,6 +1045,7 @@ private struct GameVC_Constants {
     static let scaleForAddionalButtons = UIImage.SymbolScale.small
     static let cornerRadiusForChessTime = 7.0
     static let weightForChessTime = UIFont.Weight.regular
+    static let transformForAdditionalButtons = CGAffineTransform(scaleX: 1,y: 0.1)
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {
