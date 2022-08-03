@@ -16,29 +16,49 @@ class GameViewController: UIViewController {
         super.viewDidLoad()
         makeUI()
         updateUI()
-        updateCurrentPlayer()
+        NotificationCenter.default.addObserver(self, selector: #selector(rotated), name: UIDevice.orientationDidChangeNotification, object: nil)
+    }
+    
+    //puts gameBoard in center of the screen after device rotation
+    @objc func rotated() {
+        scrollGameViewToCenter()
     }
     
     // MARK: - Properties
     
+    //used in playback of the turns and also to have ability to stop it
+    private var turnsActionTimers: [Timer] = []
     private let gameLogic = GameLogic()
+    private var backwardRewind = false
+    private var forwardRewind = false
+    //we are storing all animations to have ability to finish them all at once
+    private var animations: [UIViewPropertyAnimator] = []
+    //animation of moving the figure to trash
+    //we are not storing it in animations, cuz we cancel it only, before start new one
+    private var trashAnimation: UIViewPropertyAnimator?
     
     private typealias constants = GameVC_Constants
     
     // MARK: - User Initiated Methods
     
-    @objc func makeTurn(_ sender: UITapGestureRecognizer? = nil) {
+    @objc func chooseSquare(_ sender: UITapGestureRecognizer? = nil) {
         if let square = sender?.view?.layer.value(forKey: constants.keyNameForSquare) as? Square {
             gameLogic.makeTurn(square: square)
-            updateUI()
+            updateBoard()
         }
     }
     
     //when pawn reached last row
     @objc func replacePawn(_ sender: UITapGestureRecognizer? = nil) {
-        if let square = sender?.view?.layer.value(forKey: constants.keyNameForSquare) as? Square {
+        if let square = sender?.view?.layer.value(forKey: constants.keyNameForSquare) as? Square, let figure = square.figure {
             gameLogic.makeTurn(square: square)
-            updateSquare(figure: square.figure)
+            finishAnimations()
+            if let turn = gameLogic.currentTurn, let square = turn.squares.last {
+                updateSquare(square, figure: figure)
+            }
+            activatePlayerTime()
+            turnBackward.isEnabled = gameLogic.rewindEnabled
+            turns.isUserInteractionEnabled = gameLogic.rewindEnabled
         }
     }
     
@@ -47,6 +67,12 @@ class GameViewController: UIViewController {
         animateTransition(of: frameForEndOfTheGameView, startAlpha: frameForEndOfTheGameView.alpha)
         animateTransition(of: endOfTheGameScrollView, startAlpha: endOfTheGameScrollView.alpha)
         animateTransition(of: endOfTheGameView, startAlpha: endOfTheGameView.alpha)
+    }
+    
+    //shows/hides player timers
+    @objc func transitTimers(_ sender: UIButton? = nil) {
+        animateTransition(of: player1Timer, startAlpha: player1Timer.alpha)
+        animateTransition(of: player2Timer, startAlpha: player2Timer.alpha)
     }
     
     //shows/hides additional buttons
@@ -77,26 +103,44 @@ class GameViewController: UIViewController {
         }
     }
     
+    //TODO: - Draw for multiplayer
+    
     //lets player surender
     @objc func surender(_ sender: UIButton? = nil) {
-        let surenderAlert = UIAlertController(title: "Surender", message: "Are you sure?", preferredStyle: .alert)
-        surenderAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
+        let surenderAlert = UIAlertController(title: "Surender/Draw", message: "Do you want to surender or draw?", preferredStyle: .alert)
+        surenderAlert.addAction(UIAlertAction(title: "Surender", style: .default, handler: { [weak self] _ in
             if let self = self {
                 sender?.isEnabled = false
                 self.gameLogic.surender()
                 self.makeEndOfTheGameView()
             }
         }))
+        surenderAlert.addAction(UIAlertAction(title: "Draw", style: .default, handler: { [weak self] _ in
+            if let self = self {
+                sender?.isEnabled = false
+                if self.gameLogic.gameMode == .oneScreen {
+                    self.gameLogic.forceDraw()
+                    self.makeEndOfTheGameView()
+                }
+            }
+        }))
         surenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
         present(surenderAlert, animated: true, completion: nil)
     }
     
-    //TODO: -
+    //
     
     //shows/hides turns view
     @objc func transitTurnsView(_ sender: UIButton? = nil) {
-        
+        animateTurnsView()
+        //we bring back timers after closing turns view
+        if player1Timer.alpha == 0 {
+            animateTransition(of: player1Timer)
+            animateTransition(of: player2Timer)
+        }
     }
+    
+    //TODO: -
     
     //exits from game
     @objc func exit(_ sender: UIButton? = nil) {
@@ -105,66 +149,406 @@ class GameViewController: UIViewController {
     
     //
     
+    //moves game back
+    @objc func turnsBackward(_ sender: UIButton? = nil) {
+        turnsSingleAction(forward: false)
+    }
+    
+    //moves game forward
+    @objc func turnsForward(_ sender: UIButton? = nil) {
+        turnsSingleAction(forward: true)
+    }
+    
+    //stops/activates game playback
+    @objc func turnsAction(_ sender: UIButton? = nil) {
+        if turnsActionTimers.isEmpty {
+            turns.isUserInteractionEnabled = false
+            turnBackward.isEnabled = false
+            turnForward.isEnabled = false
+            sender?.setBackgroundImage(UIImage(systemName: "stop"), for: .normal)
+            moveTurns(to: gameLogic.turns.last!)
+        }
+        else {
+            turns.isUserInteractionEnabled = true
+            turnBackward.isEnabled = !gameLogic.firstTurn
+            turnForward.isEnabled = !gameLogic.lastTurn
+            sender?.setBackgroundImage(UIImage(systemName: "play"), for: .normal)
+            stopTurnsPlayback()
+        }
+    }
+    
+    //moves game to chosen turn
+    @objc func moveToTurn(_ sender: UITapGestureRecognizer? = nil) {
+        turns.isUserInteractionEnabled = false
+        turnAction.isEnabled = true
+        turnAction.setBackgroundImage(UIImage(systemName: "stop"), for: .normal)
+        stopTurnsPlayback()
+        if let turn = sender?.view?.layer.value(forKey: constants.keyNameForTurn) as? Turn {
+            moveTurns(to: turn)
+        }
+    }
+    
     // MARK: - Local Methods
     
-    private func updateSquare(figure: Figure?) {
-        if let turn = gameLogic.turns.last, let square = turn.squares.last, let figure = figure {
-            if let squareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == square}) {
-                var square = squareView.layer.value(forKey: constants.keyNameForSquare) as? Square
-                square?.figure = figure
-                squareView.layer.setValue(square, forKey: constants.keyNameForSquare)
-                for subview in squareView.subviews {
-                    subview.removeFromSuperview()
+    private func scrollGameViewToCenter() {
+        let minContentSize = min(scrollViewOfGame.contentSize.width, scrollViewOfGame.contentSize.height)
+        let minBoundsSize = min(scrollViewOfGame.bounds.size.width, scrollViewOfGame.bounds.size.height)
+        let y = minContentSize / 2 - minBoundsSize / 2
+        let offset = CGPoint(x: 0, y: y)
+        scrollViewOfGame.setContentOffset(offset, animated: true)
+    }
+    
+    private func stopTurnsPlayback() {
+        for timer in turnsActionTimers {
+            timer.invalidate()
+        }
+        turnsActionTimers = []
+    }
+    
+    private func finishAnimations() {
+        for animation in animations {
+            animation.stopAnimation(false)
+            animation.finishAnimation(at: .end)
+        }
+        animations = []
+    }
+    
+    private func activatePlayerTime() {
+        if gameLogic.timerEnabled && !gameLogic.gameEnded && !gameLogic.pawnWizard {
+            player1Timer.text = prodTimeString(gameLogic.players.first!.timeLeft)
+            player2Timer.text = prodTimeString(gameLogic.players.second!.timeLeft)
+            Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
+                if let self = self {
+                    self.gameLogic.activateTime(callback: {time in
+                        if time == 0 {
+                            self.makeEndOfTheGameView()
+                        }
+                        if self.gameLogic.currentPlayer.type == .player1 {
+                            self.player1Timer.text = self.prodTimeString(time)
+                            if self.gameLogic.timeLeft < constants.dangerTimeleft {
+                                let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                                    self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                                })
+                                self.animations.append(animation)
+                            }
+                        }
+                        else {
+                            self.player2Timer.text = self.prodTimeString(time)
+                            if self.gameLogic.timeLeft < constants.dangerTimeleft {
+                                let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                                    self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                                })
+                                self.animations.append(animation)
+                            }
+                        }
+                    })
                 }
-                let themeName = gameLogic.currentPlayer.figuresTheme.rawValue
-                let figureImage = UIImage(named: "figuresThemes/\(themeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
-                let figureView = getSquareView(image: figureImage)
-                squareView.addSubview(figureView)
-                let figureViewConstraints = [figureView.centerXAnchor.constraint(equalTo: squareView.centerXAnchor), figureView.centerYAnchor.constraint(equalTo: squareView.centerYAnchor)]
-                NSLayoutConstraint.activate(figureViewConstraints)
-                pawnPicker.removeFromSuperview()
+            })
+        }
+    }
+    
+    private func turnsSingleAction(forward: Bool) {
+        stopTurnsPlayback()
+        moveTurn(forward: forward)
+        turnBackward.isEnabled = !gameLogic.firstTurn
+        turnForward.isEnabled = !gameLogic.lastTurn
+        turnAction.isEnabled = !gameLogic.lastTurn
+    }
+    
+    private func moveTurn(forward: Bool) {
+        finishAnimations()
+        forward == true ? forwardRewind.toggle() : backwardRewind.toggle()
+        let turn = forward == true ? gameLogic.forward() : gameLogic.backward()
+        if let turn = turn {
+            if gameLogic.shortCastle || gameLogic.longCastle {
+                animateTurn(turn)
+                if let castleTurn = forward == true ? gameLogic.currentTurn : gameLogic.backward(){
+                    animateTurn(castleTurn)
+                }
+                gameLogic.resetCastle()
             }
+            else {
+                animateTurn(turn)
+            }
+            player1Timer.text = prodTimeString(gameLogic.players.first!.timeLeft)
+            player2Timer.text = prodTimeString(gameLogic.players.second!.timeLeft)
+        }
+        updateUI(animateSquares: true)
+        forward == true ? forwardRewind.toggle() : backwardRewind.toggle()
+    }
+    
+    //used to move figures from trash back to the game
+    private func coordinatesToMoveFigureFrom(firstView: UIView, to secondView: UIView) -> (x: CGFloat, y: CGFloat) {
+        destroyedFigures1.layoutIfNeeded()
+        destroyedFigures2.layoutIfNeeded()
+        let frame = getFrameForAnimation(firstView: firstView, secondView: secondView)
+        let x = frame.minX - secondView.bounds.minX
+        let y = frame.maxY - secondView.bounds.maxY
+        return (x,y)
+    }
+    
+    //moves game to chosen turn
+    private func moveTurns(to turn: Turn) {
+        scrollGameViewToCenter()
+        finishAnimations()
+        var delay = constants.animationDuration
+        let turnsInfo = gameLogic.turnsLeft(to: turn)
+        let turnsLeft = turnsInfo.count
+        let forward = turnsInfo.forward
+        if turnsLeft > 0 {
+            for i in 0..<turnsLeft {
+                let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
+                    if let self = self {
+                        self.moveTurn(forward: forward)
+                        if i == turnsLeft - 1{
+                            self.turnAction.setBackgroundImage(UIImage(systemName: "play"), for: .normal)
+                            self.turnBackward.isEnabled = !self.gameLogic.firstTurn
+                            self.turnForward.isEnabled = !self.gameLogic.lastTurn
+                            self.turnAction.isEnabled = !self.gameLogic.lastTurn
+                            self.turns.isUserInteractionEnabled = true
+                            self.turnsActionTimers = []
+                        }
+                    }
+                })
+                RunLoop.main.add(timer, forMode: .common)
+                turnsActionTimers.append(timer)
+                delay += constants.animationDuration
+            }
+        }
+    }
+    
+    //changes figure on square; used when transforming pawn
+    private func updateSquare(_ square: Square, figure: Figure) {
+        if let squareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == square}) {
+            var square = squareView.layer.value(forKey: constants.keyNameForSquare) as? Square
+            square?.figure = figure
+            squareView.layer.setValue(square, forKey: constants.keyNameForSquare)
+            //when we have forward rewind and pawn is about to eat a figure,
+            //we will have 2 figures at that time, when we will transform pawn
+            //P.S. first subview is a border
+            if squareView.subviews.count == 3 {
+                squareView.subviews.third!.removeFromSuperview()
+            }
+            else if squareView.subviews.count == 2 {
+                squareView.subviews.second!.removeFromSuperview()
+            }
+            let themeName = gameLogic.currentPlayer.figuresTheme.rawValue
+            let figureImage = UIImage(named: "figuresThemes/\(themeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
+            let figureView = getSquareView(image: figureImage).subviews.second!
+            figureView.layer.borderWidth = 0
+            squareView.addSubview(figureView)
+            let figureViewConstraints = [figureView.centerXAnchor.constraint(equalTo: squareView.centerXAnchor), figureView.centerYAnchor.constraint(equalTo: squareView.centerYAnchor)]
+            NSLayoutConstraint.activate(figureViewConstraints)
+            for subview in pawnPicker.arrangedSubviews {
+                subview.removeFromSuperview()
+            }
+            pawnPicker.removeFromSuperview()
         }
         updateUI()
     }
     
-    //updates Ui after player turn
-    private func updateUI() {
-        updateSquares()
+    //updates Ui
+    private func updateUI(animateSquares: Bool = false) {
+        updateSquares(animate: animateSquares)
+        updateCurrentPlayer()
+        updateCurrentTurn()
+    }
+    
+    //updates game board
+    private func updateBoard() {
+        if gameLogic.pickedSquares.count > 1 {
+            finishAnimations()
+        }
         if gameLogic.shortCastle || gameLogic.longCastle {
             animateTurn(gameLogic.turns.beforeLast!)
             animateTurn(gameLogic.turns.last!)
+            addTurnToUI(gameLogic.turns.last!)
             gameLogic.resetCastle()
+            activatePlayerTime()
             updateUI()
         }
         else if gameLogic.pickedSquares.count > 1 {
-            if gameLogic.timerEnabled && !gameLogic.gameEnded {
-                player1Timer.text = prodTimeString(gameLogic.players.first!.timeLeft)
-                player2Timer.text = prodTimeString(gameLogic.players.second!.timeLeft)
-                Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
-                    if let self = self {
-                        self.gameLogic.activateTime(callback: {time in
-                            if time == 0 {
-                                self.makeEndOfTheGameView()
-                            }
-                            if self.gameLogic.currentPlayer.type == .player1 {
-                                self.player1Timer.text = self.prodTimeString(time)
-                            }
-                            else {
-                                self.player2Timer.text = self.prodTimeString(time)
-                            }
-                        })
-                    }
-                })
-            }
-            updateCurrentPlayer()
+            activatePlayerTime()
             if let turn = gameLogic.turns.last{
                 if gameLogic.pawnWizard {
-                    if let square = turn.squares.first, let figure = square.figure {
-                        showPawnPicker(square: square, figureColor: figure.color)
+                    turnBackward.isEnabled = false
+                    turns.isUserInteractionEnabled = false
+                    if let figure = turn.squares.first!.figure {
+                        showPawnPicker(square: turn.squares.second!, figureColor: figure.color)
                     }
                 }
+                else if !gameLogic.gameEnded {
+                    turnBackward.isEnabled = gameLogic.rewindEnabled
+                }
                 animateTurn(turn)
+                turnForward.isEnabled = false
+                addTurnToUI(turn)
+                updateUI(animateSquares: true)
+            }
+        }
+        else {
+            updateSquares()
+        }
+    }
+    
+    private func addTurnToUI(_ turn: Turn) {
+        deleteTurnsIfGameChanged()
+        let thisTurnData = UIStackView()
+        thisTurnData.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+        thisTurnData.defaultSettings()
+        thisTurnData.backgroundColor = thisTurnData.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
+        var firstFigureView: UIImageView?
+        var secondFigureView: UIImageView?
+        let firstFigure = turn.squares.first?.figure
+        if let firstFigure = firstFigure {
+            firstFigureView = makeFigureView(with: firstFigure.color.rawValue, and: firstFigure.name.rawValue)
+            //we are adding castle as one turn
+            if gameLogic.shortCastle || gameLogic.longCastle {
+                let kingView = makeFigureView(with: firstFigure.color.rawValue, and: Figures.king.rawValue)
+                thisTurnData.addArrangedSubview(kingView)
+            }
+        }
+        let secondFigure = turn.squares.second?.figure == nil ? turn.pawnSquare?.figure : turn.squares.second?.figure
+        if let secondFigure = secondFigure {
+            secondFigureView = makeFigureView(with: secondFigure.color.rawValue, and: secondFigure.name.rawValue)
+        }
+        let turnLabel = makeTurnLabel(from: turn)
+        if let firstFigureView = firstFigureView {
+            thisTurnData.addArrangedSubview(firstFigureView)
+        }
+        thisTurnData.layer.setValue(turn, forKey: constants.keyNameForTurn)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.moveToTurn(_:)))
+        thisTurnData.addGestureRecognizer(tap)
+        thisTurnData.addArrangedSubview(turnLabel)
+        if let secondFigureView = secondFigureView {
+            thisTurnData.addArrangedSubview(secondFigureView)
+        }
+        if turnData.arrangedSubviews.isEmpty {
+            turnData.addArrangedSubview(thisTurnData)
+            //spacer is used to make stacks same size no matter if they contain 1 or 2 turns
+            let spacerView = UIView()
+            turnData.addArrangedSubview(spacerView)
+            turns.addArrangedSubview(turnData)
+            animateTransition(of: thisTurnData)
+        }
+        else if turnData.arrangedSubviews.count == 2 {
+            //removes spacer before adding second turn
+            turnData.arrangedSubviews.last!.removeFromSuperview()
+            turnData.addArrangedSubview(thisTurnData)
+            animateTransition(of: thisTurnData)
+            let newTurnData = UIStackView()
+            newTurnData.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+            turnData = newTurnData
+        }
+    }
+    
+    private func makeTurnLabel(from turn: Turn) -> UILabel {
+        var firstSqureText = turn.squares.first!.column.rawValue + String(turn.squares.first!.row)
+        var secondSqureText = turn.squares.second!.column.rawValue + String(turn.squares.second!.row)
+        if gameLogic.shortCastle || gameLogic.longCastle {
+            if gameLogic.shortCastle {
+                firstSqureText = constants.shortCastleNotation
+            }
+            else {
+                firstSqureText = constants.longCastleNotation
+            }
+            secondSqureText = ""
+        }
+        if gameLogic.gameEnded {
+            secondSqureText += constants.checkmateNotation
+        }
+        else if gameLogic.check {
+            secondSqureText += constants.checkNotation
+        }
+        if turn.squares.second?.figure != nil || turn.pawnSquare != nil {
+            firstSqureText += constants.figureEatenNotation
+        }
+        let turnText = firstSqureText.lowercased() + secondSqureText.lowercased()
+        let turnLabel = makeLabel(text: turnText)
+        turnLabel.adjustsFontSizeToFitWidth = true
+        return turnLabel
+    }
+    
+    private func makeFigureView(with figureColor: String, and figureName: String) -> UIImageView {
+        let figuresThemeName = gameLogic.players.first!.figuresTheme.rawValue
+        let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figureColor)_\(figureName)")
+        let figureImageView = getSquareView(image: figureImage)
+        figureImageView.subviews.first!.layer.borderWidth = 0
+        return figureImageView
+    }
+    
+    //when player changed game, we need to update turns UI
+    private func deleteTurnsIfGameChanged() {
+        var changeData = false
+        for turnsStack in turns.arrangedSubviews {
+            if let turnsStack = turnsStack as? UIStackView {
+                for turn in turnsStack.arrangedSubviews {
+                    if let turnData = turn.layer.value(forKey: constants.keyNameForTurn) as? Turn {
+                        if !gameLogic.turns.contains(turnData) {
+                            changeData = true
+                            turn.removeFromSuperview()
+                            if turnsStack.arrangedSubviews.isEmpty {
+                                turnsStack.removeFromSuperview()
+                            }
+                            if turnsStack.arrangedSubviews.count == 1 {
+                                if turnsStack.arrangedSubviews.first!.layer.value(forKey: constants.keyNameForTurn) as? Turn == nil {
+                                    turnsStack.removeFromSuperview()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if changeData {
+            if let turnsStack = turns.arrangedSubviews.last as? UIStackView {
+                if turnsStack.arrangedSubviews.count == 1 {
+                    turnData = turnsStack
+                    let spacer = UIView()
+                    turnData.addArrangedSubview(spacer)
+                }
+                else {
+                    let newTurnData = UIStackView()
+                    newTurnData.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+                    turnData = newTurnData
+                }
+            }
+        }
+    }
+    
+    //highlights current turn
+    private func updateCurrentTurn() {
+        for turnsStack in turns.arrangedSubviews {
+            if let turnsStack = turnsStack as? UIStackView {
+                for turn in turnsStack.arrangedSubviews {
+                    if let turnData = turn.layer.value(forKey: constants.keyNameForTurn) as? Turn {
+                        if turnData == gameLogic.currentTurn {
+                            let newColor = constants.convertLogicColor(gameLogic.players.first!.squaresTheme.turnColor).withAlphaComponent(constants.optimalAlpha)
+                            let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                                turn.backgroundColor = newColor
+                            })
+                            animations.append(animation)
+                            //scrolls turns to current turn
+                            if let index = turns.arrangedSubviews.firstIndex(of: turnsStack) {
+                                turnsView.layoutIfNeeded()
+                                let condition1 = backwardRewind ? turnsScrollView.contentSize.height / CGFloat(turns.arrangedSubviews.count) : 0.0
+                                //index + 1 cuz we start from 0
+                                let condition2 = turnsScrollView.contentSize.height / CGFloat(turns.arrangedSubviews.count) * CGFloat(index + 1) + turnsButtons.bounds.size.height
+                                if condition2 > turnsView.bounds.size.height - condition1 {
+                                    let bottomOffset = CGPoint(x: 0, y: condition2 - turnsView.bounds.size.height)
+                                    turnsScrollView.setContentOffset(bottomOffset, animated: true)
+                                }
+                            }
+                        }
+                        else {
+                            let newColor = constants.defaultPlayerDataColor.withAlphaComponent(constants.optimalAlpha)
+                            let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                                turn.backgroundColor = newColor
+                            })
+                            animations.append(animation)
+                        }
+                    }
+                }
             }
         }
     }
@@ -174,21 +558,33 @@ class GameViewController: UIViewController {
         case .player1:
             player1FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
             player2FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
-            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+            let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {[weak self] in
                 if let self = self {
-                    self.player1Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    if self.gameLogic.players.first!.timeLeft > constants.dangerTimeleft {
+                        self.player1Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    }
+                    else {
+                        self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    }
                     self.player2Timer.layer.backgroundColor = constants.defaultPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
                 }
             })
+            animations.append(animation)
         case .player2:
             player1FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
             player2FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
-            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+            let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {[weak self] in
                 if let self = self {
-                    self.player2Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    if self.gameLogic.players.second!.timeLeft > constants.dangerTimeleft {
+                        self.player2Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    }
+                    else {
+                        self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
+                    }
                     self.player1Timer.layer.backgroundColor = constants.defaultPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
                 }
             })
+            animations.append(animation)
         }
     }
     
@@ -200,27 +596,34 @@ class GameViewController: UIViewController {
             pawnPicker.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.firstColor)
         }
         var pawnPickerConstraints: [NSLayoutConstraint] = []
-        if figureColor == .white {
+        if gameLogic.currentPlayer.type == .player1 {
+            if gameLogic.gameMode == .oneScreen {
+                pawnPicker.transform = .identity
+            }
             pawnPickerConstraints = [pawnPicker.topAnchor.constraint(equalTo: gameBoard.bottomAnchor), pawnPicker.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
         }
         else {
+            if gameLogic.gameMode == .oneScreen {
+                pawnPicker.transform = pawnPicker.transform.rotated(by: .pi)
+            }
             pawnPickerConstraints = [pawnPicker.bottomAnchor.constraint(equalTo: gameBoard.topAnchor), pawnPicker.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
         }
         NSLayoutConstraint.activate(pawnPickerConstraints)
     }
     
-    private func updateSquares() {
+    private func updateSquares(animate: Bool = false) {
         for view in squares {
             if let square = view.layer.value(forKey: constants.keyNameForSquare) as? Square {
-                if let turn = gameLogic.turns.last, turn.squares.contains(square) {
-                    view.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.turnColor)
+                var newColor: UIColor?
+                if let currentTurn = gameLogic.currentTurn, currentTurn.squares.contains(square) {
+                    newColor = constants.convertLogicColor(gameLogic.squaresTheme.turnColor)
                 }
                 else {
                     switch square.color {
                     case .white:
-                        view.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.firstColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.firstColor)
                     case .black:
-                        view.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.secondColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.secondColor)
                     }
                 }
                 if gameLogic.pawnWizard {
@@ -237,73 +640,176 @@ class GameViewController: UIViewController {
                 }
                 if gameLogic.pickedSquares.count == 1 {
                     if gameLogic.pickedSquares.contains(square) {
-                        view.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.pickColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.pickColor)
                     }
                     else if gameLogic.availableSquares.contains(square) {
-                        view.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.availableSquaresColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.availableSquaresColor)
                         view.isUserInteractionEnabled = true
                     }
                 }
                 if gameLogic.check {
-                    if square.figure?.name == .king && square.figure?.color != gameLogic.turns.last?.squares.first?.figure?.color {
-                        view.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.checkColor)
+                    if square == gameLogic.getCheckSquare() {
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.checkColor)
                     }
+                }
+                if animate {
+                    let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, options: .allowUserInteraction, animations: {
+                        view.backgroundColor = newColor
+                    })
+                    animations.append(animation)
+                }
+                else {
+                    view.backgroundColor = newColor
                 }
             }
         }
     }
     
     private func animateTurn(_ turn: Turn) {
-        gameLogic.resetPickedSquares() 
-        //waiting for the end of animation
-        for square in squares {
-            square.isUserInteractionEnabled = false
-        }
+        gameLogic.resetPickedSquares()
         let firstSquare = gameLogic.getUpdatedSquares(from: turn).first
         let secondSquare = gameLogic.getUpdatedSquares(from: turn).second
         let firstSquareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == firstSquare})
         let secondSquareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == secondSquare})
         //if en passant
-        let pawnSquare = gameLogic.pawnSquare
-        gameLogic.resetPawnSquare()
         var thirdSquareView: UIImageView?
-        if let pawnSquare = pawnSquare {
-            thirdSquareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == pawnSquare})
+        var backwardSquareView: UIImageView?
+        if !backwardRewind {
+            if let pawnSquare = turn.pawnSquare {
+                thirdSquareView = squares.first(where: {if let square = $0.layer.value(forKey: constants.keyNameForSquare) as? Square, square == pawnSquare && square.figure != nil {return true} else {return false}})
+            }
+        }
+        else {
+            if let pawnSquare = turn.pawnSquare {
+                if let squareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == pawnSquare}) {
+                    squareView.layer.setValue(pawnSquare, forKey: constants.keyNameForSquare)
+                    backwardSquareView = squareView
+                }
+            }
+            else if let _ = turn.squares.second?.figure, let squareView = squares.first(where: {$0.layer.value(forKey: constants.keyNameForSquare) as? Square == turn.squares.first}) {
+                backwardSquareView = squareView
+            }
         }
         if let firstSquareView = firstSquareView, let secondSquareView = secondSquareView, let firstSquare = firstSquare, let secondSquare = secondSquare {
-            animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: pawnSquare)
+            animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: turn.pawnSquare, pawnTransform: turn.pawnTransform, backwardSquareView: backwardSquareView)
         }
     }
     
-    private func animateFigures(firstSquareView: UIImageView, secondSquareView: UIImageView, thirdSquareView: UIImageView?, firstSquare: Square, secondSquare: Square, pawnSquare: Square?) {
+    //moves figure between squares and trash, both forward and backward, and also transform pawn when rewind
+    private func animateFigures(firstSquareView: UIImageView, secondSquareView: UIImageView, thirdSquareView: UIImageView?, firstSquare: Square, secondSquare: Square, pawnSquare: Square?, pawnTransform: Figure?, backwardSquareView: UIImageView?) {
+        //bacwardRewind will change after animation will finish, so we need to capture it
+        let backwardRewind = self.backwardRewind
+        if backwardRewind {
+            if pawnTransform != nil, let figure = secondSquare.figure {
+                updateSquare(firstSquare, figure: figure)
+            }
+        }
+        var frameForBackward: (x: CGFloat, y: CGFloat) = (0, 0)
+        var backwardFigureView: UIImageView?
         bringFigureToFront(figureView: firstSquareView)
+        if let backwardSquareView = backwardSquareView {
+            backwardFigureView = getBackwardFigureView()
+            if let backwardFigureView = backwardFigureView {
+                bringFigureToFrontFromTrash(figureView: backwardFigureView)
+                frameForBackward = coordinatesToMoveFigureFrom(firstView: backwardFigureView, to: backwardSquareView)
+                if gameLogic.gameMode == .oneScreen {
+                    backwardFigureView.image = backwardFigureView.image?.rotate(radians: .pi)
+                }
+            }
+        }
         let frame = getFrameForAnimation(firstView: firstSquareView, secondView: secondSquareView)
+        //currentPlayer will change after animation will finish, so we need to capture it
+        var currentPlayer = gameLogic.currentPlayer
+        if gameLogic.pawnWizard {
+            currentPlayer = currentPlayer == gameLogic.players.first! ? gameLogic.players.second! : gameLogic.players.first!
+        }
+        secondSquareView.layer.setValue(secondSquare, forKey: constants.keyNameForSquare)
+        firstSquareView.layer.setValue(firstSquare, forKey: constants.keyNameForSquare)
+        if let pawnSquare = pawnSquare {
+            var newSquare = pawnSquare
+            newSquare.figure = nil
+            thirdSquareView?.layer.setValue(newSquare, forKey: constants.keyNameForSquare)
+        }
+        updateSquares()
         //turn animation
-        UIView.animate(withDuration: constants.animationDuration, animations: {
-            for subview in firstSquareView.subviews {
+        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+            backwardFigureView?.transform = CGAffineTransform(translationX: frameForBackward.x, y: frameForBackward.y)
+            if let subview = firstSquareView.subviews.second {
                 subview.transform = CGAffineTransform(translationX: frame.minX - firstSquareView.bounds.minX, y: frame.minY - firstSquareView.bounds.minY)
             }
         }) { [weak self] _ in
             if let self = self {
-                self.moveFigureToTrash(squareView: secondSquareView)
-                for subview in firstSquareView.subviews {
-                    subview.transform = .identity
-                    secondSquareView.addSubview(subview)
-                    let imageViewConstraints = [subview.centerXAnchor.constraint(equalTo: secondSquareView.centerXAnchor), subview.centerYAnchor.constraint(equalTo: secondSquareView.centerYAnchor)]
-                    NSLayoutConstraint.activate(imageViewConstraints)
+                //stops trashAnimation before starting new one
+                self.trashAnimation?.stopAnimation(false)
+                self.trashAnimation?.finishAnimation(at: .end)
+                if let backwardSquareView = backwardSquareView, let backwardFigureView = backwardFigureView {
+                    let destroyedFigures = backwardFigureView.superview
+                    backwardFigureView.transform = .identity
+                    backwardSquareView.addSubview(backwardFigureView)
+                    if let destroyedFigures = destroyedFigures as? UIStackView {
+                        if destroyedFigures.arrangedSubviews.isEmpty {
+                            destroyedFigures.frame.size.width = 0
+                        }
+                    }
                 }
-                secondSquareView.layer.setValue(secondSquare, forKey: constants.keyNameForSquare)
-                firstSquareView.layer.setValue(firstSquare, forKey: constants.keyNameForSquare)
-                if let thirdSquareView = thirdSquareView, let pawnSquare = pawnSquare {
-                    thirdSquareView.layer.setValue(pawnSquare, forKey: constants.keyNameForSquare)
-                    self.moveFigureToTrash(squareView: thirdSquareView)
+                if secondSquareView.subviews.count > 1 {
+                    self.moveFigureToTrash(squareView: secondSquareView, currentPlayer: currentPlayer)
                 }
-                self.updateUI()
-                if self.gameLogic.gameEnded {
+                var figure = firstSquareView.subviews.last!
+                if backwardSquareView != nil {
+                    figure = firstSquareView.subviews.second!
+                }
+                figure.transform = .identity
+                secondSquareView.addSubview(figure)
+                let imageViewConstraints = [figure.centerXAnchor.constraint(equalTo: secondSquareView.centerXAnchor), figure.centerYAnchor.constraint(equalTo: secondSquareView.centerYAnchor)]
+                NSLayoutConstraint.activate(imageViewConstraints)
+                if let thirdSquareView = thirdSquareView {
+                    if thirdSquareView.subviews.count > 0 {
+                        self.moveFigureToTrash(squareView: thirdSquareView, currentPlayer: currentPlayer)
+                    }
+                }
+                if self.gameLogic.gameEnded && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
                     self.makeEndOfTheGameView()
+                }
+                if let pawnTransform = pawnTransform, !backwardRewind {
+                    if let turn = self.gameLogic.currentTurn, let square = turn.squares.last {
+                        self.updateSquare(square, figure: pawnTransform)
+                    }
                 }
             }
         }
+        animations.append(animation)
+    }
+    
+    //gets figure to move from trash to game
+    private func getBackwardFigureView() -> UIImageView? {
+        if gameLogic.currentPlayer == gameLogic.players.first! {
+            if player2DestroyedFigures2.arrangedSubviews.count > 0 {
+                return player2DestroyedFigures2.arrangedSubviews.last! as? UIImageView
+            }
+            else if player2DestroyedFigures1.arrangedSubviews.count > 0{
+                return player2DestroyedFigures1.arrangedSubviews.last! as? UIImageView
+            }
+        }
+        else {
+            if gameLogic.gameMode != .oneScreen {
+                if player1DestroyedFigures1.arrangedSubviews.count > 0 {
+                    return player1DestroyedFigures1.arrangedSubviews.last! as? UIImageView
+                }
+                else if player1DestroyedFigures2.arrangedSubviews.count > 0{
+                    return player1DestroyedFigures2.arrangedSubviews.last! as? UIImageView
+                }
+            }
+            else {
+                if player1DestroyedFigures2.arrangedSubviews.count > 0 {
+                    return player1DestroyedFigures2.arrangedSubviews.first! as? UIImageView
+                }
+                else if player1DestroyedFigures1.arrangedSubviews.count > 0{
+                    return player1DestroyedFigures1.arrangedSubviews.first! as? UIImageView
+                }
+            }
+        }
+        return nil
     }
     
     //we need to move figure image to the top
@@ -315,16 +821,27 @@ class GameViewController: UIViewController {
             verticalStackView.bringSubviewToFront(horizontalStackView)
             horizontalStackView.bringSubviewToFront(figureView)
         }
-        figureView.bringSubviewToFront(figureView.subviews.first!)
-        scrollContentOfGame.bringSubviewToFront(additionalButtons)
+        figureView.bringSubviewToFront(figureView.subviews.second!)
+        viewsOnTop()
+    }
+    
+    private func bringFigureToFrontFromTrash(figureView: UIView) {
+        let trashView = figureView.superview?.superview
+        let trashStack = figureView.superview
+        if let trashStack = trashStack, let trashView = trashView {
+            scrollContentOfGame.bringSubviewToFront(trashView)
+            trashView.bringSubviewToFront(trashStack)
+            trashStack.bringSubviewToFront(figureView)
+        }
+        viewsOnTop()
     }
     
     private func getFrameForAnimation(firstView: UIView, secondView: UIView) -> CGRect {
         return firstView.convert(secondView.bounds, from: secondView)
     }
     
-    private func moveFigureToTrash(squareView: UIImageView) {
-        for subview in squareView.subviews {
+    private func moveFigureToTrash(squareView: UIImageView, currentPlayer: Player) {
+        if let subview = squareView.subviews.last {
             bringFigureToFront(figureView: squareView)
             if gameLogic.gameMode == .oneScreen {
                 if let subview = subview as? UIImageView {
@@ -332,13 +849,13 @@ class GameViewController: UIViewController {
                 }
             }
             var coordinates: (xCoordinate: CGFloat, yCoordinate: CGFloat) = (0, 0)
-            switch gameLogic.currentPlayer.type {
+            switch currentPlayer.type {
             case .player1:
                 coordinates = coordinatesForTrashAnimation(player: .player1, squareView: squareView, destroyedFiguresStack1: player1DestroyedFigures1, destroyedFiguresStack2: player1DestroyedFigures2)
             case .player2:
                 coordinates = coordinatesForTrashAnimation(player: .player2, squareView: squareView, destroyedFiguresStack1: player2DestroyedFigures1, destroyedFiguresStack2: player2DestroyedFigures2)
             }
-            animateFigureToTrash(figure: subview, x: coordinates.xCoordinate, y: coordinates.yCoordinate)
+            animateFigureToTrash(figure: subview, x: coordinates.xCoordinate, y: coordinates.yCoordinate, currentPlayer: currentPlayer)
         }
     }
     
@@ -371,13 +888,13 @@ class GameViewController: UIViewController {
         return (xCoordinate, yCoordinate)
     }
     
-    private func animateFigureToTrash(figure: UIView, x: CGFloat, y: CGFloat) {
-        UIView.animate(withDuration: constants.animationDuration, animations: {
+    private func animateFigureToTrash(figure: UIView, x: CGFloat, y: CGFloat, currentPlayer: Player) {
+        trashAnimation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
             figure.transform = CGAffineTransform(translationX: x, y: y)
         }) {[weak self] _ in
             if let self = self {
                 figure.transform = .identity
-                switch self.gameLogic.currentPlayer.type {
+                switch currentPlayer.type {
                 case .player1:
                     self.addFigureToTrash(player: .player1, destroyedFiguresStack1: self.player1DestroyedFigures1, destroyedFiguresStack2: self.player1DestroyedFigures2, figure: figure)
                 case .player2:
@@ -427,7 +944,17 @@ class GameViewController: UIViewController {
     private let showEndOfTheGameView = UIButton()
     //just a pointer to additional buttons
     private let arrowToAdditionalButtons = UIImageView()
+    private let turnsScrollView = UIScrollView()
+    private let turns = UIStackView()
+    private let turnBackward = UIButton()
+    private let turnForward = UIButton()
+    private let turnAction = UIButton()
+    private let turnsButtons = UIStackView()
+    private let turnsView = UIView()
+    private let additionalButton = UIButton()
     
+    //contains currentTurn of both players
+    private var turnData = UIStackView()
     private var player1Timer = UILabel()
     private var player2Timer = UILabel()
     private var squares = [UIImageView]()
@@ -455,17 +982,11 @@ class GameViewController: UIViewController {
     
     //makes button to show/hide additional buttons
     private func makeAdditionalButton() {
-        arrowToAdditionalButtons.defaultSettings()
-        arrowToAdditionalButtons.layer.borderWidth = 0
-        arrowToAdditionalButtons.backgroundColor = constants.backgroundForArrow
-        arrowToAdditionalButtons.alpha = 0
-        arrowToAdditionalButtons.contentMode = .scaleAspectFit
         let figuresThemeName = gameLogic.players.first!.figuresTheme.rawValue
         let figureColor = traitCollection.userInterfaceStyle == .dark ? GameColors.black.rawValue : GameColors.white.rawValue
         let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figureColor)_pawn")
         arrowToAdditionalButtons.image = figureImage
         scrollContentOfGame.addSubview(arrowToAdditionalButtons)
-        let additionalButton = UIButton()
         additionalButton.buttonWith(image: UIImage(systemName: "arrowtriangle.down.fill"), and: #selector(transitAdditonalButtons))
         if let stackWhereToAdd = gameBoard.arrangedSubviews.last {
             if let stackWhereToAdd = stackWhereToAdd as? UIStackView {
@@ -490,14 +1011,13 @@ class GameViewController: UIViewController {
         let exitsButton = UIButton()
         exitsButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right", withConfiguration: configForAdditionalButtons), and: #selector(exit))
         showEndOfTheGameView.buttonWith(image: UIImage(systemName: "doc.text.magnifyingglass", withConfiguration: configForAdditionalButtons), and: #selector(transitEndOfTheGameView))
-        additionalButtons.alpha = 0
         additionalButtons.addArrangedSubview(showEndOfTheGameView)
         additionalButtons.addArrangedSubview(lockScrolling)
         additionalButtons.addArrangedSubview(surenderButton)
         additionalButtons.addArrangedSubview(turnsViewButton)
         additionalButtons.addArrangedSubview(exitsButton)
         scrollContentOfGame.addSubview(additionalButtons)
-        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: arrowToAdditionalButtons.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: scrollContentOfGame.leadingAnchor, constant: constants.optimalDistance), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor)]
+        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: arrowToAdditionalButtons.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: gameBoard.leadingAnchor), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor)]
         NSLayoutConstraint.activate(additionalButtonsConstraints)
     }
     
@@ -520,27 +1040,68 @@ class GameViewController: UIViewController {
         if gameLogic.timerEnabled {
             makeTimers()
         }
+        makeTurnsView()
+        viewsOnTop()
+    }
+    
+    //moves some views to top
+    private func viewsOnTop() {
+        scrollContentOfGame.bringSubviewToFront(turnsView)
+        scrollContentOfGame.bringSubviewToFront(player1Timer)
+        scrollContentOfGame.bringSubviewToFront(player2Timer)
+        scrollContentOfGame.bringSubviewToFront(arrowToAdditionalButtons)
+        scrollContentOfGame.bringSubviewToFront(additionalButtons)
+        scrollContentOfGame.bringSubviewToFront(pawnPicker)
     }
     
     private func setupViews() {
+        turnsView.translatesAutoresizingMaskIntoConstraints = false
+        scrollViewOfGame.translatesAutoresizingMaskIntoConstraints = false
+        scrollContentOfGame.translatesAutoresizingMaskIntoConstraints = false
+        endOfTheGameScrollView.translatesAutoresizingMaskIntoConstraints = false
+        turnsScrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollViewOfGame.delaysContentTouches = false
+        endOfTheGameScrollView.delaysContentTouches = false
+        turnsScrollView.delaysContentTouches = false
+        turnsView.alpha = 0
+        additionalButtons.alpha = 0
+        arrowToAdditionalButtons.alpha = 0
         showEndOfTheGameView.isEnabled = false
+        turnBackward.isEnabled = false
+        turnForward.isEnabled = false
+        turnAction.isEnabled = false
+        turns.isUserInteractionEnabled = gameLogic.rewindEnabled
         pawnPicker.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         gameBoard.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player1DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player1DestroyedFigures2.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player2DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player2DestroyedFigures2.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-        additionalButtons.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.spacingForPlayerData)
+        additionalButtons.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        turns.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        turnData.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        turnsButtons.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         endOfTheGameView.defaultSettings()
+        additionalButtons.defaultSettings()
+        turnsButtons.defaultSettings()
+        frameForEndOfTheGameView.defaultSettings()
+        arrowToAdditionalButtons.defaultSettings()
         player1Timer = makeLabel(text: prodTimeString(gameLogic.players.first!.timeLeft))
         player2Timer = makeLabel(text: prodTimeString(gameLogic.players.second!.timeLeft))
-        additionalButtons.defaultSettings()
+        turnsButtons.backgroundColor = turnsButtons.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
+        arrowToAdditionalButtons.backgroundColor = constants.backgroundForArrow
+        turnsScrollView.backgroundColor = .clear
+        arrowToAdditionalButtons.contentMode = .scaleAspectFit
+        arrowToAdditionalButtons.layer.borderWidth = 0
+        player1Timer.layer.cornerRadius = constants.cornerRadiusForChessTime
+        player2Timer.layer.cornerRadius = constants.cornerRadiusForChessTime
+        player1Timer.layer.masksToBounds = true
+        player2Timer.layer.masksToBounds = true
+        player1Timer.font = UIFont.monospacedDigitSystemFont(ofSize: player1Timer.font.pointSize, weight: constants.weightForChessTime)
+        player2Timer.font = UIFont.monospacedDigitSystemFont(ofSize: player2Timer.font.pointSize, weight: constants.weightForChessTime)
     }
     
     private func makeScrollViewOfGame() {
-        scrollContentOfGame.translatesAutoresizingMaskIntoConstraints = false
-        scrollViewOfGame.translatesAutoresizingMaskIntoConstraints = false
-        scrollViewOfGame.delaysContentTouches = false
         view.addSubview(scrollViewOfGame)
         scrollViewOfGame.addSubview(scrollContentOfGame)
         let contentHeight = scrollContentOfGame.heightAnchor.constraint(equalTo: scrollViewOfGame.heightAnchor)
@@ -554,14 +1115,12 @@ class GameViewController: UIViewController {
         let player2Background = gameLogic.players.second!.playerBackground
         let player2Frame = gameLogic.players.second!.frame
         let player2Data = UIStackView()
-        player2Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.spacingForPlayerData)
+        player2Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.optimalSpacing)
         let player2Name = makeLabel(text: gameLogic.players.second!.name)
         let player2Points = makeLabel(text: String(gameLogic.players.second!.points))
         player2Data.addArrangedSubview(player2Name)
         player2Data.addArrangedSubview(player2Points)
         player2FrameView = PlayerFrame(background: player2Background, playerFrame: player2Frame, data: player2Data)
-        player2FrameView.translatesAutoresizingMaskIntoConstraints = false
-        player2FrameView.backgroundColor = .clear
         scrollContentOfGame.addSubview(player2FrameView)
         let player2FrameViewConstraints = [player2FrameView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player2FrameView.topAnchor.constraint(equalTo: player2TitleView.bottomAnchor, constant: constants.distanceForTitle), player2FrameView.widthAnchor.constraint(equalToConstant: width), player2FrameView.heightAnchor.constraint(equalToConstant: height)]
         NSLayoutConstraint.activate(player2FrameViewConstraints)
@@ -575,14 +1134,12 @@ class GameViewController: UIViewController {
         let player1Background = gameLogic.players.first!.playerBackground
         let player1Frame = gameLogic.players.first!.frame
         let player1Data = UIStackView()
-        player1Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.spacingForPlayerData)
+        player1Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.optimalSpacing)
         let player1Name = makeLabel(text: gameLogic.players.first!.name)
         let player1Points = makeLabel(text: String(gameLogic.players.first!.points))
         player1Data.addArrangedSubview(player1Name)
         player1Data.addArrangedSubview(player1Points)
         player1FrameView = PlayerFrame(background: player1Background, playerFrame: player1Frame, data: player1Data)
-        player1FrameView.translatesAutoresizingMaskIntoConstraints = false
-        player1FrameView.backgroundColor = .clear
         scrollContentOfGame.addSubview(player1FrameView)
         let player1FrameViewConstraints = [player1FrameView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1FrameView.topAnchor.constraint(equalTo: destroyedFigures2.bottomAnchor, constant: constants.optimalDistance), player1FrameView.widthAnchor.constraint(equalToConstant: width), player1FrameView.heightAnchor.constraint(equalToConstant: height)]
         NSLayoutConstraint.activate(player1FrameViewConstraints)
@@ -593,8 +1150,6 @@ class GameViewController: UIViewController {
         let player2Frame = gameLogic.players.second!.frame
         let player2Title = makeLabel(text: gameLogic.players.second!.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
         player2TitleView = PlayerFrame(background: player2Background, playerFrame: player2Frame, data: player2Title)
-        player2TitleView.translatesAutoresizingMaskIntoConstraints = false
-        player2TitleView.backgroundColor = .clear
         scrollContentOfGame.addSubview(player2TitleView)
         let player2TitleViewConstraints = [player2TitleView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player2TitleView.widthAnchor.constraint(equalToConstant: width), player2TitleView.heightAnchor.constraint(equalToConstant: height), player2TitleView.topAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.topAnchor)]
         NSLayoutConstraint.activate(player2TitleViewConstraints)
@@ -608,8 +1163,6 @@ class GameViewController: UIViewController {
         let player1Frame = gameLogic.players.first!.frame
         let player1Title = makeLabel(text: gameLogic.players.first!.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
         player1TitleView = PlayerFrame(background: player1Background, playerFrame: player1Frame, data: player1Title)
-        player1TitleView.translatesAutoresizingMaskIntoConstraints = false
-        player1TitleView.backgroundColor = .clear
         scrollContentOfGame.addSubview(player1TitleView)
         let player1TitleViewConstraints = [player1TitleView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1TitleView.widthAnchor.constraint(equalToConstant: width), player1TitleView.heightAnchor.constraint(equalToConstant: height), player1TitleView.topAnchor.constraint(equalTo: player1FrameView.bottomAnchor, constant: constants.distanceForTitle), player1TitleView.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
         NSLayoutConstraint.activate(player1TitleViewConstraints)
@@ -637,10 +1190,10 @@ class GameViewController: UIViewController {
         //in oneScreen second stack should be first, in other words upside down
         if gameLogic.gameMode == .oneScreen {
             player2Frame.transform = player2Frame.transform.rotated(by: .pi)
-            destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures2, destoyedFigures2: player1DestroyedFigures1, player2: true)
+            destroyedFigures1 = makeDestroyedFiguresView(destroyedFigures1: player1DestroyedFigures2, destroyedFigures2: player1DestroyedFigures1, player2: true)
         }
         else if gameLogic.gameMode == .multiplayer{
-            destroyedFigures1 = makeDestroyedFiguresView(destoyedFigures1: player1DestroyedFigures1, destoyedFigures2: player1DestroyedFigures2, player2: true)
+            destroyedFigures1 = makeDestroyedFiguresView(destroyedFigures1: player1DestroyedFigures1, destroyedFigures2: player1DestroyedFigures2, player2: true)
         }
         scrollContentOfGame.addSubview(destroyedFigures1)
         let player2FrameConstraints = [player2Frame.topAnchor.constraint(equalTo: player2FrameView.bottomAnchor, constant: constants.distanceForFrame), player2Frame.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player2Frame.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance), player2Frame.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
@@ -653,7 +1206,7 @@ class GameViewController: UIViewController {
         player1Frame.defaultSettings()
         player1Frame.image = UIImage(named: "frames/\(gameLogic.players.first!.frame.rawValue)")
         scrollContentOfGame.addSubview(player1Frame)
-        destroyedFigures2 = makeDestroyedFiguresView(destoyedFigures1: player2DestroyedFigures1, destoyedFigures2: player2DestroyedFigures2)
+        destroyedFigures2 = makeDestroyedFiguresView(destroyedFigures1: player2DestroyedFigures1, destroyedFigures2: player2DestroyedFigures2)
         scrollContentOfGame.addSubview(destroyedFigures2)
         let player1FrameConstraints = [player1Frame.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForFrame), player1Frame.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1Frame.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player1Frame.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance)]
         let destroyedFigures2Constraints = [destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), destroyedFigures2.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
@@ -714,7 +1267,7 @@ class GameViewController: UIViewController {
                         squareView.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.secondColor)
                     }
                     squareView.layer.setValue(square, forKey: constants.keyNameForSquare)
-                    let tap = UITapGestureRecognizer(target: self, action: #selector(self.makeTurn(_:)))
+                    let tap = UITapGestureRecognizer(target: self, action: #selector(self.chooseSquare(_:)))
                     squareView.addGestureRecognizer(tap)
                     squares.append(squareView)
                     line.addArrangedSubview(squareView)
@@ -734,6 +1287,11 @@ class GameViewController: UIViewController {
         let square = UIImageView()
         let width = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * multiplier
         square.rectangleView(width: width)
+        square.layer.borderWidth = 0
+        //when we animating, border is always on top, so we have to add it as subview instead
+        let border = UIImageView()
+        border.rectangleView(width: width)
+        square.addSubview(border)
         //we are adding image in this way, so we can move figure separately from square
         if image != nil {
             let imageView = UIImageView()
@@ -751,7 +1309,7 @@ class GameViewController: UIViewController {
         let boardTheme = gameLogic.boardTheme.rawValue
         square = getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter"))
         let numberView = getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/number_\(number)"), multiplier: constants.multiplierForNumberView)
-        numberView.layer.borderWidth = 0
+        numberView.subviews.first!.layer.borderWidth = 0
         square.addSubview(numberView)
         let numberViewConstraints = [numberView.centerXAnchor.constraint(equalTo: square.centerXAnchor), numberView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
         NSLayoutConstraint.activate(numberViewConstraints)
@@ -760,7 +1318,7 @@ class GameViewController: UIViewController {
     
     private func makeLabel(text: String) -> UILabel {
         let label = UILabel()
-        label.setup(text: text, alignment: .center, font: UIFont.systemFont(ofSize: view.frame.width / constants.dividerForFont))
+        label.setup(text: text, alignment: .center, font: UIFont.systemFont(ofSize: min(view.frame.width, view.frame.height) / constants.dividerForFont))
         return label
     }
     
@@ -768,33 +1326,41 @@ class GameViewController: UIViewController {
         let figures: [Figures] = [.rook, .queen, .bishop, .knight]
         for figure in figures {
             //just random square, it doesnt matter
-            let square = Square(column: .A, row: 1, color: .white, figure: Figure(name: figure, color: figureColor))
+            let square = Square(column: .A, row: 1, color: .white, figure: Figure(name: figure, color: figureColor, startColumn: .A, startRow: 1))
             let figuresThemeName = gameLogic.currentPlayer.figuresTheme.rawValue
             let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figureColor.rawValue)_\(figure.rawValue)")
             let squareView = getSquareView(image: figureImage)
             squareView.layer.setValue(square, forKey: constants.keyNameForSquare)
             let tap = UITapGestureRecognizer(target: self, action: #selector(self.replacePawn(_:)))
             squareView.addGestureRecognizer(tap)
-            squareView.layer.borderColor = squareColor == .black ? UIColor.white.cgColor : UIColor.black.cgColor
+            squareView.subviews.first!.layer.borderColor = squareColor == .black ? UIColor.white.cgColor : UIColor.black.cgColor
             pawnPicker.addArrangedSubview(squareView)
         }
     }
 
-    private func makeDestroyedFiguresView(destoyedFigures1: UIStackView, destoyedFigures2: UIStackView, player2: Bool = false) -> UIView {
+    private func makeDestroyedFiguresView(destroyedFigures1: UIStackView, destroyedFigures2: UIStackView, player2: Bool = false) -> UIView {
         let width = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
         let height = min(view.frame.width, view.frame.height)  / constants.heightDividerForTrash
+        let destroyedFiguresBackground = UIImageView()
+        destroyedFiguresBackground.defaultSettings()
         let destroyedFigures = UIImageView()
         destroyedFigures.defaultSettings()
-        destroyedFigures.addSubview(destoyedFigures1)
-        destroyedFigures.addSubview(destoyedFigures2)
+        destroyedFigures.layer.masksToBounds = false
+        destroyedFigures.addSubview(destroyedFiguresBackground)
+        destroyedFigures.addSubview(destroyedFigures1)
+        destroyedFigures.addSubview(destroyedFigures2)
         let destroyedFiguresConstraints1 = [destroyedFigures.widthAnchor.constraint(equalToConstant: width), destroyedFigures.heightAnchor.constraint(equalToConstant: height)]
-        let destroyedFiguresConstraints2 = [destoyedFigures1.topAnchor.constraint(equalTo: destroyedFigures.topAnchor, constant: constants.distanceForFigureInTrash), destoyedFigures2.bottomAnchor.constraint(equalTo: destroyedFigures.bottomAnchor, constant: -constants.distanceForFigureInTrash)]
+        let destroyedFiguresConstraints2 = [destroyedFigures1.topAnchor.constraint(equalTo: destroyedFigures.topAnchor, constant: constants.distanceForFigureInTrash), destroyedFigures2.bottomAnchor.constraint(equalTo: destroyedFigures.bottomAnchor, constant: -constants.distanceForFigureInTrash)]
         var destroyedFiguresConstraints3: [NSLayoutConstraint] = []
         //here we add this, because stacks start from left side, but for player 2 they should start from right side
         if player2 && gameLogic.gameMode == .oneScreen {
-            destroyedFiguresConstraints3 = [destoyedFigures1.trailingAnchor.constraint(equalTo: destroyedFigures.trailingAnchor), destoyedFigures2.trailingAnchor.constraint(equalTo: destroyedFigures.trailingAnchor)]
+            destroyedFiguresConstraints3 = [destroyedFigures1.trailingAnchor.constraint(equalTo: destroyedFigures.trailingAnchor), destroyedFigures2.trailingAnchor.constraint(equalTo: destroyedFigures.trailingAnchor)]
         }
-        NSLayoutConstraint.activate(destroyedFiguresConstraints1 + destroyedFiguresConstraints2 + destroyedFiguresConstraints3)
+        else {
+            destroyedFiguresConstraints3 = [destroyedFigures1.leadingAnchor.constraint(equalTo: destroyedFigures.leadingAnchor), destroyedFigures2.leadingAnchor.constraint(equalTo: destroyedFigures.leadingAnchor)]
+        }
+        let backgroundConstraints = [destroyedFiguresBackground.leadingAnchor.constraint(equalTo: destroyedFigures.leadingAnchor), destroyedFiguresBackground.trailingAnchor.constraint(equalTo: destroyedFigures.trailingAnchor), destroyedFiguresBackground.topAnchor.constraint(equalTo: destroyedFigures.topAnchor), destroyedFiguresBackground.bottomAnchor.constraint(equalTo: destroyedFigures.bottomAnchor)]
+        NSLayoutConstraint.activate(destroyedFiguresConstraints1 + destroyedFiguresConstraints2 + destroyedFiguresConstraints3 + backgroundConstraints)
         var image = UIImage(named: "backgrounds/\(gameLogic.players.first!.playerBackground.rawValue)")
         if player2 {
             image = UIImage(named: "backgrounds/\(gameLogic.players.second!.playerBackground.rawValue)")
@@ -803,21 +1369,18 @@ class GameViewController: UIViewController {
             }
         }
         image = image?.alpha(constants.alphaForTrashBackground)
-        destroyedFigures.image = image
+        destroyedFiguresBackground.image = image
         return destroyedFigures
     }
     
     private func makeEndOfTheGameView() {
         showEndOfTheGameView.isEnabled = true
-        frameForEndOfTheGameView.defaultSettings()
         frameForEndOfTheGameView.image = UIImage(named: "frames/\(gameLogic.winner!.frame.rawValue)")
         let winnerBackground = UIImage(named: "backgrounds/\(gameLogic.winner!.playerBackground.rawValue)")?.alpha(constants.alphaForPlayerBackground)
         let data = makeEndOfTheGameData()
         endOfTheGameView.image = winnerBackground
         view.addSubview(frameForEndOfTheGameView)
         view.addSubview(endOfTheGameView)
-        endOfTheGameScrollView.translatesAutoresizingMaskIntoConstraints = false
-        endOfTheGameScrollView.delaysContentTouches = false
         view.addSubview(endOfTheGameScrollView)
         endOfTheGameScrollView.addSubview(data)
         for view in [data, frameForEndOfTheGameView, endOfTheGameView, endOfTheGameScrollView] {
@@ -841,45 +1404,70 @@ class GameViewController: UIViewController {
         })
     }
     
+    //shows/hides turns view from/to middle of the game board
+    private func animateTurnsView() {
+        let turnsCenterY = turnsView.center.y
+        let gameBoardCenterY = gameBoard.center.y
+        if turnsView.alpha == 0 {
+            turnsView.transform = CGAffineTransform(translationX: 0, y: gameBoardCenterY - turnsCenterY)
+            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                self?.turnsView.transform = .identity
+                self?.turnsView.alpha = 1
+            })
+        }
+        else {
+            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                self?.turnsView.transform = CGAffineTransform(translationX: 0, y: gameBoardCenterY - turnsCenterY)
+                self?.turnsView.alpha = 0
+            }) {[weak self] _ in
+                self?.turnsView.transform = .identity
+            }
+        }
+    }
+    
     //shows/hides additional buttons with animation
     private func animateAdditionalButtons() {
-        let arrowBounds = arrowToAdditionalButtons.bounds
-        let additionalButtonsBounds = additionalButtons.bounds
-        let centerYOfArrow = arrowToAdditionalButtons.center.y
-        let centerYOfAdditionalButtons = additionalButtons.center.y
+        let positionOfAdditionalButton = getFrameForAnimation(firstView: scrollContentOfGame, secondView: additionalButton).origin.y
+        let positionOfArrow = arrowToAdditionalButtons.layer.position.y
+        let positionOfAdditButtons = additionalButtons.layer.position.y
         if additionalButtons.alpha == 0 {
             //curtain animation
             additionalButtons.transform = constants.transformForAdditionalButtons
             arrowToAdditionalButtons.transform = constants.transformForAdditionalButtons
+            //this comment saved for history :d
             //as i realized, we can`t rotate and translate view at the same time, cuz weird
             //animation occurs, so i decided to make it in this way (change center and then
             //comeback to original value in animation block), which leads to beautiful
             //animation (now it really looks like the additional buttons are pop out from button
             //or enters the button, which shows/hides them), exactly as i wanted to :)
-            arrowToAdditionalButtons.center.y = centerYOfArrow - arrowBounds.maxY
-            additionalButtons.center.y = centerYOfAdditionalButtons - additionalButtonsBounds.maxY
+            //
+            //P.S. i also realized, that we cant animate by changing center, cuz, if view will triger layout update,
+            //then our animation will fucked up, so i decided to rewrite it with CAAnimation
+            //P.P.S. i think i should rewrite some more animations with CAAnimation, cuz in some situations its working much better imho
+            arrowToAdditionalButtons.layer.position.y = positionOfAdditionalButton
+            additionalButtons.layer.position.y = positionOfAdditionalButton
+            arrowToAdditionalButtons.layer.moveTo(y: positionOfArrow, animated: true, duration: constants.animationDuration)
+            additionalButtons.layer.moveTo(y: positionOfAdditButtons, animated: true, duration: constants.animationDuration)
             UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
                 self?.arrowToAdditionalButtons.transform = .identity.rotated(by: .pi)
                 self?.additionalButtons.transform = .identity
                 self?.additionalButtons.alpha = 1
                 self?.arrowToAdditionalButtons.alpha = 1
-                self?.arrowToAdditionalButtons.center.y = centerYOfArrow
-                self?.additionalButtons.center.y = centerYOfAdditionalButtons
             })
         }
         else {
+            arrowToAdditionalButtons.layer.moveTo(y: positionOfAdditionalButton, animated: true, duration: constants.animationDuration)
+            additionalButtons.layer.moveTo(y: positionOfAdditionalButton, animated: true, duration: constants.animationDuration)
+            arrowToAdditionalButtons.layer.position.y = positionOfArrow
+            additionalButtons.layer.position.y = positionOfAdditButtons
             UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
                 self?.additionalButtons.transform = constants.transformForAdditionalButtons
                 self?.arrowToAdditionalButtons.transform = constants.transformForAdditionalButtons
-                self?.arrowToAdditionalButtons.center.y = centerYOfArrow - arrowBounds.maxY
-                self?.additionalButtons.center.y = centerYOfAdditionalButtons - additionalButtonsBounds.maxY
+                self?.arrowToAdditionalButtons.alpha = 0
+                self?.additionalButtons.alpha = 0
             }) {[weak self] _ in
                 self?.additionalButtons.transform = .identity
                 self?.arrowToAdditionalButtons.transform = .identity
-                self?.arrowToAdditionalButtons.alpha = 0
-                self?.additionalButtons.alpha = 0
-                self?.arrowToAdditionalButtons.center.y = centerYOfArrow
-                self?.additionalButtons.center.y = centerYOfAdditionalButtons
             }
         }
     }
@@ -890,7 +1478,7 @@ class GameViewController: UIViewController {
         var endPoints = gameLogic.players.first!.points
         let factor = endPoints > startPoints ? gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation : -(gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation)
         let infoStack = UIStackView()
-        infoStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.spacingForEndInfoStack)
+        infoStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         let rankLabel = makeLabel(text: gameLogic.players.first!.rank.rawValue)
         let pointsLabel = makeLabel(text: String(startPoints))
         let playerProgress = ProgressBar()
@@ -916,7 +1504,7 @@ class GameViewController: UIViewController {
         //in other words if points for rank is 5000 the speed for filling the bar should be slower, than
         //if points for rank is 500
         var progressPoints = 1.0 / CGFloat(rank.maximumPoints - rank.minimumPoints)
-        Timer.scheduledTimer(withTimeInterval: interval, repeats: true, block: {[weak self] timer in
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true, block: {[weak self] timer in
             if currentPoints == endPoints {
                 timer.invalidate()
                 return
@@ -936,9 +1524,12 @@ class GameViewController: UIViewController {
                 self?.animatePoints(interval: interval * constants.muttiplierForIntervalForPointsAnimation, startPoints: currentPoints, endPoints: endPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor / constants.dividerForFactorForPointsAnimation, rank: rank, rankLabel: rankLabel)
             }
         })
+        RunLoop.main.add(timer, forMode: .common)
     }
     
     private func makeEndOfTheGameData() -> UIImageView {
+        turns.isUserInteractionEnabled = true
+        turnBackward.isEnabled = true
         let hideButton = UIButton()
         hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(transitEndOfTheGameView))
         let data = UIImageView()
@@ -980,16 +1571,10 @@ class GameViewController: UIViewController {
     
     //makes chess timers
     private func makeTimers() {
-        player1Timer.layer.cornerRadius = constants.cornerRadiusForChessTime
-        player2Timer.layer.cornerRadius = constants.cornerRadiusForChessTime
-        player1Timer.layer.masksToBounds = true
-        player2Timer.layer.masksToBounds = true
-        player1Timer.font = UIFont.monospacedDigitSystemFont(ofSize: player1Timer.font.pointSize, weight: constants.weightForChessTime)
-        player2Timer.font = UIFont.monospacedDigitSystemFont(ofSize: player2Timer.font.pointSize, weight: constants.weightForChessTime)
         scrollContentOfGame.addSubview(player1Timer)
         scrollContentOfGame.addSubview(player2Timer)
-        let player1TimerConstaints = [player1Timer.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), player1Timer.trailingAnchor.constraint(equalTo: scrollContentOfGame.trailingAnchor, constant: -constants.optimalDistance)]
-        let player2TimerConstaints = [player2Timer.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.optimalDistance), player2Timer.trailingAnchor.constraint(equalTo: scrollContentOfGame.trailingAnchor, constant: -constants.optimalDistance)]
+        let player1TimerConstaints = [player1Timer.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), player1Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
+        let player2TimerConstaints = [player2Timer.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.optimalDistance), player2Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
         NSLayoutConstraint.activate(player1TimerConstaints + player2TimerConstaints)
         if gameLogic.gameMode == .oneScreen {
             player2Timer.transform = player2Timer.transform.rotated(by: .pi)
@@ -1003,17 +1588,61 @@ class GameViewController: UIViewController {
         return String(format: "%02d:%02d", prodMinutes, prodSeconds)
     }
     
+    private func makeTurnsView() {
+        let heightForButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
+        let playerBackground = UIImage(named: "backgrounds/\(gameLogic.players.first!.playerBackground.rawValue)")
+        let background = UIImageView()
+        background.defaultSettings()
+        background.image = playerBackground
+        background.contentMode = .scaleAspectFill
+        let turnsContent = UIView()
+        turnsContent.translatesAutoresizingMaskIntoConstraints = false
+        turnBackward.buttonWith(image: UIImage(systemName: "backward"), and: #selector(turnsBackward))
+        turnForward.buttonWith(image: UIImage(systemName: "forward"), and: #selector(turnsForward))
+        turnAction.buttonWith(image: UIImage(systemName: "play"), and: #selector(turnsAction))
+        let hideButton = UIButton()
+        hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(transitTurnsView))
+        let hideTimers = UIButton()
+        hideTimers.buttonWith(image: UIImage(systemName: "timer"), and: #selector(transitTimers))
+        turnsButtons.addArrangedSubview(turnBackward)
+        turnsButtons.addArrangedSubview(turnAction)
+        turnsButtons.addArrangedSubview(turnForward)
+        turnsButtons.addArrangedSubview(hideButton)
+        turnsButtons.addArrangedSubview(hideTimers)
+        turnsView.addSubview(background)
+        turnsView.addSubview(turnsScrollView)
+        turnsView.addSubview(turnsButtons)
+        turnsScrollView.addSubview(turnsContent)
+        scrollContentOfGame.addSubview(turnsView)
+        turnsContent.addSubview(turns)
+        let contentHeight = turnsContent.heightAnchor.constraint(equalTo: turnsScrollView.heightAnchor)
+        contentHeight.priority = .defaultLow;
+        let turnsViewConstraints = [turnsView.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor), turnsView.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor), turnsView.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForTurns), turnsView.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
+        let turnsScrollViewConstraints = [turnsScrollView.leadingAnchor.constraint(equalTo: turnsView.leadingAnchor), turnsScrollView.trailingAnchor.constraint(equalTo: turnsView.trailingAnchor), turnsScrollView.topAnchor.constraint(equalTo: turnsButtons.bottomAnchor), turnsScrollView.bottomAnchor.constraint(equalTo: turnsView.bottomAnchor)]
+        let contentConstraints = [turnsContent.topAnchor.constraint(equalTo: turnsScrollView.topAnchor), turnsContent.bottomAnchor.constraint(equalTo: turnsScrollView.bottomAnchor), turnsContent.leadingAnchor.constraint(equalTo: turnsScrollView.leadingAnchor), turnsContent.trailingAnchor.constraint(equalTo: turnsScrollView.trailingAnchor), turnsContent.widthAnchor.constraint(equalTo: turnsScrollView.widthAnchor), contentHeight]
+        let buttonsConstraints = [turnsButtons.topAnchor.constraint(equalTo: turnsView.topAnchor), turnsButtons.centerXAnchor.constraint(equalTo: turnsView.centerXAnchor), turnsButtons.heightAnchor.constraint(equalToConstant: heightForButtons)]
+        let turnsConstraints = [turns.topAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.topAnchor), turns.bottomAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.bottomAnchor), turns.leadingAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.leadingAnchor), turns.trailingAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.trailingAnchor)]
+        let backgroundConstraints = [background.widthAnchor.constraint(equalTo: turnsView.widthAnchor), background.heightAnchor.constraint(equalTo: turnsView.heightAnchor), background.centerXAnchor.constraint(equalTo: turnsView.centerXAnchor), background.centerYAnchor.constraint(equalTo: turnsView.centerYAnchor)]
+        NSLayoutConstraint.activate(turnsViewConstraints + contentConstraints + buttonsConstraints + turnsConstraints + backgroundConstraints + turnsScrollViewConstraints)
+    }
+    
+    //TODO: -
+    // - Make player name, title and time have different layout depending on device rotation (if enough space)
+    
 }
 
 private struct GameVC_Constants {
     static let heightMultiplierForEndOfTheGameView = 0.5
     static let defaultPlayerDataColor = UIColor.white
+    static let dangerPlayerDataColor = UIColor.red
+    static let dangerTimeleft = 20
     static let currentPlayerDataColor = UIColor.green
     static let multiplierForBackground: CGFloat = 0.5
     static let alphaForTrashBackground: CGFloat = 1
     static let alphaForPlayerBackground: CGFloat = 0.5
     static let optimalAlpha: CGFloat = 0.7
     static let distanceForFigureInTrash: CGFloat = 3
+    static let distanceForTurns: CGFloat = 5
     static let multiplierForNumberView: CGFloat = 0.6
     static let optimalDistance: CGFloat = 20
     static let animationDuration = 0.5
@@ -1026,11 +1655,11 @@ private struct GameVC_Constants {
     static let heightDividerForFrame: CGFloat = dividerForSquare / 1.5
     static let heightDividerForTitle: CGFloat = dividerForSquare / 0.8
     static let distanceForTitle: CGFloat = 1
-    static let spacingForPlayerData: CGFloat = 5
+    static let optimalSpacing: CGFloat = 5
     static let keyNameForSquare = "Square"
+    static let keyNameForTurn = "Turn"
     static let dividerForWheelRadius: CGFloat = 1.7
     static let dividerForFactorForPointsAnimation = 2
-    static let spacingForEndInfoStack = 5.0
     static let intervalForPointsAnimation = 0.1
     static let muttiplierForIntervalForPointsAnimation = 1.8
     static let pointsAnimationStep = 1
@@ -1046,6 +1675,11 @@ private struct GameVC_Constants {
     static let cornerRadiusForChessTime = 7.0
     static let weightForChessTime = UIFont.Weight.regular
     static let transformForAdditionalButtons = CGAffineTransform(scaleX: 1,y: 0.1)
+    static let shortCastleNotation = "0-0"
+    static let longCastleNotation = "0-0-0"
+    static let checkmateNotation = "#"
+    static let checkNotation = "+"
+    static let figureEatenNotation = "x"
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

@@ -13,7 +13,7 @@ struct GameBoard {
     // MARK: - Properties
     
     var squares: [Square]
-    static let availableRows = GameBoard_Constants.allRows
+    static let availableRows = constants.allRows
     static let availableColumns = BoardFiles.allCases
     
     private typealias constants = GameBoard_Constants
@@ -37,18 +37,7 @@ struct GameBoard {
                 if !switcher {
                     color = constants.squareFirstColor
                 }
-                if row == constants.startRowsForWhite.first! {
-                    figure = GameBoard_Constants.getFigure(squareName: column, color: .white)
-                }
-                else if row == constants.startRowsForWhite.second! {
-                    figure = Figure(name: .pawn, color: .white)
-                }
-                else if row == constants.startRowsForBlack.first! {
-                    figure = Figure(name: .pawn, color: .black)
-                }
-                else if row == constants.startRowsForBlack.second! {
-                    figure = constants.getFigure(squareName: column, color: .black)
-                }
+                figure = constants.getFigure(column: column, row: row)
                 gameSquares.append(Square(column: column, row: row, color: color, figure: figure))
                 switcher.toggle()
             }
@@ -88,24 +77,32 @@ private struct GameBoard_Constants {
     static let squareFirstColor = GameColors.white
     static let squareSecondColor = GameColors.black
     static let allRows = 1...8
-    static let startRowsForWhite = [1,2]
-    static let startRowsForBlack = [7,8]
+    
+    private static let startRowsForWhite = [1,2]
+    private static let startRowsForBlack = [7,8]
     
     // MARK: - Methods
     
     //places figures on start squares
-    static func getFigure(squareName: BoardFiles, color: GameColors) -> Figure {
-        switch squareName {
-        case .A, .H:
-            return Figure(name: .rook, color: color)
-        case .B, .G:
-            return Figure(name: .knight, color: color)
-        case .C, .F:
-            return Figure(name: .bishop, color: color)
-        case .D:
-            return Figure(name: .king, color: color)
-        case .E:
-            return Figure(name: .queen, color: color)
+    static func getFigure(column: BoardFiles, row: Int) -> Figure? {
+        let figureColor = startRowsForWhite.contains(row) ? GameColors.white : GameColors.black
+        if row == startRowsForWhite.first! || row == startRowsForBlack.second! {
+            switch column {
+            case .A, .H:
+                return Figure(name: .rook, color: figureColor, startColumn: column, startRow: row)
+            case .B, .G:
+                return Figure(name: .knight, color: figureColor, startColumn: column, startRow: row)
+            case .C, .F:
+                return Figure(name: .bishop, color: figureColor, startColumn: column, startRow: row)
+            case .D:
+                return Figure(name: .king, color: figureColor, startColumn: column, startRow: row)
+            case .E:
+                return Figure(name: .queen, color: figureColor, startColumn: column, startRow: row)
+            }
         }
+        else if row == startRowsForWhite.second! || row == startRowsForBlack.first! {
+            return Figure(name: .pawn, color: figureColor, startColumn: column, startRow: row)
+        }
+        return nil
     }
 }

@@ -30,6 +30,8 @@ class PlayerFrame: UIView {
     
     convenience init(background: Backgrounds, playerFrame: Frames, data: UIView) {
         self.init()
+        translatesAutoresizingMaskIntoConstraints = false
+        backgroundColor = .clear
         self.background = background
         self.playerFrame = playerFrame
         self.data = data

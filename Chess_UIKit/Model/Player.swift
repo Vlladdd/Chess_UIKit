@@ -35,18 +35,11 @@ struct Player: Equatable {
     var pointsForGame = 0
     var rank: Ranks = .bronze
     var title: Titles = .novice
-    var shortCastleAvailable = true
-    var longCastleAvailable = true
     let type: GamePlayers
     let figuresColor: GameColors
     var timeLeft = 300
     
     // MARK: - Methods
-    
-    mutating func updateCastleInfo(short: Bool = true, long: Bool = true) {
-        shortCastleAvailable = short
-        longCastleAvailable = long
-    }
     
     mutating func addPoints(_ points: Int) {
         pointsForGame = points

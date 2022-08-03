@@ -166,3 +166,21 @@ extension UIColor {
         )
     }
 }
+
+extension CALayer {
+    
+    func moveTo(y: CGFloat, animated: Bool, duration: Double) {
+        if animated {
+            let animation = CABasicAnimation(keyPath: "position.y")
+            animation.fromValue = position.y
+            animation.toValue = y
+            animation.fillMode = .forwards
+            animation.duration = duration
+            position.y = y
+            add(animation, forKey: "position.y")
+        } else {
+            position.y = y
+        }
+    }
+    
+}

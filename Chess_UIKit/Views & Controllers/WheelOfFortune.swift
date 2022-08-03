@@ -168,18 +168,20 @@ class WheelOfFortune: UIView {
     }
     
     private func segmentAnimation(segmentData: SegmentData, delay: Double, animationDuration: Double, startAngle: CGFloat, reverse: Bool = true, angleModifier: Double = constants.defaultAngleModifier) {
-        Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
             if let self = self {
                 self.coinsText.text = String(segmentData.coinsPrize) + " coins"
                 self.strokeAnimation(for: segmentData.layer, to: constants.colorForWinnerSegment)
                 self.rotateAnimation(from: startAngle, to: startAngle + segmentData.angle / angleModifier, with: animationDuration)
                 if reverse {
-                    Timer.scheduledTimer(withTimeInterval: animationDuration, repeats: false, block: {_ in
+                    let timerForReverse = Timer.scheduledTimer(withTimeInterval: animationDuration, repeats: false, block: {_ in
                         self.strokeAnimation(for: segmentData.layer, to: constants.defaultColorForSegment)
                     })
+                    RunLoop.main.add(timerForReverse, forMode: .common)
                 }
             }
         })
+        RunLoop.main.add(timer, forMode: .common)
     }
     
     //changes stroke color of wheel segment
