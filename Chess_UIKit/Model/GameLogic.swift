@@ -65,6 +65,7 @@ class GameLogic {
     //so this square will not be available for her, but we need to make him available,
     //so we can check, if a king can actually eat a figure, which made check
     private var checkingKingSquaresWhenCheck = false
+    private var checkingDeadPosition = false
     private var timer: Timer?
     //every time player makes a turn, he got extra time for that
     private var additionalTime = 2
@@ -136,7 +137,7 @@ class GameLogic {
                 }
                 var color = pickedSquares.first!.figure!.color
                 if backwardRewind {
-                    color = color == .black ? .white : .black
+                    color = color.opposite()
                 }
                 checkForRealCheck(color: color)
                 if enPassantSquares.contains(square) || currentTurn?.pawnSquare != nil {
@@ -274,7 +275,7 @@ class GameLogic {
     }
     
     func makeCastle() {
-        let row = pickedSquares.first!.figure?.color == .black ? constants.rowForBlackCastle : constants.rowForWhiteCastle
+        let row = pickedSquares.first!.figure?.color == .black ? constants.lastRow : constants.firstRow
         pickedSquares.removeAll()
         if shortCastle {
             moveRookToCastle(startColumn: constants.columnsForRookShortCastle.first!, endColumn: constants.columnsForRookShortCastle.second!, row: row)
@@ -493,8 +494,10 @@ class GameLogic {
     
     private func calculateAvailableSquaresForKing(currentSquare: Square, currentFigure: Figure) {
         availableSquares = gameBoard.squares.filter({abs($0.row - currentSquare.row) <= constants.minimumDistance && abs($0.column.index - currentSquare.column.index) <= constants.minimumDistance && $0 != currentSquare})
-        availableSquares = availableSquares.filter({$0.figure?.color != currentFigure.color})
-        let row = currentFigure.color == .black ? constants.rowForBlackCastle : constants.rowForWhiteCastle
+        if !checkingDeadPosition {
+            availableSquares = availableSquares.filter({$0.figure?.color != currentFigure.color})
+        }
+        let row = currentFigure.color == .black ? constants.lastRow : constants.firstRow
         let canCastle = canCastle()
         //adds additional square for short castle, if all conditions met
         if canCastle.short && !check && !checkSquares.contains(where: {($0.column == constants.leftKnightStartColumn || $0.column == constants.leftBishopStartColumn) && $0.row == row}) {
@@ -542,7 +545,7 @@ class GameLogic {
     private func checkForPossibleCheck(square: Square, color: GameColors) {
         blockFromPossibleCheckSquares = []
         possibleCheck = false
-        if square.figure?.name == .king {
+        if square.figure?.name == .king || checkingDeadPosition {
             checkingKingSquaresWhenCheck = true
         }
         //removes figure from board to simulate available squares without her
@@ -659,22 +662,202 @@ class GameLogic {
         calculatePoints()
     }
     
-    //TODO: - Add more ways to draw
+    // MARK: - Draw
     
     private func checkForDraw() {
-        let color: GameColors = pickedSquares.first?.figure?.color == .black ? .white : .black
+        let color: GameColors = pickedSquares.first!.figure!.color.opposite()
         let squares = gameBoard.squares.filter({$0.figure?.color == color})
-        var allAvailableSquares = [Square]()
+        let threeSameTurnsInARow = checkIfTurnsEqual()
+        let insufficientMaterial = checkForInsufficientMaterial()
+        let deadPosition = checkForDeadPosition()
+        var allEnemyAvailableSquares = [Square]()
+        //stalemate
         for square in squares {
             findAvailableSquares(square)
-            allAvailableSquares += availableSquares
+            allEnemyAvailableSquares += availableSquares
         }
-        if allAvailableSquares.isEmpty {
+        if allEnemyAvailableSquares.isEmpty || threeSameTurnsInARow || insufficientMaterial || deadPosition {
             forceDraw()
         }
     }
     
-    //
+    private func checkIfTurnsEqual() -> Bool {
+        if turns.count >= constants.sameTurnsForDraw * players.count {
+            let firstPlayerHaveUniqueTurns = checkIfPlayerTurnsEqual(players.first!)
+            let secondPlayerHaveUniqueTurns = checkIfPlayerTurnsEqual(players.second!)
+            if firstPlayerHaveUniqueTurns  && secondPlayerHaveUniqueTurns {
+                return true
+            }
+        }
+        return false
+    }
+    
+    private func checkIfPlayerTurnsEqual(_ player: Player) -> Bool {
+        var playerUniqueTurns: [Turn] = []
+        let playerTurns = turns.filter({$0.squares.first!.figure?.color == player.figuresColor})
+        for turn in playerTurns[playerTurns.count - constants.sameTurnsForDraw...playerTurns.count - 1] {
+            if !playerUniqueTurns.contains(where: {$0.squares == turn.squares}) {
+                playerUniqueTurns.append(turn)
+            }
+        }
+        if playerUniqueTurns.count == constants.turnsForCountAsSameTurn {
+            return true
+        }
+        return false
+    }
+    
+    private func checkForDeadPosition() -> Bool {
+        var allAvailableSquares = [Square]()
+        //if at least 1 figure is not blocked, this is not dead position yet
+        var figuresBlocked = true
+        //dead position of both players
+        var deadPositions: [Bool] = []
+        for square in gameBoard.squares {
+            findAvailableSquares(square)
+            if square.figure?.name != .king && figuresBlocked {
+                figuresBlocked = availableSquares.isEmpty
+            }
+            allAvailableSquares += availableSquares
+        }
+        if figuresBlocked {
+            let kingsSquares = gameBoard.squares.filter({$0.figure?.name == .king})
+            var kingBlockPawn = false
+            checkingDeadPosition.toggle()
+            for kingSquare in kingsSquares {
+                calculateAvailableSquaresForKing(currentSquare: kingSquare, currentFigure: kingSquare.figure!)
+                if availableSquares.contains(where: {pawnBlockedByKing(square: $0, kingSquare: kingSquare)}) {
+                    kingBlockPawn = true
+                }
+            }
+            //king can only block pawn and if it`s, it`s also not dead position yet
+            if !kingBlockPawn {
+                for kingSquare in kingsSquares {
+                    checkForPossibleCheck(square: kingSquare, color: kingSquare.figure!.color.opposite())
+                    deadPositions.append(checkCheckSquaresForDeadPosition(color: kingSquare.figure!.color))
+                }
+            }
+            checkingDeadPosition.toggle()
+        }
+        //both player need to have dead position
+        if deadPositions.contains(false) || deadPositions.isEmpty {
+            return false
+        }
+        return true
+    }
+    
+    //checks if pawn blocked by king
+    private func pawnBlockedByKing(square: Square, kingSquare: Square) -> Bool {
+        if square.figure?.name == .pawn && square.column == kingSquare.column {
+            var operation: (Int, Int) -> Bool = kingSquare.figure?.color == .white ? (>) : (<)
+            if kingSquare.figure?.color == square.figure?.color {
+                operation = kingSquare.figure?.color == .white ? (<) : (>)
+            }
+            if operation(square.row, kingSquare.row) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    //one of the cases in dead position, if all pawns can`t move and king can`t find a way to eat at least 1 enemy pawn
+    //this function checks this case
+    private func checkCheckSquaresForDeadPosition(color: GameColors) -> Bool {
+        let squaresSortedByRow = gameBoard.squares.sorted(by: {$0.row < $1.row})
+        let condition: (Square) -> Bool = { [weak self] in
+            if let self = self {
+                return $0.figure?.name == .pawn && $0.figure?.color != color && !self.checkSquares.contains($0)
+            }
+            return false
+        }
+        //square with pawn with max row
+        let maxPawn = color == .white ? squaresSortedByRow.first(where: {condition($0)}) : squaresSortedByRow.last(where: {condition($0)})
+        //if player can pass through column
+        var spacersInColumn: [Bool] = []
+        //if player can pass through row
+        var spacersInRows: [Bool] = []
+        var uniqueCheckSquares: [Square] = []
+        for checkSquare in checkSquares {
+            if !uniqueCheckSquares.contains(checkSquare) {
+                uniqueCheckSquares.append(checkSquare)
+            }
+        }
+        if let maxPawn = maxPawn {
+            let range = color == .white ? stride(from: constants.firstRow, through: maxPawn.row, by: constants.minimumDistance) : stride(from: constants.lastRow, through: maxPawn.row, by: -constants.minimumDistance)
+            for column in BoardFiles.allCases {
+                for row in range {
+                    var filteredSquare = gameBoard.squares.filter({$0.row == row && $0.column == column})
+                    filteredSquare = filteredSquare.filter({$0.figure == nil || checkSquares.contains($0)})
+                    //if true, it means player can`t pass through this square
+                    if filteredSquare == uniqueCheckSquares.filter({$0.row == row && $0.column == column}) {
+                        spacersInRows.append(false)
+                    }
+                    else {
+                        spacersInRows.append(true)
+                    }
+                }
+                //if player can`t pass at least through one square in rows, it means he can`t pass through this column
+                if spacersInRows.contains(false) {
+                    spacersInColumn.append(false)
+                }
+                else {
+                    spacersInColumn.append(true)
+                }
+                spacersInRows = []
+            }
+        }
+        //if player can pass at least through one square in columns, it means it`s not a dead position
+        if spacersInColumn.contains(true) {
+            return false
+        }
+        return true
+    }
+    
+    //another case of dead position, when player can`t find a way to checkmate oponent
+    //according to chess rules, even if player can actually make a checkmate, if it`s
+    //not possible without help of enemy, it still counts as insufficient material
+    private func checkForInsufficientMaterial(for player: Player? = nil) -> Bool {
+        let playersCount = player == nil ? players.count : 1
+        //if we check particular player. opponent`s king don`t count, which means, that in second condition,
+        //instead of 3, it must be 2
+        let figuresFactor = player == nil ? 0 : 1
+        var figuresAvailable = gameBoard.squares.filter({$0.figure != nil})
+        if let player = player {
+            figuresAvailable = figuresAvailable.filter({$0.figure?.color == player.figuresColor})
+        }
+        //if player have only king
+        if figuresAvailable.count == 1 * playersCount {
+            return true
+        }
+        //if player have king and bishop/knight(when checking for 1 player)
+        //if one player have only king and another player have king and bishop/knight(when checking for both players)
+        else if figuresAvailable.count == 3 - figuresFactor && figuresAvailable.contains(where: {$0.figure?.name == .bishop || $0.figure?.name == .knight}) {
+            return true
+        }
+        //if both players have king and bishop/knight or one player have only king and another player have king and 2 knights
+        //we are not checking this for particular player, because according to chess rules, if time runs out and opponent have
+        //king and 2 knights, it`s not counts as insufficient material and in all other cases, if oppoent have more then 2 figures
+        //it`s not an unsufficient material
+        else if figuresAvailable.count == 4 && player == nil {
+            let bishopsSquares = figuresAvailable.filter({$0.figure?.name == .bishop})
+            let knightSquares = figuresAvailable.filter({$0.figure?.name == .knight})
+            if bishopsSquares.count == 2 {
+                //checks if bishops don`t belong to same player
+                if bishopsSquares.first?.figure?.color != bishopsSquares.second?.figure?.color {
+                    return true
+                }
+            }
+            else if knightSquares.count == 2 {
+                return true
+            }
+            else if bishopsSquares.count == 1 && knightSquares.count == 1 {
+                //checks if bishop and knight don`t belong to same player
+                if bishopsSquares.first?.figure?.color != knightSquares.second?.figure?.color {
+                    return true
+                }
+            }
+        }
+        return false
+    }
     
     func forceDraw() {
         gameEnded = true
@@ -693,7 +876,14 @@ class GameLogic {
                 self.timeLeft -= constants.timerStep
                 if self.timeLeft == 0 {
                     self.timer?.invalidate()
-                    self.surender()
+                    let insufficientMaterial = self.checkForInsufficientMaterial(for: self.currentPlayer.type == .player1 ? self.players.second : self.players.first)
+                    //in other words, even if current player time runs out, if opponent have insufficient material, it is a draw, instead of lose
+                    if insufficientMaterial {
+                        self.forceDraw()
+                    }
+                    else {
+                        self.surender()
+                    }
                 }
                 callback(self.timeLeft)
             }
@@ -878,11 +1068,11 @@ class GameLogic {
 
 private struct GameLogic_Constants {
     static let startRowsForPawn = [2,7]
-    static let lastRowsForPawn = [1,8]
+    static let lastRowsForPawn = [firstRow,lastRow]
     static let kingColumnForLongCastle: BoardFiles = .F
     static let kingColumnForShortCastle: BoardFiles = .B
-    static let rowForWhiteCastle = 1
-    static let rowForBlackCastle = 8
+    static let firstRow = 1
+    static let lastRow = 8
     static let columnsForRookShortCastle: [BoardFiles] = [.A, .C]
     static let columnsForRookLongCastle: [BoardFiles] = [.H, .E]
     //minimum distance between rows or columns
@@ -899,4 +1089,8 @@ private struct GameLogic_Constants {
     static let maximumPointsForGame = 150
     static let timerDelay = 1.0
     static let timerStep = 1
+    //it means, if player move figure from square 1 to square 2 and then vice versa,
+    //it will count as one turn for compare turns on equality
+    static let turnsForCountAsSameTurn = 2
+    static let sameTurnsForDraw = 3 * turnsForCountAsSameTurn
 }

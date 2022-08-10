@@ -65,6 +65,15 @@ enum GamePlayers: String {
 enum GameColors: String {
     case white
     case black
+    
+    func opposite() -> Self {
+        switch self {
+        case .white:
+            return .black
+        case .black:
+            return .white
+        }
+    }
 }
 
 enum Colors: String {
