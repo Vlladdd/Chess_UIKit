@@ -19,11 +19,7 @@ class GameViewController: UIViewController {
     }
     
     override func viewDidAppear(_ animated: Bool) {
-        //for better performance, to not activate them everytime in updateConstraints, if special
-        NSLayoutConstraint.activate(portraitConstraints)
-        let screenSize: CGSize = UIScreen.main.bounds.size
-        let orientation: UIDeviceOrientation = screenSize.width / screenSize.height < 1 ? .landscapeLeft : .portrait
-        checkOrientationAndUpdateConstraints(size: screenSize, orientation: orientation)
+        activateStartConstraints()
     }
     
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -219,15 +215,46 @@ class GameViewController: UIViewController {
     //described in viewWillTransition
     private func checkOrientationAndUpdateConstraints(size: CGSize, orientation: UIDeviceOrientation) {
         let operation: (CGFloat, CGFloat) -> Bool = orientation.isLandscape ? {$0 / $1 < 1} : {$0 / $1 > 1}
-        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
-        //checks if we have enough space to put player data left and right from gameBoard,
-        //otherwise creates special constraints
-        let condition = gameBoard.frame.size.width + widthForFrame < scrollContentOfGame.layoutMarginsGuide.layoutFrame.width
         if operation(size.width, size.height) {
-            updateConstraints(portrait: orientation.isLandscape, special: !condition)
+            updateConstraints(portrait: orientation.isLandscape)
         }
         //puts gameBoard in center of the screen
         scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
+    }
+    
+    private func activateStartConstraints() {
+        let screenSize: CGSize = UIScreen.main.bounds.size
+        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
+        //checks if we have enough space to put player data left and right from gameBoard,
+        //otherwise we will use special constraints for landscape mode
+        specialLayout = gameBoard.frame.size.width + widthForFrame > max(scrollContentOfGame.layoutMarginsGuide.layoutFrame.width, scrollContentOfGame.layoutMarginsGuide.layoutFrame.height)
+        if screenSize.width / screenSize.height < 1 {
+            NSLayoutConstraint.activate(portraitConstraints)
+        }
+        else if screenSize.width / screenSize.height > 1 {
+            arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+            additionalButton.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+            currentTransformOfArrow = CGAffineTransform(rotationAngle: .pi * 1.5)
+            if !specialLayout {
+                NSLayoutConstraint.activate(landscapeConstraints)
+            }
+            else {
+                NSLayoutConstraint.activate(portraitConstraints)
+                NSLayoutConstraint.deactivate(timerConstraints)
+                NSLayoutConstraint.deactivate(additionalButtonConstraints)
+                NSLayoutConstraint.activate(specialConstraints)
+            }
+        }
+        updateLayout()
+        scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
+    }
+    
+    private func updateLayout() {
+        player2FrameView.setNeedsDisplay()
+        player1FrameView.setNeedsDisplay()
+        player2TitleView.setNeedsDisplay()
+        player1TitleView.setNeedsDisplay()
+        view.layoutIfNeeded()
     }
     
     private func stopTurnsPlayback() {
@@ -1015,6 +1042,7 @@ class GameViewController: UIViewController {
     //when we changing device orientation, we transform arrow and we need to store that transformation for animation
     //of transition of additional buttons
     private var currentTransformOfArrow = CGAffineTransform.identity
+    private var specialLayout = false
     
     //letters line on top and bottom of the board
     private var lettersLine: UIStackView {
@@ -1085,7 +1113,7 @@ class GameViewController: UIViewController {
     }
     
     //updates constraints depending on orientation
-    private func updateConstraints(portrait: Bool, special: Bool = false) {
+    private func updateConstraints(portrait: Bool) {
         if portrait {
             if arrowToAdditionalButtons.alpha == 1 {
                 arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi)
@@ -1096,7 +1124,7 @@ class GameViewController: UIViewController {
                 additionalButton.transform = .identity
             }
             currentTransformOfArrow = .identity
-            if !special {
+            if !specialLayout {
                 NSLayoutConstraint.deactivate(landscapeConstraints)
                 NSLayoutConstraint.activate(portraitConstraints)
             }
@@ -1116,7 +1144,7 @@ class GameViewController: UIViewController {
                 additionalButton.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
             }
             currentTransformOfArrow = CGAffineTransform(rotationAngle: .pi * 1.5)
-            if !special {
+            if !specialLayout {
                 NSLayoutConstraint.deactivate(portraitConstraints)
                 NSLayoutConstraint.activate(landscapeConstraints)
             }
@@ -1126,12 +1154,7 @@ class GameViewController: UIViewController {
                 NSLayoutConstraint.activate(specialConstraints)
             }
         }
-        player2FrameView.setNeedsDisplay()
-        player1FrameView.setNeedsDisplay()
-        player2TitleView.setNeedsDisplay()
-        player1TitleView.setNeedsDisplay()
-        playerProgress.setNeedsDisplay()
-        view.layoutIfNeeded()
+        updateLayout()
     }
     
     //if we dont have enough space for player data left and right from gameBoard,
