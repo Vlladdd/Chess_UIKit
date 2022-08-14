@@ -19,7 +19,7 @@ class ProgressBar: UIView {
     }
     var progress: CGFloat = constants.defaultProgressValue {
         didSet {
-            if progress >= 1 || progress <= 0 {
+            if progress >= 1 || progress < 0 {
                 backgroundColor = progressColor
                 progressColor = .random()
                 if progress >= 1 {

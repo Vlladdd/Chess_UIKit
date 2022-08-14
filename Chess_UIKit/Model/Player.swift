@@ -24,12 +24,7 @@ struct Player: Equatable {
     var coins: Int = 0
     var points: Int = 0 {
         didSet {
-            if points > rank.maximumPoints {
-                rank = rank.nextRank
-            }
-            else if points < rank.minimumPoints {
-                rank = rank.previousRank
-            }
+            rank = getRank(from: points)
         }
     }
     var pointsForGame = 0
@@ -44,6 +39,23 @@ struct Player: Equatable {
     mutating func addPoints(_ points: Int) {
         pointsForGame = points
         self.points += pointsForGame
+    }
+    
+    func getRank(from points: Int) -> Ranks {
+        switch points {
+        case _ where points >= Ranks.bronze.minimumPoints && points <= Ranks.bronze.maximumPoints:
+            return .bronze
+        case _ where points >= Ranks.silver.minimumPoints && points <= Ranks.silver.maximumPoints:
+            return .silver
+        case _ where points >= Ranks.gold.minimumPoints && points <= Ranks.gold.maximumPoints:
+            return .gold
+        case _ where points >= Ranks.diamond.minimumPoints && points <= Ranks.diamond.maximumPoints:
+            return .diamond
+        case _ where points >= Ranks.master.minimumPoints:
+            return .master
+        default:
+            return .bronze
+        }
     }
     
 }

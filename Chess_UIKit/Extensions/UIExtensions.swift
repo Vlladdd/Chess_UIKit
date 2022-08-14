@@ -56,6 +56,9 @@ extension UILabel {
     
     func setup(text: String, alignment: NSTextAlignment, font: UIFont) {
         translatesAutoresizingMaskIntoConstraints = false
+        //for proper animation, when label and his font changing size
+        contentMode = .scaleAspectFit
+        adjustsFontSizeToFitWidth = true
         self.text = text
         self.textAlignment = alignment
         self.font = font
@@ -169,18 +172,93 @@ extension UIColor {
 
 extension CALayer {
     
-    func moveTo(y: CGFloat, animated: Bool, duration: Double) {
+    func moveTo(position: CGPoint, animated: Bool, duration: TimeInterval = 0) {
         if animated {
-            let animation = CABasicAnimation(keyPath: "position.y")
-            animation.fromValue = position.y
-            animation.toValue = y
+            let animation = CABasicAnimation(keyPath: #keyPath(CALayer.position))
+            animation.fromValue = self.position
+            animation.toValue = position
             animation.fillMode = .forwards
             animation.duration = duration
-            position.y = y
-            add(animation, forKey: "position.y")
+            self.position = position
+            add(animation, forKey: #keyPath(CALayer.position))
         } else {
-            position.y = y
+            self.position = position
         }
+    }
+    
+    func rotate(from startAngle: CGFloat, to endAngle: CGFloat, animated: Bool, duration: TimeInterval = 0) {
+        if animated {
+            let animation = CABasicAnimation(keyPath: "transform.rotation")
+            animation.fromValue = startAngle
+            animation.toValue = endAngle
+            animation.duration = duration
+            transform = CATransform3DMakeRotation(endAngle, 0.0, 0.0, 1.0)
+            add(animation, forKey: nil)
+        }
+        else {
+            transform = CATransform3DMakeRotation(endAngle, 0.0, 0.0, 1.0)
+        }
+    }
+    
+}
+
+extension CAShapeLayer {
+    
+    func updatePath(with newPath: CGPath, animated: Bool, duration: TimeInterval = 0) {
+        if animated {
+            let animation = CABasicAnimation(keyPath: #keyPath(CAShapeLayer.path))
+            animation.fromValue = path
+            animation.toValue = newPath
+            animation.duration = duration
+            path = newPath
+            add(animation, forKey: #keyPath(CAShapeLayer.path))
+        }
+        else {
+            path = newPath
+        }
+    }
+    
+    func updateStroke(to color: CGColor, animated: Bool, duration: TimeInterval = 0) {
+        if animated {
+            let animation = CABasicAnimation(keyPath: #keyPath(CAShapeLayer.strokeColor))
+            animation.fromValue = strokeColor
+            animation.toValue = color
+            animation.duration = duration
+            strokeColor = color
+            add(animation, forKey: #keyPath(CAShapeLayer.strokeColor))
+        }
+        else {
+            strokeColor = color
+        }
+    }
+    
+}
+
+extension UIScrollView {
+    
+    //scrols to view and centers him on center of ScrollView on the available area on screen
+    func scrollToViewAndCenterOnScreen(view: UIView, animated: Bool) {
+        if let content = subviews.first, content.subviews.contains(view) {
+            let childPoint = convert(view.frame, to: self)
+            let screenMidY = bounds.maxY - bounds.midY
+            let screenMidX = bounds.maxX - bounds.midX
+            setContentOffset(CGPoint(x: childPoint.midX - screenMidX, y: childPoint.midY - screenMidY), animated: animated)
+        }
+    }
+    
+    func checkIfViewInCenterOfTheScreen(view: UIView) -> Bool {
+        if let content = subviews.first, content.subviews.contains(view) {
+            let childPoint = convert(view.frame, to: self)
+            let screenMidY = bounds.maxY - bounds.midY
+            let screenMidX = bounds.maxX - bounds.midX
+            let offset = CGPoint(x: round(childPoint.midX - screenMidX), y: round(childPoint.midY - screenMidY))
+            let currentOffset = CGPoint(x: round(contentOffset.x), y: round(contentOffset.y))
+            return currentOffset == offset
+        }
+        else if contentSize == bounds.size {
+            return true
+        }
+        return false
     }
     
 }

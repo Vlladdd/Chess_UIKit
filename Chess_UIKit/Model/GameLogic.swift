@@ -80,7 +80,7 @@ class GameLogic {
         currentPlayer = players.first(where: {$0.figuresColor == .white})!
         squaresTheme = players.randomElement()!.squaresTheme
         boardTheme = players.randomElement()!.boardTheme
-        gameMode = .oneScreen
+        gameMode = .multiplayer
         if gameMode == .multiplayer {
             maximumCoinsForWheel = Int.random(in: constants.rangeForCoins)
         }
@@ -538,7 +538,7 @@ class GameLogic {
             checkForEndGame()
         }
         else {
-            checkForDraw()
+            checkForDraw(color: color.opposite())
         }
     }
     
@@ -664,8 +664,7 @@ class GameLogic {
     
     // MARK: - Draw
     
-    private func checkForDraw() {
-        let color: GameColors = pickedSquares.first!.figure!.color.opposite()
+    private func checkForDraw(color: GameColors) {
         let squares = gameBoard.squares.filter({$0.figure?.color == color})
         let threeSameTurnsInARow = checkIfTurnsEqual()
         let insufficientMaterial = checkForInsufficientMaterial()

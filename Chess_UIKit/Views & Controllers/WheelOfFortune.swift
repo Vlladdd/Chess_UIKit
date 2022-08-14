@@ -20,6 +20,7 @@ class WheelOfFortune: UIView {
     
     private let coinsText = UILabel()
     private let figureView = UIImageView()
+    private let wheelContainer = UIView()
     
     private(set) var winCoins = 0
     
@@ -41,6 +42,7 @@ class WheelOfFortune: UIView {
         figureView.image = figureImage
         figureView.backgroundColor = constants.figureBackgroundColor
         figureView.layer.borderWidth = constants.figureBorderWidth
+        figureView.contentMode = .scaleAspectFit
         var segmentAngleSize: CGFloat = 0
         var end: CGFloat = 0
         var totalOcupiedSize: CGFloat = 0
@@ -64,14 +66,16 @@ class WheelOfFortune: UIView {
             arcLayer.fillColor = UIColor.clear.cgColor
             arcLayer.strokeColor = constants.strokeColor
             arcLayer.lineWidth = constants.lineWidth
-            layer.addSublayer(arcLayer)
+            wheelContainer.layer.addSublayer(arcLayer)
             let coinsPrize = Int(CGFloat(maximumCoins) / angle)
             segmentsData.append(SegmentData(layer: arcLayer, angle: angle, coinsPrize: coinsPrize))
         }
-        addSubview(figureView)
+        wheelContainer.translatesAutoresizingMaskIntoConstraints = false
+        wheelContainer.addSubview(figureView)
+        addSubview(wheelContainer)
         addSubview(coinsText)
-        let figureConstrants = [figureView.centerXAnchor.constraint(equalTo: centerXAnchor), figureView.centerYAnchor.constraint(equalTo: centerYAnchor), figureView.widthAnchor.constraint(equalTo: widthAnchor, multiplier: constants.dividerForFigureSize), figureView.heightAnchor.constraint(equalTo: heightAnchor, multiplier: constants.dividerForFigureSize)]
-        let coinsTextConstrants = [coinsText.centerXAnchor.constraint(equalTo: centerXAnchor), coinsText.topAnchor.constraint(equalTo: bottomAnchor, constant: constants.distanceForCoins)]
+        let figureConstrants = [wheelContainer.bottomAnchor.constraint(equalTo: coinsText.topAnchor, constant: -constants.distanceForCoins), wheelContainer.topAnchor.constraint(equalTo: topAnchor), wheelContainer.leadingAnchor.constraint(equalTo: leadingAnchor), wheelContainer.trailingAnchor.constraint(equalTo: trailingAnchor), figureView.widthAnchor.constraint(equalTo: wheelContainer.widthAnchor, multiplier: constants.dividerForFigureSize), figureView.heightAnchor.constraint(equalTo: wheelContainer.heightAnchor, multiplier: constants.dividerForFigureSize), figureView.centerXAnchor.constraint(equalTo: wheelContainer.centerXAnchor), figureView.centerYAnchor.constraint(equalTo: wheelContainer.centerYAnchor)]
+        let coinsTextConstrants = [coinsText.centerXAnchor.constraint(equalTo: centerXAnchor), coinsText.bottomAnchor.constraint(equalTo: bottomAnchor)]
         NSLayoutConstraint.activate(figureConstrants + coinsTextConstrants)
         if maximumCoins != 0 {
             spin()
@@ -171,11 +175,13 @@ class WheelOfFortune: UIView {
         let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
             if let self = self {
                 self.coinsText.text = String(segmentData.coinsPrize) + " coins"
-                self.strokeAnimation(for: segmentData.layer, to: constants.colorForWinnerSegment)
-                self.rotateAnimation(from: startAngle, to: startAngle + segmentData.angle / angleModifier, with: animationDuration)
+                //changes stroke color of wheel segment
+                segmentData.layer.updateStroke(to: constants.colorForWinnerSegment, animated: true, duration: constants.animationDuration)
+                //rotates figure in middle of the wheel
+                self.figureView.layer.rotate(from: startAngle, to: startAngle + segmentData.angle / angleModifier, animated: true, duration: animationDuration)
                 if reverse {
                     let timerForReverse = Timer.scheduledTimer(withTimeInterval: animationDuration, repeats: false, block: {_ in
-                        self.strokeAnimation(for: segmentData.layer, to: constants.defaultColorForSegment)
+                        segmentData.layer.updateStroke(to: constants.defaultColorForSegment, animated: true, duration: constants.animationDuration)
                     })
                     RunLoop.main.add(timerForReverse, forMode: .common)
                 }
@@ -184,31 +190,13 @@ class WheelOfFortune: UIView {
         RunLoop.main.add(timer, forMode: .common)
     }
     
-    //changes stroke color of wheel segment
-    private func strokeAnimation(for layer: CAShapeLayer, to color: UIColor) {
-        let animation = CABasicAnimation(keyPath: #keyPath(CAShapeLayer.strokeColor))
-        animation.fromValue = layer.strokeColor
-        animation.toValue = color.cgColor
-        animation.duration = constants.animationDuration
-        layer.strokeColor = color.cgColor
-        layer.add(animation, forKey: #keyPath(CAShapeLayer.strokeColor))
-    }
-    
-    //rotates figure in middle of the wheel
-    private func rotateAnimation(from startAngle: CGFloat, to endAngle: CGFloat, with animationDuration: Double) {
-        let rotationAnimation = CABasicAnimation(keyPath: "transform.rotation")
-        rotationAnimation.fromValue = startAngle
-        rotationAnimation.toValue = endAngle
-        rotationAnimation.duration = animationDuration
-        figureView.layer.transform = CATransform3DMakeRotation(endAngle, 0.0, 0.0, 1.0)
-        figureView.layer.add(rotationAnimation, forKey: nil)
-    }
-    
     // MARK: - Draw
     
-    override func draw(_ rect: CGRect) {
-        let radius = rect.width / 2
-        coinsText.font = UIFont.systemFont(ofSize: radius / constants.dividerForFont)
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        coinsText.font = UIFont.systemFont(ofSize: min(bounds.height, bounds.width) / constants.dividerForFont)
+        let rect = wheelContainer.bounds
+        let radius = min(rect.height, rect.width) / 2
         let center = CGPoint(x: rect.width / 2.0, y: rect.height / 2.0)
         var end: CGFloat = 0
         for segment in segmentsData {
@@ -234,7 +222,7 @@ private struct WheelOfFortune_Constants {
     static let spinsRange = 2...20
     static let defaultDelay = 0.1
     static let distanceForCoins: CGFloat = 30
-    static let dividerForFont: CGFloat = 3
+    static let dividerForFont: CGFloat = 6
     static let animationDuration = 0.5
     static let gapSize: CGFloat = 0.020
     static let lineWidth: CGFloat = 20
@@ -251,8 +239,8 @@ private struct WheelOfFortune_Constants {
     static let spinsForThirdSpeed = 2
     static let multiplierForSecondSpeed = 1.5
     static let multiplierForThirdSpeed = 2.0
-    static let defaultColorForSegment = UIColor.red
-    static let colorForWinnerSegment = UIColor.green
+    static let defaultColorForSegment = UIColor.red.cgColor
+    static let colorForWinnerSegment = UIColor.green.cgColor
     static let rangeForLuckyNumbers = 1...100
     static let minimumSizeForLuckyAngle = 1.0
     //360 degress - gapSize

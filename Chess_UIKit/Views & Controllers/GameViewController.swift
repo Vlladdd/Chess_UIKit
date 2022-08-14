@@ -16,12 +16,38 @@ class GameViewController: UIViewController {
         super.viewDidLoad()
         makeUI()
         updateUI()
-        NotificationCenter.default.addObserver(self, selector: #selector(rotated), name: UIDevice.orientationDidChangeNotification, object: nil)
     }
     
-    //puts gameBoard in center of the screen after device rotation
-    @objc func rotated() {
-        scrollGameViewToCenter()
+    override func viewDidAppear(_ animated: Bool) {
+        //for better performance, to not activate them everytime in updateConstraints, if special
+        NSLayoutConstraint.activate(portraitConstraints)
+        let screenSize: CGSize = UIScreen.main.bounds.size
+        let orientation: UIDeviceOrientation = screenSize.width / screenSize.height < 1 ? .landscapeLeft : .portrait
+        checkOrientationAndUpdateConstraints(size: screenSize, orientation: orientation)
+    }
+    
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        //we are not using UIdevice.current.orientation, because in both cases it is the same, so we use size instead
+        //orientation parameter needed to perform only 1 function at a time
+        //in other words, we are checking, if we are about to transit to landscape or portrait orientation and compare it to which it
+        //should be for first or second case
+        //if we are changing orientation from landscape to portrait, we need to update constraints, before transition will begin,
+        //because there will be not enough space to put anything from left or from right of gameBoard in portrait orientation
+        UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+            if let self = self {
+                self.checkOrientationAndUpdateConstraints(size: size, orientation: .landscapeLeft)
+            }
+        })
+        //if we are changing orientation from portrait to landscape, we need to wait for rotation to finish, before changing
+        //constraints, because there will be not enough space to put anything from left or from right of gameBoard in portrait orientation
+        coordinator.animate(alongsideTransition: nil, completion: {[weak self] _ in
+            if let self = self {
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    self.checkOrientationAndUpdateConstraints(size: size, orientation: .portrait)
+                })
+            }
+        })
     }
     
     // MARK: - Properties
@@ -79,11 +105,11 @@ class GameViewController: UIViewController {
     @objc func transitAdditonalButtons(_ sender: UIButton? = nil) {
         animateAdditionalButtons()
         if let sender = sender {
-            if sender.currentBackgroundImage == UIImage(systemName: "arrowtriangle.up.fill") {
-                sender.setBackgroundImage(UIImage(systemName: "arrowtriangle.down.fill"), for: .normal)
+            if sender.transform == currentTransformOfArrow {
+                sender.transform = currentTransformOfArrow.rotated(by: .pi)
             }
             else {
-                sender.setBackgroundImage(UIImage(systemName: "arrowtriangle.up.fill"), for: .normal)
+                sender.transform = currentTransformOfArrow
             }
         }
     }
@@ -190,12 +216,18 @@ class GameViewController: UIViewController {
     
     // MARK: - Local Methods
     
-    private func scrollGameViewToCenter() {
-        let minContentSize = min(scrollViewOfGame.contentSize.width, scrollViewOfGame.contentSize.height)
-        let minBoundsSize = min(scrollViewOfGame.bounds.size.width, scrollViewOfGame.bounds.size.height)
-        let y = minContentSize / 2 - minBoundsSize / 2
-        let offset = CGPoint(x: 0, y: y)
-        scrollViewOfGame.setContentOffset(offset, animated: true)
+    //described in viewWillTransition
+    private func checkOrientationAndUpdateConstraints(size: CGSize, orientation: UIDeviceOrientation) {
+        let operation: (CGFloat, CGFloat) -> Bool = orientation.isLandscape ? {$0 / $1 < 1} : {$0 / $1 > 1}
+        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
+        //checks if we have enough space to put player data left and right from gameBoard,
+        //otherwise creates special constraints
+        let condition = gameBoard.frame.size.width + widthForFrame < scrollContentOfGame.layoutMarginsGuide.layoutFrame.width
+        if operation(size.width, size.height) {
+            updateConstraints(portrait: orientation.isLandscape, special: !condition)
+        }
+        //puts gameBoard in center of the screen
+        scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
     }
     
     private func stopTurnsPlayback() {
@@ -289,9 +321,13 @@ class GameViewController: UIViewController {
     
     //moves game to chosen turn
     private func moveTurns(to turn: Turn) {
-        scrollGameViewToCenter()
         finishAnimations()
-        var delay = constants.animationDuration
+        var delay = 0.0
+        //before we start animating turns, we need to put gameBoard in center of the screen
+        if !scrollViewOfGame.checkIfViewInCenterOfTheScreen(view: gameBoard) {
+            scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
+            delay = constants.animationDuration
+        }
         let turnsInfo = gameLogic.turnsLeft(to: turn)
         let turnsLeft = turnsInfo.count
         let forward = turnsInfo.forward
@@ -465,7 +501,6 @@ class GameViewController: UIViewController {
         }
         let turnText = firstSqureText.lowercased() + secondSqureText.lowercased()
         let turnLabel = makeLabel(text: turnText)
-        turnLabel.adjustsFontSizeToFitWidth = true
         return turnLabel
     }
     
@@ -556,10 +591,10 @@ class GameViewController: UIViewController {
     private func updateCurrentPlayer() {
         switch gameLogic.currentPlayer.type {
         case .player1:
-            player1FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
-            player2FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
             let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {[weak self] in
                 if let self = self {
+                    self.player1FrameView.updateDataBackgroundColor(constants.currentPlayerDataColor)
+                    self.player2FrameView.updateDataBackgroundColor(constants.defaultPlayerDataColor)
                     if self.gameLogic.players.first!.timeLeft > constants.dangerTimeleft {
                         self.player1Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
                     }
@@ -571,10 +606,10 @@ class GameViewController: UIViewController {
             })
             animations.append(animation)
         case .player2:
-            player1FrameView.updateTextBackgroundColor(constants.defaultPlayerDataColor)
-            player2FrameView.updateTextBackgroundColor(constants.currentPlayerDataColor)
             let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {[weak self] in
                 if let self = self {
+                    self.player1FrameView.updateDataBackgroundColor(constants.defaultPlayerDataColor)
+                    self.player2FrameView.updateDataBackgroundColor(constants.currentPlayerDataColor)
                     if self.gameLogic.players.second!.timeLeft > constants.dangerTimeleft {
                         self.player2Timer.layer.backgroundColor = constants.currentPlayerDataColor.withAlphaComponent(constants.optimalAlpha).cgColor
                     }
@@ -600,13 +635,17 @@ class GameViewController: UIViewController {
             if gameLogic.gameMode == .oneScreen {
                 pawnPicker.transform = .identity
             }
-            pawnPickerConstraints = [pawnPicker.topAnchor.constraint(equalTo: gameBoard.bottomAnchor), pawnPicker.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+            if let lettersLine = gameBoard.arrangedSubviews.last {
+                pawnPickerConstraints = [pawnPicker.centerXAnchor.constraint(equalTo: lettersLine.centerXAnchor), pawnPicker.centerYAnchor.constraint(equalTo: lettersLine.centerYAnchor)]
+            }
         }
         else {
             if gameLogic.gameMode == .oneScreen {
                 pawnPicker.transform = pawnPicker.transform.rotated(by: .pi)
             }
-            pawnPickerConstraints = [pawnPicker.bottomAnchor.constraint(equalTo: gameBoard.topAnchor), pawnPicker.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+            if let lettersLine = gameBoard.arrangedSubviews.first {
+                pawnPickerConstraints = [pawnPicker.centerXAnchor.constraint(equalTo: lettersLine.centerXAnchor), pawnPicker.centerYAnchor.constraint(equalTo: lettersLine.centerYAnchor)]
+            }
         }
         NSLayoutConstraint.activate(pawnPickerConstraints)
     }
@@ -952,6 +991,10 @@ class GameViewController: UIViewController {
     private let turnsButtons = UIStackView()
     private let turnsView = UIView()
     private let additionalButton = UIButton()
+    //df - destroyed figures
+    private let player2FrameForDF = UIImageView()
+    private let player1FrameForDF = UIImageView()
+    private let playerProgress = ProgressBar()
     
     //contains currentTurn of both players
     private var turnData = UIStackView()
@@ -964,6 +1007,14 @@ class GameViewController: UIViewController {
     private var player2FrameView = PlayerFrame()
     private var player1TitleView = PlayerFrame()
     private var player2TitleView = PlayerFrame()
+    private var portraitConstraints: [NSLayoutConstraint] = []
+    private var landscapeConstraints: [NSLayoutConstraint] = []
+    private var specialConstraints: [NSLayoutConstraint] = []
+    private var timerConstraints: [NSLayoutConstraint] = []
+    private var additionalButtonConstraints: [NSLayoutConstraint] = []
+    //when we changing device orientation, we transform arrow and we need to store that transformation for animation
+    //of transition of additional buttons
+    private var currentTransformOfArrow = CGAffineTransform.identity
     
     //letters line on top and bottom of the board
     private var lettersLine: UIStackView {
@@ -988,15 +1039,6 @@ class GameViewController: UIViewController {
         arrowToAdditionalButtons.image = figureImage
         scrollContentOfGame.addSubview(arrowToAdditionalButtons)
         additionalButton.buttonWith(image: UIImage(systemName: "arrowtriangle.down.fill"), and: #selector(transitAdditonalButtons))
-        if let stackWhereToAdd = gameBoard.arrangedSubviews.last {
-            if let stackWhereToAdd = stackWhereToAdd as? UIStackView {
-                if let viewWhereToAdd = stackWhereToAdd.arrangedSubviews.first {
-                    viewWhereToAdd.addSubview(additionalButton)
-                    let additionalButtonConstraints = [additionalButton.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor, multiplier: constants.multiplierForNumberView), additionalButton.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor, multiplier: constants.multiplierForNumberView), additionalButton.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), additionalButton.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.topAnchor.constraint(equalTo: viewWhereToAdd.bottomAnchor), arrowToAdditionalButtons.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), arrowToAdditionalButtons.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor), arrowToAdditionalButtons.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor)]
-                    NSLayoutConstraint.activate(additionalButtonConstraints)
-                }
-            }
-        }
     }
     
     private func makeAdditionalButtons() {
@@ -1017,24 +1059,19 @@ class GameViewController: UIViewController {
         additionalButtons.addArrangedSubview(turnsViewButton)
         additionalButtons.addArrangedSubview(exitsButton)
         scrollContentOfGame.addSubview(additionalButtons)
-        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: arrowToAdditionalButtons.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: gameBoard.leadingAnchor), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor)]
-        NSLayoutConstraint.activate(additionalButtonsConstraints)
     }
     
     private func makeUI() {
-        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
-        let heightForFrame = min(view.frame.width, view.frame.height)  / constants.heightDividerForFrame
-        let heightForTitle = min(view.frame.width, view.frame.height)  / constants.heightDividerForTitle
         setupViews()
         addPlayersBackgrounds()
         makeScrollViewOfGame()
-        makePlayer2Title(width: widthForFrame, height: heightForTitle)
-        makePlayer2Frame(width: widthForFrame, height: heightForFrame)
+        makePlayer2Title()
+        makePlayer2Frame()
         makePlayer2DestroyedFiguresView()
         makeGameBoard()
         makePlayer1DestroyedFiguresView()
-        makePlayer1Frame(width: widthForFrame, height: heightForFrame)
-        makePlayer1Title(width: widthForFrame, height: heightForTitle)
+        makePlayer1Frame()
+        makePlayer1Title()
         makeAdditionalButton()
         makeAdditionalButtons()
         if gameLogic.timerEnabled {
@@ -1042,6 +1079,121 @@ class GameViewController: UIViewController {
         }
         makeTurnsView()
         viewsOnTop()
+        makeSpecialConstraints()
+        makePortraitConstraints()
+        makeLandscapeConstraints()
+    }
+    
+    //updates constraints depending on orientation
+    private func updateConstraints(portrait: Bool, special: Bool = false) {
+        if portrait {
+            if arrowToAdditionalButtons.alpha == 1 {
+                arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi)
+                additionalButton.transform = CGAffineTransform(rotationAngle: .pi)
+            }
+            else {
+                arrowToAdditionalButtons.transform = .identity
+                additionalButton.transform = .identity
+            }
+            currentTransformOfArrow = .identity
+            if !special {
+                NSLayoutConstraint.deactivate(landscapeConstraints)
+                NSLayoutConstraint.activate(portraitConstraints)
+            }
+            else {
+                NSLayoutConstraint.deactivate(specialConstraints)
+                NSLayoutConstraint.activate(timerConstraints)
+                NSLayoutConstraint.activate(additionalButtonConstraints)
+            }
+        }
+        else {
+            if arrowToAdditionalButtons.alpha == 1 {
+                arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
+                additionalButton.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
+            }
+            else {
+                arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+                additionalButton.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+            }
+            currentTransformOfArrow = CGAffineTransform(rotationAngle: .pi * 1.5)
+            if !special {
+                NSLayoutConstraint.deactivate(portraitConstraints)
+                NSLayoutConstraint.activate(landscapeConstraints)
+            }
+            else {
+                NSLayoutConstraint.deactivate(timerConstraints)
+                NSLayoutConstraint.deactivate(additionalButtonConstraints)
+                NSLayoutConstraint.activate(specialConstraints)
+            }
+        }
+        player2FrameView.setNeedsDisplay()
+        player1FrameView.setNeedsDisplay()
+        player2TitleView.setNeedsDisplay()
+        player1TitleView.setNeedsDisplay()
+        playerProgress.setNeedsDisplay()
+        view.layoutIfNeeded()
+    }
+    
+    //if we dont have enough space for player data left and right from gameBoard,
+    //instead we only move timers and change layout of additional buttons
+    private func makeSpecialConstraints() {
+        let heightForAdditionalButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
+        let player1TimerConstaints = [player1Timer.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), player1Timer.trailingAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.leadingAnchor), player1Timer.leadingAnchor.constraint(greaterThanOrEqualTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor)]
+        let player2TimerConstaints = [player2Timer.topAnchor.constraint(equalTo: gameBoard.topAnchor), player2Timer.leadingAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.trailingAnchor), player2Timer.trailingAnchor.constraint(lessThanOrEqualTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor)]
+        let additionalButtonsConstraints = [additionalButtons.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: arrowToAdditionalButtons.trailingAnchor), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor)]
+        if let stackWhereToAdd = gameBoard.arrangedSubviews.last {
+            if let stackWhereToAdd = stackWhereToAdd as? UIStackView {
+                if let viewWhereToAdd = stackWhereToAdd.arrangedSubviews.first {
+                    viewWhereToAdd.addSubview(additionalButton)
+                    let additionalButtonConstraints = [additionalButton.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor, multiplier: constants.multiplierForNumberView), additionalButton.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor, multiplier: constants.multiplierForNumberView), additionalButton.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), additionalButton.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.leadingAnchor.constraint(equalTo: viewWhereToAdd.trailingAnchor), arrowToAdditionalButtons.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor), arrowToAdditionalButtons.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor)]
+                    specialConstraints += additionalButtonConstraints
+                }
+            }
+        }
+        specialConstraints += player1TimerConstaints + player2TimerConstaints + additionalButtonsConstraints
+    }
+    
+    private func makePortraitConstraints() {
+        let heightForAdditionalButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
+        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
+        let heightForFrame = min(view.frame.width, view.frame.height)  / constants.heightDividerForFrame
+        if let stackWhereToAdd = gameBoard.arrangedSubviews.last {
+            if let stackWhereToAdd = stackWhereToAdd as? UIStackView {
+                if let viewWhereToAdd = stackWhereToAdd.arrangedSubviews.first {
+                    viewWhereToAdd.addSubview(additionalButton)
+                    let additionalButtonConstraints = [additionalButton.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor, multiplier: constants.multiplierForNumberView), additionalButton.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor, multiplier: constants.multiplierForNumberView), additionalButton.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), additionalButton.centerYAnchor.constraint(equalTo: viewWhereToAdd.centerYAnchor), arrowToAdditionalButtons.topAnchor.constraint(equalTo: viewWhereToAdd.bottomAnchor), arrowToAdditionalButtons.centerXAnchor.constraint(equalTo: viewWhereToAdd.centerXAnchor), arrowToAdditionalButtons.widthAnchor.constraint(equalTo: viewWhereToAdd.widthAnchor), arrowToAdditionalButtons.heightAnchor.constraint(equalTo: viewWhereToAdd.heightAnchor)]
+                    portraitConstraints += additionalButtonConstraints
+                    self.additionalButtonConstraints += additionalButtonConstraints
+                }
+            }
+        }
+        let additionalButtonsConstraints = [additionalButtons.topAnchor.constraint(equalTo: arrowToAdditionalButtons.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: gameBoard.leadingAnchor), additionalButtons.heightAnchor.constraint(equalToConstant: heightForAdditionalButtons), showEndOfTheGameView.widthAnchor.constraint(equalTo: showEndOfTheGameView.heightAnchor)]
+        let player2FrameViewConstraints = [player2FrameView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player2FrameView.topAnchor.constraint(equalTo: player2TitleView.bottomAnchor, constant: constants.distanceForTitle), player2FrameView.widthAnchor.constraint(equalToConstant: widthForFrame), player2FrameView.heightAnchor.constraint(equalToConstant: heightForFrame)]
+        let player1FrameViewConstraints = [player1FrameView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1FrameView.topAnchor.constraint(equalTo: destroyedFigures2.bottomAnchor, constant: constants.optimalDistance), player1FrameView.widthAnchor.constraint(equalToConstant: widthForFrame), player1FrameView.heightAnchor.constraint(equalToConstant: heightForFrame)]
+        let player2TitleViewConstraints = [player2TitleView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player2TitleView.widthAnchor.constraint(equalToConstant: widthForFrame), player2TitleView.heightAnchor.constraint(equalToConstant: heightForFrame), player2TitleView.topAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.topAnchor)]
+        let player1TitleViewConstraints = [player1TitleView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1TitleView.widthAnchor.constraint(equalToConstant: widthForFrame), player1TitleView.heightAnchor.constraint(equalToConstant: heightForFrame), player1TitleView.topAnchor.constraint(equalTo: player1FrameView.bottomAnchor, constant: constants.distanceForTitle), player1TitleView.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
+        let player2FrameConstraintsDF = [player2FrameForDF.topAnchor.constraint(equalTo: player2FrameView.bottomAnchor, constant: constants.distanceForFrame), player2FrameForDF.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player2FrameForDF.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance), player2FrameForDF.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+        let destroyedFigures1Constraints = [destroyedFigures1.topAnchor.constraint(equalTo: player2FrameView.bottomAnchor, constant: constants.optimalDistance), destroyedFigures1.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+        let player1FrameConstraintsDF = [player1FrameForDF.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForFrame), player1FrameForDF.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1FrameForDF.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player1FrameForDF.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance)]
+        let destroyedFigures2Constraints = [destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), destroyedFigures2.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+        let player1TimerConstraints = [player1Timer.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), player1Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
+        let player2TimerConstraints = [player2Timer.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.optimalDistance), player2Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
+        portraitConstraints += additionalButtonsConstraints + player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + player1TimerConstraints + player2TimerConstraints
+        timerConstraints += player1TimerConstraints + player2TimerConstraints
+        additionalButtonConstraints += additionalButtonsConstraints
+    }
+    
+    private func makeLandscapeConstraints() {
+        let heightForFrame = min(view.frame.width, view.frame.height)  / constants.heightDividerForFrame
+        let player2FrameViewConstraints = [player2FrameView.centerYAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.centerYAnchor), player2FrameView.leadingAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.trailingAnchor, constant: constants.optimalDistance), player2FrameView.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance), player2FrameView.heightAnchor.constraint(equalToConstant: heightForFrame)]
+        let player1FrameViewConstraints = [player1FrameView.centerYAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.centerYAnchor), player1FrameView.trailingAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.leadingAnchor, constant: -constants.optimalDistance), player1FrameView.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), player1FrameView.heightAnchor.constraint(equalToConstant: heightForFrame)]
+        let player2TitleViewConstraints = [player2TitleView.topAnchor.constraint(equalTo: player2FrameView.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), player2TitleView.leadingAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.trailingAnchor, constant: constants.optimalDistance), player2TitleView.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance), player2TitleView.heightAnchor.constraint(equalToConstant: heightForFrame)]
+        let player1TitleViewConstraints = [player1TitleView.topAnchor.constraint(equalTo: player1FrameView.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), player1TitleView.trailingAnchor.constraint(equalTo: gameBoard.layoutMarginsGuide.leadingAnchor, constant: -constants.optimalDistance), player1TitleView.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), player1TitleView.heightAnchor.constraint(equalToConstant: heightForFrame)]
+        let player2FrameConstraintsDF = [player2FrameForDF.topAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.topAnchor, constant: constants.distanceForFrame), player2FrameForDF.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player2FrameForDF.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance), player2FrameForDF.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+        let destroyedFigures1Constraints = [destroyedFigures1.topAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.topAnchor, constant: constants.optimalDistance), destroyedFigures1.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
+        let player1FrameConstraintsDF = [player1FrameForDF.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForFrame), player1FrameForDF.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1FrameForDF.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player1FrameForDF.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance), player1FrameForDF.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
+        let destroyedFigures2Constraints = [destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), destroyedFigures2.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), destroyedFigures2.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor, constant: -constants.distanceForFrame)]
+        landscapeConstraints += player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + specialConstraints
     }
     
     //moves some views to top
@@ -1086,6 +1238,8 @@ class GameViewController: UIViewController {
         turnsButtons.defaultSettings()
         frameForEndOfTheGameView.defaultSettings()
         arrowToAdditionalButtons.defaultSettings()
+        player2FrameForDF.defaultSettings()
+        player1FrameForDF.defaultSettings()
         player1Timer = makeLabel(text: prodTimeString(gameLogic.players.first!.timeLeft))
         player2Timer = makeLabel(text: prodTimeString(gameLogic.players.second!.timeLeft))
         turnsButtons.backgroundColor = turnsButtons.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
@@ -1111,61 +1265,43 @@ class GameViewController: UIViewController {
         NSLayoutConstraint.activate(scrollViewConstraints + contentConstraints)
     }
     
-    private func makePlayer2Frame(width: CGFloat, height: CGFloat) {
+    private func makePlayer2Frame() {
         let player2Background = gameLogic.players.second!.playerBackground
         let player2Frame = gameLogic.players.second!.frame
-        let player2Data = UIStackView()
-        player2Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.optimalSpacing)
-        let player2Name = makeLabel(text: gameLogic.players.second!.name)
-        let player2Points = makeLabel(text: String(gameLogic.players.second!.points))
-        player2Data.addArrangedSubview(player2Name)
-        player2Data.addArrangedSubview(player2Points)
+        let player2Data = makeLabel(text: gameLogic.players.second!.name + " " + String(gameLogic.players.second!.points))
         player2FrameView = PlayerFrame(background: player2Background, playerFrame: player2Frame, data: player2Data)
         scrollContentOfGame.addSubview(player2FrameView)
-        let player2FrameViewConstraints = [player2FrameView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player2FrameView.topAnchor.constraint(equalTo: player2TitleView.bottomAnchor, constant: constants.distanceForTitle), player2FrameView.widthAnchor.constraint(equalToConstant: width), player2FrameView.heightAnchor.constraint(equalToConstant: height)]
-        NSLayoutConstraint.activate(player2FrameViewConstraints)
         if gameLogic.gameMode == .oneScreen {
             player2FrameView.transform = player2FrameView.transform.rotated(by: .pi)
         }
         scrollContentOfGame.bringSubviewToFront(player2TitleView)
     }
     
-    private func makePlayer1Frame(width: CGFloat, height: CGFloat) {
+    private func makePlayer1Frame() {
         let player1Background = gameLogic.players.first!.playerBackground
         let player1Frame = gameLogic.players.first!.frame
-        let player1Data = UIStackView()
-        player1Data.setup(axis: .horizontal, alignment: .fill, distribution: .equalSpacing, spacing: constants.optimalSpacing)
-        let player1Name = makeLabel(text: gameLogic.players.first!.name)
-        let player1Points = makeLabel(text: String(gameLogic.players.first!.points))
-        player1Data.addArrangedSubview(player1Name)
-        player1Data.addArrangedSubview(player1Points)
+        let player1Data = makeLabel(text: gameLogic.players.first!.name + " " + String(gameLogic.players.first!.points))
         player1FrameView = PlayerFrame(background: player1Background, playerFrame: player1Frame, data: player1Data)
         scrollContentOfGame.addSubview(player1FrameView)
-        let player1FrameViewConstraints = [player1FrameView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1FrameView.topAnchor.constraint(equalTo: destroyedFigures2.bottomAnchor, constant: constants.optimalDistance), player1FrameView.widthAnchor.constraint(equalToConstant: width), player1FrameView.heightAnchor.constraint(equalToConstant: height)]
-        NSLayoutConstraint.activate(player1FrameViewConstraints)
     }
     
-    private func makePlayer2Title(width: CGFloat, height: CGFloat) {
+    private func makePlayer2Title() {
         let player2Background = gameLogic.players.second!.playerBackground
         let player2Frame = gameLogic.players.second!.frame
         let player2Title = makeLabel(text: gameLogic.players.second!.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
         player2TitleView = PlayerFrame(background: player2Background, playerFrame: player2Frame, data: player2Title)
         scrollContentOfGame.addSubview(player2TitleView)
-        let player2TitleViewConstraints = [player2TitleView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player2TitleView.widthAnchor.constraint(equalToConstant: width), player2TitleView.heightAnchor.constraint(equalToConstant: height), player2TitleView.topAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.topAnchor)]
-        NSLayoutConstraint.activate(player2TitleViewConstraints)
         if gameLogic.gameMode == .oneScreen {
             player2TitleView.transform = player2TitleView.transform.rotated(by: .pi)
         }
     }
     
-    private func makePlayer1Title(width: CGFloat, height: CGFloat) {
+    private func makePlayer1Title() {
         let player1Background = gameLogic.players.first!.playerBackground
         let player1Frame = gameLogic.players.first!.frame
         let player1Title = makeLabel(text: gameLogic.players.first!.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
         player1TitleView = PlayerFrame(background: player1Background, playerFrame: player1Frame, data: player1Title)
         scrollContentOfGame.addSubview(player1TitleView)
-        let player1TitleViewConstraints = [player1TitleView.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1TitleView.widthAnchor.constraint(equalToConstant: width), player1TitleView.heightAnchor.constraint(equalToConstant: height), player1TitleView.topAnchor.constraint(equalTo: player1FrameView.bottomAnchor, constant: constants.distanceForTitle), player1TitleView.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
-        NSLayoutConstraint.activate(player1TitleViewConstraints)
     }
     
     private func makeGameBoard() {
@@ -1183,34 +1319,24 @@ class GameViewController: UIViewController {
     }
     
     private func makePlayer2DestroyedFiguresView() {
-        let player2Frame = UIImageView()
-        player2Frame.defaultSettings()
-        player2Frame.image = UIImage(named: "frames/\(gameLogic.players.second!.frame.rawValue)")
-        scrollContentOfGame.addSubview(player2Frame)
+        player2FrameForDF.image = UIImage(named: "frames/\(gameLogic.players.second!.frame.rawValue)")
+        scrollContentOfGame.addSubview(player2FrameForDF)
         //in oneScreen second stack should be first, in other words upside down
         if gameLogic.gameMode == .oneScreen {
-            player2Frame.transform = player2Frame.transform.rotated(by: .pi)
+            player2FrameForDF.transform = player2FrameForDF.transform.rotated(by: .pi)
             destroyedFigures1 = makeDestroyedFiguresView(destroyedFigures1: player1DestroyedFigures2, destroyedFigures2: player1DestroyedFigures1, player2: true)
         }
         else if gameLogic.gameMode == .multiplayer{
             destroyedFigures1 = makeDestroyedFiguresView(destroyedFigures1: player1DestroyedFigures1, destroyedFigures2: player1DestroyedFigures2, player2: true)
         }
         scrollContentOfGame.addSubview(destroyedFigures1)
-        let player2FrameConstraints = [player2Frame.topAnchor.constraint(equalTo: player2FrameView.bottomAnchor, constant: constants.distanceForFrame), player2Frame.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player2Frame.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance), player2Frame.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
-        let destroyedFigures1Constraints = [destroyedFigures1.topAnchor.constraint(equalTo: player2FrameView.bottomAnchor, constant: constants.optimalDistance), destroyedFigures1.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
-        NSLayoutConstraint.activate(destroyedFigures1Constraints + player2FrameConstraints)
     }
     
     private func makePlayer1DestroyedFiguresView() {
-        let player1Frame = UIImageView()
-        player1Frame.defaultSettings()
-        player1Frame.image = UIImage(named: "frames/\(gameLogic.players.first!.frame.rawValue)")
-        scrollContentOfGame.addSubview(player1Frame)
+        player1FrameForDF.image = UIImage(named: "frames/\(gameLogic.players.first!.frame.rawValue)")
+        scrollContentOfGame.addSubview(player1FrameForDF)
         destroyedFigures2 = makeDestroyedFiguresView(destroyedFigures1: player2DestroyedFigures1, destroyedFigures2: player2DestroyedFigures2)
         scrollContentOfGame.addSubview(destroyedFigures2)
-        let player1FrameConstraints = [player1Frame.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForFrame), player1Frame.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1Frame.widthAnchor.constraint(equalTo: destroyedFigures1.widthAnchor, constant: constants.optimalDistance), player1Frame.heightAnchor.constraint(equalTo: destroyedFigures1.heightAnchor, constant: constants.optimalDistance)]
-        let destroyedFigures2Constraints = [destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), destroyedFigures2.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
-        NSLayoutConstraint.activate(destroyedFigures2Constraints + player1FrameConstraints)
     }
     
     private func addPlayersBackgrounds() {
@@ -1427,13 +1553,14 @@ class GameViewController: UIViewController {
     
     //shows/hides additional buttons with animation
     private func animateAdditionalButtons() {
-        let positionOfAdditionalButton = getFrameForAnimation(firstView: scrollContentOfGame, secondView: additionalButton).origin.y
-        let positionOfArrow = arrowToAdditionalButtons.layer.position.y
-        let positionOfAdditButtons = additionalButtons.layer.position.y
+        let currentTransformOfArrow = self.currentTransformOfArrow
+        let positionOfAdditionalButton = getFrameForAnimation(firstView: scrollContentOfGame, secondView: additionalButton).origin
+        let positionOfArrow = arrowToAdditionalButtons.layer.position
+        let positionOfAdditButtons = additionalButtons.layer.position
         if additionalButtons.alpha == 0 {
             //curtain animation
             additionalButtons.transform = constants.transformForAdditionalButtons
-            arrowToAdditionalButtons.transform = constants.transformForAdditionalButtons
+            arrowToAdditionalButtons.transform = currentTransformOfArrow.concatenating(constants.transformForAdditionalButtons)
             //this comment saved for history :d
             //as i realized, we can`t rotate and translate view at the same time, cuz weird
             //animation occurs, so i decided to make it in this way (change center and then
@@ -1444,30 +1571,30 @@ class GameViewController: UIViewController {
             //P.S. i also realized, that we cant animate by changing center, cuz, if view will triger layout update,
             //then our animation will fucked up, so i decided to rewrite it with CAAnimation
             //P.P.S. i think i should rewrite some more animations with CAAnimation, cuz in some situations its working much better imho
-            arrowToAdditionalButtons.layer.position.y = positionOfAdditionalButton
-            additionalButtons.layer.position.y = positionOfAdditionalButton
-            arrowToAdditionalButtons.layer.moveTo(y: positionOfArrow, animated: true, duration: constants.animationDuration)
-            additionalButtons.layer.moveTo(y: positionOfAdditButtons, animated: true, duration: constants.animationDuration)
+            arrowToAdditionalButtons.layer.position = positionOfAdditionalButton
+            additionalButtons.layer.position = positionOfAdditionalButton
+            arrowToAdditionalButtons.layer.moveTo(position: positionOfArrow, animated: true, duration: constants.animationDuration)
+            additionalButtons.layer.moveTo(position: positionOfAdditButtons, animated: true, duration: constants.animationDuration)
             UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                self?.arrowToAdditionalButtons.transform = .identity.rotated(by: .pi)
+                self?.arrowToAdditionalButtons.transform = currentTransformOfArrow.rotated(by: .pi)
                 self?.additionalButtons.transform = .identity
                 self?.additionalButtons.alpha = 1
                 self?.arrowToAdditionalButtons.alpha = 1
             })
         }
         else {
-            arrowToAdditionalButtons.layer.moveTo(y: positionOfAdditionalButton, animated: true, duration: constants.animationDuration)
-            additionalButtons.layer.moveTo(y: positionOfAdditionalButton, animated: true, duration: constants.animationDuration)
-            arrowToAdditionalButtons.layer.position.y = positionOfArrow
-            additionalButtons.layer.position.y = positionOfAdditButtons
+            arrowToAdditionalButtons.layer.moveTo(position: positionOfAdditionalButton, animated: true, duration: constants.animationDuration)
+            additionalButtons.layer.moveTo(position: positionOfAdditionalButton, animated: true, duration: constants.animationDuration)
+            arrowToAdditionalButtons.layer.position = positionOfArrow
+            additionalButtons.layer.position = positionOfAdditButtons
             UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
                 self?.additionalButtons.transform = constants.transformForAdditionalButtons
-                self?.arrowToAdditionalButtons.transform = constants.transformForAdditionalButtons
+                self?.arrowToAdditionalButtons.transform = currentTransformOfArrow.concatenating(constants.transformForAdditionalButtons)
                 self?.arrowToAdditionalButtons.alpha = 0
                 self?.additionalButtons.alpha = 0
             }) {[weak self] _ in
                 self?.additionalButtons.transform = .identity
-                self?.arrowToAdditionalButtons.transform = .identity
+                self?.arrowToAdditionalButtons.transform = currentTransformOfArrow
             }
         }
     }
@@ -1476,20 +1603,20 @@ class GameViewController: UIViewController {
         //just for animation
         let startPoints = gameLogic.players.first!.points - gameLogic.players.first!.pointsForGame
         var endPoints = gameLogic.players.first!.points
+        let startRank = gameLogic.players.first!.getRank(from: startPoints)
         let factor = endPoints > startPoints ? gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation : -(gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation)
         let infoStack = UIStackView()
         infoStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-        let rankLabel = makeLabel(text: gameLogic.players.first!.rank.rawValue)
+        let rankLabel = makeLabel(text: startRank.rawValue)
         let pointsLabel = makeLabel(text: String(startPoints))
-        let playerProgress = ProgressBar()
         playerProgress.backgroundColor = constants.backgroundColorForProgressBar
         //how much percentage is filled
-        playerProgress.progress = CGFloat(gameLogic.players.first!.points * 100 / gameLogic.players.first!.rank.maximumPoints) / 100.0
+        playerProgress.progress = CGFloat(startPoints * 100 / gameLogic.players.first!.rank.maximumPoints) / 100.0
         playerProgress.translatesAutoresizingMaskIntoConstraints = false
         if endPoints < 0 {
             endPoints = 0
         }
-        animatePoints(interval: constants.intervalForPointsAnimation, startPoints: startPoints, endPoints: endPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor, rank: gameLogic.players.first!.rank, rankLabel: rankLabel)
+        animatePoints(interval: constants.intervalForPointsAnimation, startPoints: startPoints, endPoints: endPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor, rank: startRank, rankLabel: rankLabel)
         infoStack.addArrangedSubview(rankLabel)
         infoStack.addArrangedSubview(playerProgress)
         infoStack.addArrangedSubview(pointsLabel)
@@ -1540,7 +1667,6 @@ class GameViewController: UIViewController {
         let playerAvatar = UIImageView()
         playerAvatar.rectangleView(width: min(view.frame.width, view.frame.height) / constants.dividerForCurrentPlayerAvatar)
         playerAvatar.image = playerBackground
-        let radius = min(view.frame.width, view.frame.height) / constants.dividerForWheelRadius
         let wheel = WheelOfFortune(figuresTheme: gameLogic.players.first!.figuresTheme, maximumCoins: gameLogic.maximumCoinsForWheel)
         wheel.translatesAutoresizingMaskIntoConstraints = false
         gameLogic.addCoinsToPlayer(coins: wheel.winCoins)
@@ -1553,7 +1679,6 @@ class GameViewController: UIViewController {
         }
         let infoStack = makeInfoStack()
         let titleLabel = makeLabel(text: titleText)
-        titleLabel.adjustsFontSizeToFitWidth = true
         let nameLabel = makeLabel(text: "\(gameLogic.players.first!.name)")
         data.addSubview(nameLabel)
         data.addSubview(titleLabel)
@@ -1562,10 +1687,10 @@ class GameViewController: UIViewController {
         data.addSubview(wheel)
         data.addSubview(hideButton)
         let titleLabelConstraints = [titleLabel.centerXAnchor.constraint(equalTo: data.centerXAnchor), titleLabel.topAnchor.constraint(equalTo: data.topAnchor, constant: constants.optimalDistance), titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: data.leadingAnchor, constant: constants.optimalDistance), titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: data.trailingAnchor, constant: -constants.optimalDistance)]
-        let playerDataConstraints = [nameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: constants.optimalDistance), nameLabel.centerXAnchor.constraint(equalTo: data.centerXAnchor), playerAvatar.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: constants.optimalDistance), playerAvatar.leadingAnchor.constraint(equalTo: data.leadingAnchor, constant: constants.optimalDistance), infoStack.centerYAnchor.constraint(equalTo: playerAvatar.centerYAnchor),  infoStack.leadingAnchor.constraint(equalTo: playerAvatar.trailingAnchor, constant: constants.optimalDistance), infoStack.trailingAnchor.constraint(equalTo: data.trailingAnchor, constant: -constants.optimalDistance)]
-        let wheelConstraints = [wheel.topAnchor.constraint(equalTo: playerAvatar.bottomAnchor, constant: constants.optimalDistance), wheel.centerXAnchor.constraint(equalTo: data.centerXAnchor), wheel.bottomAnchor.constraint(lessThanOrEqualTo: data.bottomAnchor, constant: -radius / constants.dividerForEndDataDistance), wheel.heightAnchor.constraint(equalToConstant: radius), wheel.widthAnchor.constraint(equalToConstant: radius)]
-        let hideButtonConstaints = [hideButton.centerXAnchor.constraint(equalTo: data.centerXAnchor), hideButton.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: constants.distanceAfterWheel), hideButton.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height) / constants.dividerForButton), hideButton.heightAnchor.constraint(equalTo: hideButton.widthAnchor), hideButton.bottomAnchor.constraint(equalTo: data.bottomAnchor, constant: -constants.optimalDistance)]
-        NSLayoutConstraint.activate(titleLabelConstraints + playerDataConstraints + wheelConstraints + hideButtonConstaints)
+        let playerDataConstraints = [nameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: constants.optimalDistance), nameLabel.centerXAnchor.constraint(equalTo: data.centerXAnchor), nameLabel.leadingAnchor.constraint(greaterThanOrEqualTo: data.layoutMarginsGuide.leadingAnchor), nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: data.layoutMarginsGuide.trailingAnchor), playerAvatar.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: constants.optimalDistance), playerAvatar.leadingAnchor.constraint(equalTo: data.leadingAnchor, constant: constants.optimalDistance), infoStack.centerYAnchor.constraint(equalTo: playerAvatar.centerYAnchor),  infoStack.leadingAnchor.constraint(equalTo: playerAvatar.trailingAnchor, constant: constants.optimalDistance), infoStack.trailingAnchor.constraint(equalTo: data.trailingAnchor, constant: -constants.optimalDistance)]
+        let wheelConstraints = [wheel.topAnchor.constraint(equalTo: playerAvatar.bottomAnchor, constant: constants.optimalDistance), wheel.centerXAnchor.constraint(equalTo: data.centerXAnchor), wheel.heightAnchor.constraint(equalTo: wheel.widthAnchor), wheel.leadingAnchor.constraint(equalTo: data.layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), wheel.trailingAnchor.constraint(equalTo: data.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance)]
+        let hideButtonConstraints = [hideButton.centerXAnchor.constraint(equalTo: data.centerXAnchor), hideButton.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: constants.optimalDistance), hideButton.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height) / constants.dividerForButton), hideButton.heightAnchor.constraint(equalTo: hideButton.widthAnchor), hideButton.bottomAnchor.constraint(equalTo: data.layoutMarginsGuide.bottomAnchor)]
+        NSLayoutConstraint.activate(titleLabelConstraints + playerDataConstraints + wheelConstraints + hideButtonConstraints)
         return data
     }
     
@@ -1573,9 +1698,6 @@ class GameViewController: UIViewController {
     private func makeTimers() {
         scrollContentOfGame.addSubview(player1Timer)
         scrollContentOfGame.addSubview(player2Timer)
-        let player1TimerConstaints = [player1Timer.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), player1Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
-        let player2TimerConstaints = [player2Timer.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.optimalDistance), player2Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
-        NSLayoutConstraint.activate(player1TimerConstaints + player2TimerConstaints)
         if gameLogic.gameMode == .oneScreen {
             player2Timer.transform = player2Timer.transform.rotated(by: .pi)
         }
@@ -1620,14 +1742,11 @@ class GameViewController: UIViewController {
         let turnsViewConstraints = [turnsView.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor), turnsView.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor), turnsView.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForTurns), turnsView.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
         let turnsScrollViewConstraints = [turnsScrollView.leadingAnchor.constraint(equalTo: turnsView.leadingAnchor), turnsScrollView.trailingAnchor.constraint(equalTo: turnsView.trailingAnchor), turnsScrollView.topAnchor.constraint(equalTo: turnsButtons.bottomAnchor), turnsScrollView.bottomAnchor.constraint(equalTo: turnsView.bottomAnchor)]
         let contentConstraints = [turnsContent.topAnchor.constraint(equalTo: turnsScrollView.topAnchor), turnsContent.bottomAnchor.constraint(equalTo: turnsScrollView.bottomAnchor), turnsContent.leadingAnchor.constraint(equalTo: turnsScrollView.leadingAnchor), turnsContent.trailingAnchor.constraint(equalTo: turnsScrollView.trailingAnchor), turnsContent.widthAnchor.constraint(equalTo: turnsScrollView.widthAnchor), contentHeight]
-        let buttonsConstraints = [turnsButtons.topAnchor.constraint(equalTo: turnsView.topAnchor), turnsButtons.centerXAnchor.constraint(equalTo: turnsView.centerXAnchor), turnsButtons.heightAnchor.constraint(equalToConstant: heightForButtons)]
+        let buttonsConstraints = [turnsButtons.topAnchor.constraint(equalTo: turnsView.topAnchor), turnsButtons.centerXAnchor.constraint(equalTo: turnsView.centerXAnchor), turnsButtons.heightAnchor.constraint(equalToConstant: heightForButtons), turnBackward.widthAnchor.constraint(equalToConstant: heightForButtons)]
         let turnsConstraints = [turns.topAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.topAnchor), turns.bottomAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.bottomAnchor), turns.leadingAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.leadingAnchor), turns.trailingAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.trailingAnchor)]
         let backgroundConstraints = [background.widthAnchor.constraint(equalTo: turnsView.widthAnchor), background.heightAnchor.constraint(equalTo: turnsView.heightAnchor), background.centerXAnchor.constraint(equalTo: turnsView.centerXAnchor), background.centerYAnchor.constraint(equalTo: turnsView.centerYAnchor)]
         NSLayoutConstraint.activate(turnsViewConstraints + contentConstraints + buttonsConstraints + turnsConstraints + backgroundConstraints + turnsScrollViewConstraints)
     }
-    
-    //TODO: -
-    // - Make player name, title and time have different layout depending on device rotation (if enough space)
     
 }
 
@@ -1674,7 +1793,7 @@ private struct GameVC_Constants {
     static let scaleForAddionalButtons = UIImage.SymbolScale.small
     static let cornerRadiusForChessTime = 7.0
     static let weightForChessTime = UIFont.Weight.regular
-    static let transformForAdditionalButtons = CGAffineTransform(scaleX: 1,y: 0.1)
+    static let transformForAdditionalButtons = CGAffineTransform(scaleX: 0.1,y: 0.1)
     static let shortCastleNotation = "0-0"
     static let longCastleNotation = "0-0-0"
     static let checkmateNotation = "#"
