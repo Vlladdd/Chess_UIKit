@@ -1061,6 +1061,9 @@ class GameLogic {
     func addCoinsToPlayer(coins: Int) {
         if let index = players.firstIndex(of: players.first!) {
             players[index].coins += coins
+            if currentPlayer.type == .player1 {
+                currentPlayer = players[index]
+            }
         }
     }
     
