@@ -809,14 +809,10 @@ class GameViewController: UIViewController {
                 self.trashAnimation?.stopAnimation(false)
                 self.trashAnimation?.finishAnimation(at: .end)
                 if let backwardSquareView = backwardSquareView, let backwardFigureView = backwardFigureView {
-                    let destroyedFigures = backwardFigureView.superview
+                    let destroyedFiguresView = backwardFigureView.superview?.superview
                     backwardFigureView.transform = .identity
                     backwardSquareView.addSubview(backwardFigureView)
-                    if let destroyedFigures = destroyedFigures as? UIStackView {
-                        if destroyedFigures.arrangedSubviews.isEmpty {
-                            destroyedFigures.frame.size.width = 0
-                        }
-                    }
+                    destroyedFiguresView?.layoutIfNeeded()
                 }
                 if secondSquareView.subviews.count > 1 {
                     self.moveFigureToTrash(squareView: secondSquareView, currentPlayer: currentPlayer)
@@ -849,6 +845,8 @@ class GameViewController: UIViewController {
     
     //gets figure to move from trash to game
     private func getBackwardFigureView() -> UIImageView? {
+        trashAnimation?.stopAnimation(false)
+        trashAnimation?.finishAnimation(at: .end)
         if gameLogic.currentPlayer == gameLogic.players.first! {
             if player2DestroyedFigures2.arrangedSubviews.count > 0 {
                 return player2DestroyedFigures2.arrangedSubviews.last! as? UIImageView
@@ -859,11 +857,11 @@ class GameViewController: UIViewController {
         }
         else {
             if gameLogic.gameMode != .oneScreen {
-                if player1DestroyedFigures1.arrangedSubviews.count > 0 {
-                    return player1DestroyedFigures1.arrangedSubviews.last! as? UIImageView
-                }
-                else if player1DestroyedFigures2.arrangedSubviews.count > 0{
+                if player1DestroyedFigures2.arrangedSubviews.count > 0 {
                     return player1DestroyedFigures2.arrangedSubviews.last! as? UIImageView
+                }
+                else if player1DestroyedFigures1.arrangedSubviews.count > 0{
+                    return player1DestroyedFigures1.arrangedSubviews.last! as? UIImageView
                 }
             }
             else {
@@ -1022,6 +1020,7 @@ class GameViewController: UIViewController {
     private let player2FrameForDF = UIImageView()
     private let player1FrameForDF = UIImageView()
     private let playerProgress = ProgressBar()
+    private let surenderButton = UIButton()
     
     //contains currentTurn of both players
     private var turnData = UIStackView()
@@ -1072,7 +1071,6 @@ class GameViewController: UIViewController {
     private func makeAdditionalButtons() {
         let heightForAdditionalButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
         let configForAdditionalButtons = UIImage.SymbolConfiguration(pointSize: heightForAdditionalButtons, weight: constants.weightForAddionalButtons, scale: constants.scaleForAddionalButtons)
-        let surenderButton = UIButton()
         surenderButton.buttonWith(image: UIImage(systemName: "flag.fill", withConfiguration: configForAdditionalButtons), and: #selector(surender))
         let lockScrolling = UIButton()
         lockScrolling.buttonWith(image: UIImage(systemName: "lock.open", withConfiguration: configForAdditionalButtons), and: #selector(lockGameView))
@@ -1524,6 +1522,7 @@ class GameViewController: UIViewController {
     
     private func makeEndOfTheGameView() {
         showEndOfTheGameView.isEnabled = true
+        surenderButton.isEnabled = false
         frameForEndOfTheGameView.image = UIImage(named: "frames/\(gameLogic.winner!.frame.rawValue)")
         let winnerBackground = UIImage(named: "backgrounds/\(gameLogic.winner!.playerBackground.rawValue)")?.alpha(constants.alphaForPlayerBackground)
         let data = makeEndOfTheGameData()

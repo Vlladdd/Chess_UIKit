@@ -651,6 +651,9 @@ class GameLogic {
             }
             if let index = players.firstIndex(where: {$0.type == .player1}) {
                 players[index].addPoints(points)
+                if currentPlayer.type == .player1 {
+                    currentPlayer = players[index]
+                }
             }
         }
     }
