@@ -239,6 +239,9 @@ class GameLogic {
     
     //transforms pawn, when he reached last row
     private func transformPawn(turn: Turn, figure: Figure? = nil) {
+        if let square = currentTurn?.squares.first {
+            pickedSquares.append(square)
+        }
         var turnDuration = 0
         if timerEnabled && !backwardRewind && !forwardRewind, let index = players.firstIndex(where: {$0 == currentPlayer}) {
             timer?.invalidate()
@@ -259,6 +262,7 @@ class GameLogic {
                 checkForRealCheck(color: figure.color)
             }
         }
+        pickedSquares.removeAll()
         pawnWizard = false
         currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
     }

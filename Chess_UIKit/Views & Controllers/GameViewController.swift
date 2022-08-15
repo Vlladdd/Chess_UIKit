@@ -78,7 +78,12 @@ class GameViewController: UIViewController {
             if let turn = gameLogic.currentTurn, let square = turn.squares.last {
                 updateSquare(square, figure: figure)
             }
+            if gameLogic.gameEnded && view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
+                makeEndOfTheGameView()
+            }
             activatePlayerTime()
+            addTurnToUI(gameLogic.turns.last!)
+            updateUI(animateSquares: true)
             turnBackward.isEnabled = gameLogic.rewindEnabled
             turns.isUserInteractionEnabled = gameLogic.rewindEnabled
         }
@@ -279,7 +284,7 @@ class GameViewController: UIViewController {
             Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
                 if let self = self {
                     self.gameLogic.activateTime(callback: {time in
-                        if time == 0 {
+                        if time == 0 && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
                             self.makeEndOfTheGameView()
                         }
                         if self.gameLogic.currentPlayer.type == .player1 {
@@ -440,12 +445,14 @@ class GameViewController: UIViewController {
                         showPawnPicker(square: turn.squares.second!, figureColor: figure.color)
                     }
                 }
-                else if !gameLogic.gameEnded {
+                else {
+                    addTurnToUI(turn)
+                }
+                if !gameLogic.gameEnded {
                     turnBackward.isEnabled = gameLogic.rewindEnabled
                 }
                 animateTurn(turn)
                 turnForward.isEnabled = false
-                addTurnToUI(turn)
                 updateUI(animateSquares: true)
             }
         }
@@ -462,6 +469,7 @@ class GameViewController: UIViewController {
         thisTurnData.backgroundColor = thisTurnData.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
         var firstFigureView: UIImageView?
         var secondFigureView: UIImageView?
+        var pawnTransformFigureView: UIImageView?
         let firstFigure = turn.squares.first?.figure
         if let firstFigure = firstFigure {
             firstFigureView = makeFigureView(with: firstFigure.color.rawValue, and: firstFigure.name.rawValue)
@@ -475,6 +483,9 @@ class GameViewController: UIViewController {
         if let secondFigure = secondFigure {
             secondFigureView = makeFigureView(with: secondFigure.color.rawValue, and: secondFigure.name.rawValue)
         }
+        if let figure = turn.pawnTransform {
+            pawnTransformFigureView = makeFigureView(with: figure.color.rawValue, and: figure.name.rawValue)
+        }
         let turnLabel = makeTurnLabel(from: turn)
         if let firstFigureView = firstFigureView {
             thisTurnData.addArrangedSubview(firstFigureView)
@@ -485,6 +496,9 @@ class GameViewController: UIViewController {
         thisTurnData.addArrangedSubview(turnLabel)
         if let secondFigureView = secondFigureView {
             thisTurnData.addArrangedSubview(secondFigureView)
+        }
+        if let pawnTransformFigureView = pawnTransformFigureView {
+            thisTurnData.addArrangedSubview(pawnTransformFigureView)
         }
         if turnData.arrangedSubviews.isEmpty {
             turnData.addArrangedSubview(thisTurnData)
