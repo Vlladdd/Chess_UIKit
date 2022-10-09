@@ -45,3 +45,28 @@ extension String {
     }
     
 }
+
+extension Date {
+    
+    var toStringDateHMS: String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return df.string(from: self)
+    }
+    
+}
+
+extension Int {
+    
+    //converts timer time into human readable string
+    var timeAsString: String {
+        let prodMinutes = self / 60 % 60
+        let prodSeconds = self % 60
+        return String(format: "%02d:%02d", prodMinutes, prodSeconds)
+    }
+    
+    var seconds: Self {
+        self * 60
+    }
+    
+}

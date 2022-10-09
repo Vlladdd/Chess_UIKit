@@ -61,9 +61,7 @@ class ProgressBar: UIView {
 
     override func draw(_ rect: CGRect) {
         backgroundMask.path = UIBezierPath(roundedRect: rect, cornerRadius: rect.height * constants.multiplierForCornerRadius).cgPath
-
         let progressRect = CGRect(origin: .zero, size: CGSize(width: rect.width * progress, height: rect.height))
-
         progressLayer.frame = progressRect
         progressLayer.backgroundColor = progressColor.cgColor
     }

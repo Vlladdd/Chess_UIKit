@@ -44,10 +44,9 @@ class WheelOfFortune: UIView {
         figureView.layer.borderWidth = constants.figureBorderWidth
         figureView.contentMode = .scaleAspectFit
         var segmentAngleSize: CGFloat = 0
-        var end: CGFloat = 0
         var totalOcupiedSize: CGFloat = 0
         //making a circle with certain amount of segments
-        while totalOcupiedSize < constants.circleDegrees{
+        while totalOcupiedSize < constants.circleDegrees {
             segmentAngleSize = CGFloat.random(in: constants.minumumAngleSize...constants.circleSize - totalOcupiedSize)
             //we need to have at least 2 segments
             if totalOcupiedSize == 0 {
@@ -55,16 +54,14 @@ class WheelOfFortune: UIView {
             }
             var angle = segmentAngleSize + constants.gapSize
             totalOcupiedSize += angle
-            if constants.circleSize - totalOcupiedSize < constants.minumumAngleSize{
-                segmentAngleSize += (constants.circleSize - totalOcupiedSize)
+            if constants.circleDegrees - totalOcupiedSize < constants.minumumAngleSize + constants.gapSize {
+                segmentAngleSize += (constants.circleDegrees - totalOcupiedSize)
                 totalOcupiedSize += (constants.circleDegrees - totalOcupiedSize)
                 angle = segmentAngleSize + constants.gapSize
             }
-            let start = end + constants.gapSize
-            end = start + segmentAngleSize
             let arcLayer = CAShapeLayer()
             arcLayer.fillColor = UIColor.clear.cgColor
-            arcLayer.strokeColor = constants.strokeColor
+            arcLayer.strokeColor = constants.defaultColorForSegment
             arcLayer.lineWidth = constants.lineWidth
             wheelContainer.layer.addSublayer(arcLayer)
             let coinsPrize = Int(CGFloat(maximumCoins) / angle)
@@ -72,8 +69,7 @@ class WheelOfFortune: UIView {
         }
         wheelContainer.translatesAutoresizingMaskIntoConstraints = false
         wheelContainer.addSubview(figureView)
-        addSubview(wheelContainer)
-        addSubview(coinsText)
+        addSubviews([wheelContainer, coinsText])
         let figureConstrants = [wheelContainer.bottomAnchor.constraint(equalTo: coinsText.topAnchor, constant: -constants.distanceForCoins), wheelContainer.topAnchor.constraint(equalTo: topAnchor), wheelContainer.leadingAnchor.constraint(equalTo: leadingAnchor), wheelContainer.trailingAnchor.constraint(equalTo: trailingAnchor), figureView.widthAnchor.constraint(equalTo: wheelContainer.widthAnchor, multiplier: constants.dividerForFigureSize), figureView.heightAnchor.constraint(equalTo: wheelContainer.heightAnchor, multiplier: constants.dividerForFigureSize), figureView.centerXAnchor.constraint(equalTo: wheelContainer.centerXAnchor), figureView.centerYAnchor.constraint(equalTo: wheelContainer.centerYAnchor)]
         let coinsTextConstrants = [coinsText.centerXAnchor.constraint(equalTo: centerXAnchor), coinsText.bottomAnchor.constraint(equalTo: bottomAnchor)]
         NSLayoutConstraint.activate(figureConstrants + coinsTextConstrants)
@@ -199,8 +195,10 @@ class WheelOfFortune: UIView {
         let radius = min(rect.height, rect.width) / 2
         let center = CGPoint(x: rect.width / 2.0, y: rect.height / 2.0)
         var end: CGFloat = 0
+        var firstSegment = true
         for segment in segmentsData {
-            let start = end + constants.gapSize
+            let start = firstSegment ? end : end + constants.gapSize
+            firstSegment = false
             end = start + segment.angle - constants.gapSize
             let segmentPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: start, endAngle: end, clockwise: true)
             segment.layer.path = segmentPath.cgPath
@@ -226,7 +224,6 @@ private struct WheelOfFortune_Constants {
     static let animationDuration = 0.5
     static let gapSize: CGFloat = 0.020
     static let lineWidth: CGFloat = 20
-    static let strokeColor = UIColor.red.cgColor
     static let minumumAngleSize: CGFloat = 0.1
     static let startDegrees = CGFloat.pi / 2
     static let totalSpeed = 1.0

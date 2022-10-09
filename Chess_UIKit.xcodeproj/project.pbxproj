@@ -12,7 +12,13 @@
 		7413948B2856563300159033 /* Square.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948A2856563300159033 /* Square.swift */; };
 		7413948D2856566500159033 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948C2856566500159033 /* Enums.swift */; };
 		7413948F28565EEB00159033 /* GameBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948E28565EEB00159033 /* GameBoard.swift */; };
+		743B299328CFBC4A00496D75 /* MainMenuVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743B299228CFBC4A00496D75 /* MainMenuVC.swift */; };
 		74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74482B69286C59A7004EC83C /* PlayerFrame.swift */; };
+		745D1C7128CB5C52001E25D3 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7028CB5C52001E25D3 /* FirebaseAnalytics */; };
+		745D1C7328CB5C52001E25D3 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7228CB5C52001E25D3 /* FirebaseAuth */; };
+		745D1C7528CB5C52001E25D3 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7428CB5C52001E25D3 /* FirebaseDatabase */; };
+		745D1C7728CB5DDC001E25D3 /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 745D1C7628CB5DDC001E25D3 /* Storage.swift */; };
+		745D1C7A28CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */; };
 		7460A1D52871C2070037A481 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7460A1D42871C2070037A481 /* ProgressBar.swift */; };
 		7460A1D72871C92B0037A481 /* WheelOfFortune.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7460A1D62871C92B0037A481 /* WheelOfFortune.swift */; };
 		74610B7D286B27510081EDF9 /* SquaresTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74610B7C286B27510081EDF9 /* SquaresTheme.swift */; };
@@ -24,8 +30,15 @@
 		7463DC8A2864EE9000619495 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7463DC892864EE9000619495 /* Extensions.swift */; };
 		74660A9428591E22006FBF70 /* Figure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74660A9328591E22006FBF70 /* Figure.swift */; };
 		7467A6912874553F00B7504A /* SegmentData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7467A6902874553F00B7504A /* SegmentData.swift */; };
+		746DB4CB28E1C73700DBA3E3 /* GameInfoTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 746DB4CA28E1C73700DBA3E3 /* GameInfoTable.swift */; };
 		74700158285B49CB00CB7692 /* Turn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74700157285B49CB00CB7692 /* Turn.swift */; };
+		7470975228D350270089B483 /* CreateGameVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7470975128D350260089B483 /* CreateGameVC.swift */; };
+		7470975428D36EB90089B483 /* Picker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7470975328D36EB90089B483 /* Picker.swift */; };
+		7475D29328CA643100F9C97B /* AuthorizationVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7475D29228CA643100F9C97B /* AuthorizationVC.swift */; };
 		7483B516285754B100BF3447 /* UIExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7483B515285754B100BF3447 /* UIExtensions.swift */; };
+		7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7489B0CB28D205B8002311BF /* MainMenuButton.swift */; };
+		74B2CED328CD14510002D075 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B2CED228CD14510002D075 /* User.swift */; };
+		74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,7 +47,9 @@
 		7413948A2856563300159033 /* Square.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Square.swift; sourceTree = "<group>"; };
 		7413948C2856566500159033 /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
 		7413948E28565EEB00159033 /* GameBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameBoard.swift; sourceTree = "<group>"; };
+		743B299228CFBC4A00496D75 /* MainMenuVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuVC.swift; sourceTree = "<group>"; };
 		74482B69286C59A7004EC83C /* PlayerFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerFrame.swift; sourceTree = "<group>"; };
+		745D1C7628CB5DDC001E25D3 /* Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage.swift; sourceTree = "<group>"; };
 		7460A1D42871C2070037A481 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
 		7460A1D62871C92B0037A481 /* WheelOfFortune.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WheelOfFortune.swift; sourceTree = "<group>"; };
 		74610B7C286B27510081EDF9 /* SquaresTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquaresTheme.swift; sourceTree = "<group>"; };
@@ -48,8 +63,15 @@
 		7463DC892864EE9000619495 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		74660A9328591E22006FBF70 /* Figure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Figure.swift; sourceTree = "<group>"; };
 		7467A6902874553F00B7504A /* SegmentData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentData.swift; sourceTree = "<group>"; };
+		746DB4CA28E1C73700DBA3E3 /* GameInfoTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameInfoTable.swift; sourceTree = "<group>"; };
 		74700157285B49CB00CB7692 /* Turn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Turn.swift; sourceTree = "<group>"; };
+		7470975128D350260089B483 /* CreateGameVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateGameVC.swift; sourceTree = "<group>"; };
+		7470975328D36EB90089B483 /* Picker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Picker.swift; sourceTree = "<group>"; };
+		7475D29228CA643100F9C97B /* AuthorizationVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationVC.swift; sourceTree = "<group>"; };
 		7483B515285754B100BF3447 /* UIExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIExtensions.swift; sourceTree = "<group>"; };
+		7489B0CB28D205B8002311BF /* MainMenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuButton.swift; sourceTree = "<group>"; };
+		74B2CED228CD14510002D075 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,17 +79,29 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				745D1C7528CB5C52001E25D3 /* FirebaseDatabase in Frameworks */,
+				745D1C7128CB5C52001E25D3 /* FirebaseAnalytics in Frameworks */,
+				745D1C7A28CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta in Frameworks */,
+				745D1C7328CB5C52001E25D3 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		745D1C7828CB5F98001E25D3 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		74613E63285649BB00FF1EF2 = {
 			isa = PBXGroup;
 			children = (
 				74613E6E285649BB00FF1EF2 /* Chess_UIKit */,
 				74613E6D285649BB00FF1EF2 /* Products */,
+				745D1C7828CB5F98001E25D3 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -90,6 +124,7 @@
 				74613E78285649BD00FF1EF2 /* Assets.xcassets */,
 				74613E7A285649BD00FF1EF2 /* LaunchScreen.storyboard */,
 				74613E7D285649BD00FF1EF2 /* Info.plist */,
+				74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */,
 			);
 			path = Chess_UIKit;
 			sourceTree = "<group>";
@@ -97,6 +132,12 @@
 		74613E832856545B00FF1EF2 /* Views & Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				7475D29228CA643100F9C97B /* AuthorizationVC.swift */,
+				743B299228CFBC4A00496D75 /* MainMenuVC.swift */,
+				746DB4CA28E1C73700DBA3E3 /* GameInfoTable.swift */,
+				7470975128D350260089B483 /* CreateGameVC.swift */,
+				7470975328D36EB90089B483 /* Picker.swift */,
+				7489B0CB28D205B8002311BF /* MainMenuButton.swift */,
 				74613E73285649BB00FF1EF2 /* GameViewController.swift */,
 				7460A1D42871C2070037A481 /* ProgressBar.swift */,
 				7460A1D62871C92B0037A481 /* WheelOfFortune.swift */,
@@ -116,6 +157,8 @@
 				7413948A2856563300159033 /* Square.swift */,
 				74660A9328591E22006FBF70 /* Figure.swift */,
 				74027DD2285B92CA00806401 /* Player.swift */,
+				74B2CED228CD14510002D075 /* User.swift */,
+				745D1C7628CB5DDC001E25D3 /* Storage.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -146,6 +189,12 @@
 			dependencies = (
 			);
 			name = Chess_UIKit;
+			packageProductDependencies = (
+				745D1C7028CB5C52001E25D3 /* FirebaseAnalytics */,
+				745D1C7228CB5C52001E25D3 /* FirebaseAuth */,
+				745D1C7428CB5C52001E25D3 /* FirebaseDatabase */,
+				745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */,
+			);
 			productName = Chess_UIKit;
 			productReference = 74613E6C285649BB00FF1EF2 /* Chess_UIKit.app */;
 			productType = "com.apple.product-type.application";
@@ -174,6 +223,9 @@
 				Base,
 			);
 			mainGroup = 74613E63285649BB00FF1EF2;
+			packageReferences = (
+				745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			productRefGroup = 74613E6D285649BB00FF1EF2 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -190,6 +242,7 @@
 			files = (
 				74613E7C285649BD00FF1EF2 /* LaunchScreen.storyboard in Resources */,
 				74613E79285649BD00FF1EF2 /* Assets.xcassets in Resources */,
+				74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -203,17 +256,25 @@
 				7413948B2856563300159033 /* Square.swift in Sources */,
 				741394892856555900159033 /* GameLogic.swift in Sources */,
 				74660A9428591E22006FBF70 /* Figure.swift in Sources */,
+				745D1C7728CB5DDC001E25D3 /* Storage.swift in Sources */,
 				74027DD3285B92CA00806401 /* Player.swift in Sources */,
+				7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */,
 				7467A6912874553F00B7504A /* SegmentData.swift in Sources */,
 				74613E74285649BB00FF1EF2 /* GameViewController.swift in Sources */,
 				7483B516285754B100BF3447 /* UIExtensions.swift in Sources */,
+				7470975428D36EB90089B483 /* Picker.swift in Sources */,
+				7470975228D350270089B483 /* CreateGameVC.swift in Sources */,
+				74B2CED328CD14510002D075 /* User.swift in Sources */,
 				74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */,
 				7413948F28565EEB00159033 /* GameBoard.swift in Sources */,
 				7463DC8A2864EE9000619495 /* Extensions.swift in Sources */,
 				74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */,
 				74700158285B49CB00CB7692 /* Turn.swift in Sources */,
+				743B299328CFBC4A00496D75 /* MainMenuVC.swift in Sources */,
 				7413948D2856566500159033 /* Enums.swift in Sources */,
 				7460A1D72871C92B0037A481 /* WheelOfFortune.swift in Sources */,
+				7475D29328CA643100F9C97B /* AuthorizationVC.swift in Sources */,
+				746DB4CB28E1C73700DBA3E3 /* GameInfoTable.swift in Sources */,
 				74613E72285649BB00FF1EF2 /* SceneDelegate.swift in Sources */,
 				7460A1D52871C2070037A481 /* ProgressBar.swift in Sources */,
 				74610B7D286B27510081EDF9 /* SquaresTheme.swift in Sources */,
@@ -285,7 +346,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.7;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -340,7 +401,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.7;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -426,6 +487,40 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		745D1C7028CB5C52001E25D3 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		745D1C7228CB5C52001E25D3 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		745D1C7428CB5C52001E25D3 /* FirebaseDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDatabase;
+		};
+		745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = "FirebaseDatabaseSwift-Beta";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 74613E64285649BB00FF1EF2 /* Project object */;
 }

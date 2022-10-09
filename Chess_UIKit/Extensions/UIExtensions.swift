@@ -9,12 +9,79 @@ import UIKit
 
 // MARK: - Some usefull UI Extensions
 
+extension UIView {
+    
+    func rotate360Degrees(duration: CFTimeInterval = 3) {
+        let rotateAnimation = CABasicAnimation(keyPath: "transform.rotation")
+        rotateAnimation.fromValue = 0.0
+        rotateAnimation.toValue = CGFloat(Double.pi * 2)
+        rotateAnimation.isRemovedOnCompletion = false
+        rotateAnimation.duration = duration
+        rotateAnimation.repeatCount = Float.infinity
+        layer.add(rotateAnimation, forKey: nil)
+    }
+    
+    func setAnchorPoint(_ point: CGPoint) {
+        var newPoint = CGPoint(x: bounds.size.width * point.x, y: bounds.size.height * point.y)
+        var oldPoint = CGPoint(x: bounds.size.width * layer.anchorPoint.x, y: bounds.size.height * layer.anchorPoint.y);
+        newPoint = newPoint.applying(transform)
+        oldPoint = oldPoint.applying(transform)
+        var position = layer.position
+        position.x -= oldPoint.x
+        position.x += newPoint.x
+        position.y -= oldPoint.y
+        position.y += newPoint.y
+        layer.position = position
+        layer.anchorPoint = point
+    }
+    
+    func addSubviews(_ views: [UIView]) {
+        for view in views {
+            addSubview(view)
+        }
+    }
+    
+}
+
 extension UIButton {
     
-    func buttonWith(image: UIImage?, and function: Selector) {
+    func buttonWith(image: UIImage? = nil, text: String? = nil, font: UIFont? = nil, and function: Selector) {
         translatesAutoresizingMaskIntoConstraints = false
+        isExclusiveTouch = true
         addTarget(nil, action: function, for: .touchUpInside)
         setBackgroundImage(image, for: .normal)
+        setTitle(text, for: .normal)
+        titleLabel?.font = font
+    }
+    
+}
+
+extension UITextField {
+    
+    func setup(placeholder: String, font: UIFont) {
+        translatesAutoresizingMaskIntoConstraints = false
+        attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [NSAttributedString.Key.foregroundColor : Constants.placeholderColor])
+        layer.cornerRadius = Constants.cornerRadius
+        layer.borderWidth = Constants.borderWidth
+        backgroundColor = Constants.backgroundColor
+        self.font = font
+        adjustsFontSizeToFitWidth = true
+        if traitCollection.userInterfaceStyle == .dark {
+            layer.borderColor = Constants.darkModeBorderColor
+        }
+        else {
+            layer.borderColor = Constants.lightModeBorderColor
+        }
+    }
+    
+    private struct Constants {
+        static let backgroundColor = UIColor.clear
+        static let cornerRadius: CGFloat = 10
+        static let borderWidth: CGFloat = 1
+        static let optimalAlpha = 0.5
+        static let placeholderColor = UIColor.red.withAlphaComponent(optimalAlpha)
+        static let darkModeBorderColor = UIColor.white.cgColor
+        static let lightModeBorderColor = UIColor.black.cgColor
     }
     
 }
@@ -41,6 +108,12 @@ extension UIStackView {
         }
     }
     
+    func addArrangedSubviews(_ views: [UIView]) {
+        for view in views {
+            addArrangedSubview(view)
+        }
+    }
+    
     private struct Constants {
         static let cornerRadius: CGFloat = 10
         static let borderWidth: CGFloat = 1
@@ -56,8 +129,6 @@ extension UILabel {
     
     func setup(text: String, alignment: NSTextAlignment, font: UIFont) {
         translatesAutoresizingMaskIntoConstraints = false
-        //for proper animation, when label and his font changing size
-        contentMode = .scaleAspectFit
         adjustsFontSizeToFitWidth = true
         self.text = text
         self.textAlignment = alignment
@@ -69,9 +140,24 @@ extension UILabel {
         }
     }
     
+    func labelWithBorderAndCornerRadius() {
+        layer.borderWidth = Constants.borderWidth
+        layer.cornerRadius = Constants.cornerRadius
+        if traitCollection.userInterfaceStyle == .dark {
+            layer.borderColor = Constants.darkModeBorderColor
+        }
+        else {
+            layer.borderColor = Constants.lightModeBorderColor
+        }
+    }
+    
     private struct Constants {
+        static let cornerRadius: CGFloat = 10
+        static let borderWidth: CGFloat = 1
         static let darkModeTextColor = UIColor.white
         static let lightModeTextColor = UIColor.black
+        static let darkModeBorderColor = UIColor.white.cgColor
+        static let lightModeBorderColor = UIColor.black.cgColor
     }
     
 }
@@ -91,6 +177,13 @@ extension UIImageView {
             backgroundColor = Constants.lightBackgroundColor
             layer.borderColor = Constants.lightModeBorderColor
         }
+    }
+    
+    //when imageView is used as background of the button
+    func settingsForBackgroundOfTheButton(cornerRadius: CGFloat) {
+        backgroundColor = .clear
+        layer.cornerRadius = cornerRadius
+        isUserInteractionEnabled = true
     }
     
     //rectangle view
@@ -115,6 +208,19 @@ extension UIImageView {
         static let lightBackgroundColor = UIColor.white
         static let darkModeBorderColor = UIColor.white.cgColor
         static let lightModeBorderColor = UIColor.black.cgColor
+    }
+    
+}
+
+extension UIStepper {
+    
+    func stepperWith(minValue: Double, maxValue: Double, stepValue: Double, and action: Selector) {
+        translatesAutoresizingMaskIntoConstraints = false
+        wraps = true
+        addTarget(nil, action: action, for: .valueChanged)
+        minimumValue = minValue
+        maximumValue = maxValue
+        self.stepValue = stepValue
     }
     
 }
@@ -154,12 +260,15 @@ extension UIImage {
 }
 
 extension CGFloat {
+    
     static func random() -> CGFloat {
         return CGFloat(arc4random()) / CGFloat(UInt32.max)
     }
+    
 }
 
 extension UIColor {
+    
     static func random() -> UIColor {
         return UIColor(
            red:   .random(),
@@ -168,6 +277,35 @@ extension UIColor {
            alpha: 1.0
         )
     }
+    
+    func lighter(by percentage: CGFloat = 30.0) -> UIColor? {
+        return self.adjust(by: abs(percentage) )
+    }
+
+    func darker(by percentage: CGFloat = 30.0) -> UIColor? {
+        return self.adjust(by: -1 * abs(percentage) )
+    }
+
+    func adjust(by percentage: CGFloat = 30.0) -> UIColor {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        if self.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            return UIColor(red: min(red + percentage/100, 1.0),
+                           green: min(green + percentage/100, 1.0),
+                           blue: min(blue + percentage/100, 1.0),
+                           alpha: alpha)
+        } else {
+            return self
+        }
+    }
+    
+    //used for background of toolbar
+    func image(_ size: CGSize = CGSize(width: 1, height: 1)) -> UIImage {
+        return UIGraphicsImageRenderer(size: size).image { rendererContext in
+            self.setFill()
+            rendererContext.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+    
 }
 
 extension CALayer {

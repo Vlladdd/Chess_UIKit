@@ -57,18 +57,21 @@ class PlayerFrame: UIView {
     }
     
     private func setup() {
+        if let data = data as? UILabel {
+            //for proper animation, when label and his font changing size
+            data.contentMode = .scaleAspectFit
+            data.baselineAdjustment = .alignCenters
+        }
         dataBackgroundView.translatesAutoresizingMaskIntoConstraints = false
         frameBorder.defaultSettings()
         frameBackground.defaultSettings()
-        dataBackgroundView.backgroundColor = constants.defaultColorForDataBackground
+        let backgroundColorForData = traitCollection.userInterfaceStyle == .dark ? constants.defaultDarkModeColorForDataBackground : constants.defaultLightModeColorForDataBackground
+        dataBackgroundView.backgroundColor = backgroundColorForData
         let backgroundImage = UIImage(named: "backgrounds/\(background.rawValue)")
         let frameImage = UIImage(named: "frames/\(playerFrame.rawValue)")
         frameBackground.image = backgroundImage
         frameBorder.image = frameImage
-        addSubview(frameBorder)
-        addSubview(frameBackground)
-        addSubview(dataBackgroundView)
-        addSubview(data)
+        addSubviews([frameBorder, frameBackground, dataBackgroundView, data])
         let constraints = [data.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: constants.distanceForTextInFrame), data.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -constants.distanceForTextInFrame), data.centerXAnchor.constraint(equalTo: centerXAnchor), data.centerYAnchor.constraint(equalTo: centerYAnchor), frameBackground.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.widthAnchor.constraint(equalTo: widthAnchor, constant: constants.additionalSizeForFrameBorder), frameBorder.heightAnchor.constraint(equalTo: heightAnchor, constant: constants.additionalSizeForFrameBorder), frameBorder.centerXAnchor.constraint(equalTo: centerXAnchor), frameBorder.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.heightAnchor.constraint(equalTo: heightAnchor), dataBackgroundView.widthAnchor.constraint(equalTo: widthAnchor)]
         NSLayoutConstraint.activate(constraints)
         frameBackground.layer.mask = backgroundLayer
@@ -78,7 +81,7 @@ class PlayerFrame: UIView {
     
     //when switching current player
     func updateDataBackgroundColor(_ color: UIColor) {
-        dataBackgroundView.backgroundColor = color.withAlphaComponent(constants.alphaForDataBackground)
+        dataBackgroundView.backgroundColor = color
     }
     
     // MARK: - Draw
@@ -102,12 +105,13 @@ private struct PlayerFrame_Constants {
     static let startYInShape: CGFloat = 0
     static let dividerForHeightInShape: CGFloat = 2
     static let edgeSideLength: CGFloat = 50
-    static let alphaForDataBackground: CGFloat = 0.6
+    static let alphaForDataBackground: CGFloat = 0.5
     static let animationDuration = 0.5
     static let additionalSizeForFrameBorder: CGFloat = 20
     static let dividerForFont: CGFloat = 13
     static let distanceForTextInFrame: CGFloat = 30
     static let startXInFrame: CGFloat = startXInShape - (additionalSizeForFrameBorder / dividerForHeightInShape)
     static let startYInFrame: CGFloat = startYInShape - (additionalSizeForFrameBorder / dividerForHeightInShape)
-    static let defaultColorForDataBackground = UIColor.white.withAlphaComponent(alphaForDataBackground)
+    static let defaultLightModeColorForDataBackground = UIColor.white.withAlphaComponent(alphaForDataBackground)
+    static let defaultDarkModeColorForDataBackground = UIColor.black.withAlphaComponent(alphaForDataBackground)
 }

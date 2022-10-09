@@ -8,11 +8,12 @@
 import Foundation
 
 //struct that represents game board
-struct GameBoard {
+struct GameBoard: Codable {
     
     // MARK: - Properties
     
-    var squares: [Square]
+    private(set) var squares: [Square]
+    
     static let availableRows = constants.allRows
     static let availableColumns = BoardFiles.allCases
     
@@ -54,15 +55,15 @@ struct GameBoard {
     
     //updates squares after player turn
     mutating func updateSquares(firstSquare: Square, secondSquare: Square) {
-        if let firstIndex = squares.firstIndex(of: firstSquare), let secondIndex = squares.firstIndex(of: secondSquare) {
-            squares[secondIndex].figure = squares[firstIndex].figure
-            squares[firstIndex].figure = nil
+        if let firstSquareIndex = squares.firstIndex(of: firstSquare), let secondSquareIndex = squares.firstIndex(of: secondSquare) {
+            squares[secondSquareIndex].updateFigure(newValue: squares[firstSquareIndex].figure)
+            squares[firstSquareIndex].updateFigure()
         }
     }
     
     mutating func updateSquare(square: Square, figure: Figure? = nil) {
-        if let index = squares.firstIndex(of: square) {
-            squares[index].figure = figure
+        if let squareIndex = squares.firstIndex(of: square) {
+            squares[squareIndex].updateFigure(newValue: figure)
         }
     }
     
@@ -94,9 +95,9 @@ private struct GameBoard_Constants {
                 return Figure(name: .knight, color: figureColor, startColumn: column, startRow: row)
             case .C, .F:
                 return Figure(name: .bishop, color: figureColor, startColumn: column, startRow: row)
-            case .D:
-                return Figure(name: .king, color: figureColor, startColumn: column, startRow: row)
             case .E:
+                return Figure(name: .king, color: figureColor, startColumn: column, startRow: row)
+            case .D:
                 return Figure(name: .queen, color: figureColor, startColumn: column, startRow: row)
             }
         }

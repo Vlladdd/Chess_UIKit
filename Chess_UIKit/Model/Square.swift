@@ -8,19 +8,24 @@
 import Foundation
 
 //struct that represents square of the game board
-struct Square: Equatable {
+struct Square: Equatable, Codable {
     
     // MARK: - Properties
     
     let column: BoardFiles
     let row: Int
     let color: GameColors
-    var figure: Figure?
+    
+    private(set) var figure: Figure?
     
     // MARK: - Methods
     
     static func == (lhs: Square, rhs: Square) -> Bool {
         lhs.column == rhs.column && lhs.row == rhs.row
+    }
+    
+    mutating func updateFigure(newValue: Figure? = nil) {
+        figure = newValue
     }
     
 }

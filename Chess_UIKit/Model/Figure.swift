@@ -8,10 +8,12 @@
 import Foundation
 
 //struct that represents game figure
-struct Figure: Equatable {
+struct Figure: Equatable, Codable {
+    
     let name: Figures
     let color: GameColors
     //can be used in puzzles too
     let startColumn: BoardFiles
     let startRow: Int
+    
 }

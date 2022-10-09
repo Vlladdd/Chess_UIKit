@@ -8,7 +8,7 @@
 import Foundation
 
 //class that represents logic of the game
-class GameLogic {
+class GameLogic: Codable {
     
     // MARK: - Properties
     
@@ -16,33 +16,39 @@ class GameLogic {
     //stores picked squares by player
     private(set) var pickedSquares = [Square]()
     private(set) var turns = [Turn]()
+    private(set) var storedTurns = [Turn]()
     private(set) var currentPlayer: Player
     //stores available squares for picked figure
     private(set) var availableSquares = [Square]()
-    //when current player made check
-    private(set) var check = false
     //when pawn reached last row and is about to transform
     private(set) var pawnWizard = false
-    //when last turn was short or long castle
-    private(set) var shortCastle = false
-    private(set) var longCastle = false
     private(set) var players: [Player]
     private(set) var gameMode: GameModes
+    //if winner is nil and gameEnded is true, it is a draw
     private(set) var winner: Player?
     private(set) var gameEnded = false
-    private(set) var draw = false
-    private(set) var timerEnabled = true
+    private(set) var timerEnabled: Bool
     //used in rewind
     private(set) var currentTurn: Turn?
-    private(set) var rewindEnabled = true
     private(set) var firstTurn = false
     private(set) var lastTurn = false
-    private(set) var timeLeft = 300
+    private(set) var timeLeft: Int
+    private(set) var startDate = Date()
     
     let squaresTheme: SquaresTheme
     let boardTheme: BoardThemes
     let maximumCoinsForWheel: Int
+    //every time player makes a turn, he got extra time for that
+    let additionalTime: Int
+    let totalTime: Int
+    let rewindEnabled: Bool
     
+    //when current player made check
+    private var check = false
+    //when last turn was short or long castle
+    private var shortCastle = false
+    private var longCastle = false
+    private var checkMate = false
     private var backwardRewind = false
     private var forwardRewind = false
     //if after player will move current picked figure, there will be check
@@ -67,29 +73,69 @@ class GameLogic {
     private var checkingKingSquaresWhenCheck = false
     private var checkingDeadPosition = false
     private var timer: Timer?
-    //every time player makes a turn, he got extra time for that
-    private var additionalTime = 2
     
     private typealias constants = GameLogic_Constants
     
+    enum CodingKeys: String, CodingKey {
+        case startDate, players, gameMode, rewindEnabled, timeLeft, additionalTime, turns, gameEnded, timerEnabled, squaresTheme, boardTheme, maximumCoinsForWheel, currentPlayer, totalTime, winner, currentTurn, gameBoard, firstTurn, lastTurn
+    }
+    
     // MARK: - Inits
     
-    init() {
-        let randomBool = Bool.random()
-        players = [Player(name: "Player1", type: .player1, figuresColor: randomBool ? .white : .black), Player(name: "Player2", type: .player2, figuresColor: randomBool ? .black : .white)]
+    init(firstUser: User, secondUser: User, gameMode: GameModes, firstPlayerColor: GameColors, rewindEnabled: Bool = false, totalTime: Int, additionalTime: Int) {
+        var firstPlayerColor = firstPlayerColor
+        if firstPlayerColor == .random {
+            firstPlayerColor = firstPlayerColor.opposite()
+        }
+        let player1 = Player(user: firstUser, type: .player1, figuresColor: firstPlayerColor, timeLeft: totalTime)
+        let player2 = Player(user: secondUser, type: .player2, figuresColor: firstPlayerColor.opposite(), timeLeft: totalTime)
+        players = [player1, player2]
         currentPlayer = players.first(where: {$0.figuresColor == .white})!
-        squaresTheme = players.randomElement()!.squaresTheme
-        boardTheme = players.randomElement()!.boardTheme
-        gameMode = .multiplayer
+        squaresTheme = players.randomElement()!.user.squaresTheme
+        boardTheme = players.randomElement()!.user.boardTheme
+        self.gameMode = gameMode
         if gameMode == .multiplayer {
             maximumCoinsForWheel = Int.random(in: constants.rangeForCoins)
         }
         else {
             maximumCoinsForWheel = 0
         }
+        self.additionalTime = additionalTime
+        self.rewindEnabled = rewindEnabled
+        timeLeft = totalTime
+        timerEnabled = totalTime > 0 ? true : false
+        self.totalTime = totalTime
     }
     
     // MARK: - Methods
+    
+    //when user choose game to load for the first time
+    func configureAfterLoad() {
+        saveTurns()
+        checkForRealCheck(color: currentPlayer.figuresColor.opposite())
+    }
+    
+    //restores game from last saved state
+    func restoreFromStoredTurns() {
+        turns = storedTurns
+        startFromFirstTurn()
+    }
+    
+    //restarts game
+    func startFromFirstTurn() {
+        timeLeft = totalTime
+        players[0].updateTimeLeft(newValue: totalTime)
+        players[1].updateTimeLeft(newValue: totalTime)
+        currentPlayer = players.first(where: {$0.figuresColor == .white})!
+        currentTurn = turns.first
+        gameBoard = GameBoard()
+        resetPickedSquares()
+        check = false
+        pawnWizard = false
+        shortCastle = false
+        longCastle = false
+        firstTurn = true
+    }
     
     func makeTurn(square: Square) {
         if pawnWizard {
@@ -111,18 +157,11 @@ class GameLogic {
                 if timerEnabled && !pawnWizard && !shortCastle && !longCastle, let index = players.firstIndex(where: {$0 == currentPlayer}) {
                     timer?.invalidate()
                     if !backwardRewind && !forwardRewind {
-                        players[index].timeLeft = timeLeft + additionalTime
+                        players[index].updateTimeLeft(newValue: timeLeft + additionalTime)
                         currentPlayer = players[index]
                     }
                 }
                 if !forwardRewind && !backwardRewind {
-                    //if turn from past changed (when game was rewinded)
-                    if currentTurn != turns.last {
-                        removeTurnsIfTurnChanged()
-                    }
-                    let turn = Turn(squares: pickedSquares, turnDuration: turnDuration)
-                    turns.append(turn)
-                    currentTurn = turn
                     gameBoard.updateSquares(firstSquare: pickedSquares.first!, secondSquare: pickedSquares.second!)
                 }
                 else {
@@ -135,54 +174,66 @@ class GameLogic {
                         gameBoard.updateSquare(square: pickedSquares.second!, figure: pickedSquares.first!.figure)
                     }
                 }
-                var color = pickedSquares.first!.figure!.color
-                if backwardRewind {
-                    color = color.opposite()
+                if let figure = pickedSquares.second?.figure {
+                    if let playerIndex = players.firstIndex(where: {$0.type != currentPlayer.type}) {
+                        if !backwardRewind {
+                            players[playerIndex].addDestroyedFigure(figure)
+                        }
+                        else {
+                            players[playerIndex].removeDestroyedFigure(figure)
+                        }
+                    }
                 }
-                checkForRealCheck(color: color)
+                var figureColor = pickedSquares.first!.figure!.color
+                if backwardRewind {
+                    figureColor = figureColor.opposite()
+                }
+                checkForRealCheck(color: figureColor)
+                if !forwardRewind && !backwardRewind {
+                    //if turn from past changed (when game was rewinded)
+                    if currentTurn != turns.last || (currentTurn == turns.first && currentTurn?.squares.first?.figure?.color == currentPlayer.figuresColor) {
+                        removeTurnsIfTurnChanged()
+                    }
+                    let turn = Turn(squares: pickedSquares, turnDuration: turnDuration, shortCastle: shortCastle, longCastle: longCastle, check: check, checkMate: checkMate, checkSquare: check ? getKingSquare(color: figureColor) : nil)
+                    turns.append(turn)
+                    currentTurn = turn
+                    lastTurn = true
+                    firstTurn = false
+                }
                 if enPassantSquares.contains(square) || currentTurn?.pawnSquare != nil {
                     destroyEnPassantPawn()
                 }
-                if (!shortCastle && !longCastle && pickedSquares.first!.figure!.name == .king) || (backwardRewind && pickedSquares.first!.figure!.name == .rook) {
+                if (!shortCastle && !longCastle && pickedSquares.first!.figure!.name == .king && !backwardRewind && !forwardRewind) {
                     checkForCastle()
                 }
                 if !shortCastle && !longCastle && !backwardRewind && !pawnWizard {
-                    currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
+                    switchPlayer()
                 }
             }
             //player picks other own figure
             else {
-                pickedSquares.removeAll()
+                resetPickedSquares()
                 pickSquare(square)
             }
         }
         //player unpicks figure
         else {
-            if let index = pickedSquares.firstIndex(of: square) {
-                pickedSquares.remove(at: index)
-            }
+            resetPickedSquares()
         }
     }
     
     //checks if current player made castle and, if is is not rewind, makes castle
     private func checkForCastle() {
-        if !backwardRewind {
-            let canCastle = canCastle()
-            if canCastle.short || canCastle.long {
-                checkIfCastled(squares: pickedSquares)
-            }
-            if shortCastle || longCastle {
-                makeCastle()
-            }
+        let canCastle = canCastle()
+        if canCastle.short || canCastle.long {
+            checkIfCastled(squares: pickedSquares)
         }
-        else {
-            if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
-                if currentTurnIndex > 0 {
-                    //if we try to rewind a castle current turn will be with rook, so we need to get turn before that
-                    let kingTurn = turns[currentTurnIndex - 1]
-                    checkIfCastled(squares: kingTurn.squares)
-                }
-            }
+        if let currentTurn = currentTurn, let turnIndex = turns.firstIndex(of: currentTurn) {
+            turns[turnIndex].updateCastle(short: shortCastle, long: longCastle)
+            self.currentTurn = turns[turnIndex]
+        }
+        if shortCastle || longCastle {
+            makeCastle()
         }
     }
     
@@ -191,12 +242,15 @@ class GameLogic {
         var kingMoved = true
         var leftRookMoved = true
         var rightRookMoved = true
-        for square in gameBoard.squares {
+        outerLoop: for square in gameBoard.squares {
             if let figure = square.figure {
                 if figure.name == .king && square.figure?.color == currentPlayer.figuresColor {
                     kingMoved = checkIfFigureMoved(figure: figure)
+                    if kingMoved {
+                        break outerLoop
+                    }
                 }
-                if figure.name == .rook && square.figure?.color == currentPlayer.figuresColor{
+                if figure.name == .rook && square.figure?.color == currentPlayer.figuresColor {
                     if square.figure?.startColumn == constants.leftRookStartColumn {
                         leftRookMoved = checkIfFigureMoved(figure: figure)
                     }
@@ -246,7 +300,7 @@ class GameLogic {
         if timerEnabled && !backwardRewind && !forwardRewind, let index = players.firstIndex(where: {$0 == currentPlayer}) {
             timer?.invalidate()
             turnDuration = currentPlayer.timeLeft - timeLeft - additionalTime
-            players[index].timeLeft = timeLeft + additionalTime
+            players[index].updateTimeLeft(newValue: timeLeft + additionalTime)
             currentPlayer = players[index]
         }
         if let turnIndex = turns.firstIndex(of: turn) {
@@ -255,16 +309,17 @@ class GameLogic {
                 checkForRealCheck(color: figure.color)
             }
             else if let figure = figure {
-                turns[turnIndex].pawnTransform = figure
-                turns[turnIndex].turnDuration = turnDuration
-                self.currentTurn = turns[turnIndex]
+                turns[turnIndex].updatePawnTransform(newValue: figure)
+                turns[turnIndex].updateTurnDuration(newValue: turnDuration)
                 gameBoard.updateSquare(square: turn.squares.second!, figure: figure)
                 checkForRealCheck(color: figure.color)
+                turns[turnIndex].updateCheck(check, checkMate: checkMate, checkSquare: check ? getKingSquare(color: figure.color) : nil)
+                self.currentTurn = turns[turnIndex]
             }
         }
-        pickedSquares.removeAll()
+        resetPickedSquares()
         pawnWizard = false
-        currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
+        switchPlayer()
     }
     
     private func pickSquare(_ square: Square) {
@@ -278,16 +333,16 @@ class GameLogic {
         filterAvailableSquares(square: square)
     }
     
-    func makeCastle() {
+    private func makeCastle() {
         let row = pickedSquares.first!.figure?.color == .black ? constants.lastRow : constants.firstRow
-        pickedSquares.removeAll()
+        resetPickedSquares()
         if shortCastle {
             moveRookToCastle(startColumn: constants.columnsForRookShortCastle.first!, endColumn: constants.columnsForRookShortCastle.second!, row: row)
         }
         else if longCastle {
             moveRookToCastle(startColumn: constants.columnsForRookLongCastle.first!, endColumn: constants.columnsForRookLongCastle.second!, row: row)
         }
-        currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
+        resetCastle()
     }
     
     //moves rook, when castle
@@ -310,16 +365,32 @@ class GameLogic {
             let rowDistance = figure.color == .black ? constants.minimumDistance : -constants.minimumDistance
             if let currentTurn = currentTurn, let turnIndex = turns.firstIndex(of: currentTurn), !backwardRewind && !forwardRewind {
                 if currentTurn.pawnSquare == nil {
-                    self.currentTurn?.pawnSquare = gameBoard.squares.first(where: {$0.column == pickedSquares.second!.column && $0.row == pickedSquares.second!.row + rowDistance})
+                    let pawnSquare = gameBoard.squares.first(where: {$0.column == pickedSquares.second!.column && $0.row == pickedSquares.second!.row + rowDistance})
+                    self.currentTurn?.updatePawnSquare(newValue: pawnSquare)
+                }
+                if let figure = self.currentTurn?.pawnSquare?.figure {
+                    if let playerIndex = players.firstIndex(where: {$0.type != currentPlayer.type}) {
+                        players[playerIndex].addDestroyedFigure(figure)
+                    }
                 }
                 turns[turnIndex] = self.currentTurn!
             }
             if let pawnSquare = currentTurn?.pawnSquare {
-                if !backwardRewind {
-                    gameBoard.updateSquare(square: pawnSquare)
-                }
-                else {
-                    gameBoard.updateSquare(square: pawnSquare, figure: pawnSquare.figure)
+                if let figure = pawnSquare.figure {
+                    if !backwardRewind {
+                        gameBoard.updateSquare(square: pawnSquare)
+                        if forwardRewind {
+                            if let playerIndex = players.firstIndex(where: {$0.type == currentPlayer.type}) {
+                                players[playerIndex].addDestroyedFigure(figure)
+                            }
+                        }
+                    }
+                    else {
+                        gameBoard.updateSquare(square: pawnSquare, figure: pawnSquare.figure)
+                        if let playerIndex = players.firstIndex(where: {$0.type != currentPlayer.type}) {
+                            players[playerIndex].removeDestroyedFigure(figure)
+                        }
+                    }
                 }
             }
         }
@@ -504,24 +575,24 @@ class GameLogic {
         let row = currentFigure.color == .black ? constants.lastRow : constants.firstRow
         let canCastle = canCastle()
         //adds additional square for short castle, if all conditions met
-        if canCastle.short && !check && !checkSquares.contains(where: {($0.column == constants.leftKnightStartColumn || $0.column == constants.leftBishopStartColumn) && $0.row == row}) {
-            let firstCondition = gameBoard[constants.leftRookStartColumn, row]?.figure != nil
-            let secondCondition = gameBoard[constants.leftKnightStartColumn, row]?.figure == nil
-            let thirdCondition = gameBoard[constants.leftBishopStartColumn, row]?.figure == nil
+        if canCastle.short && !check && !checkSquares.contains(where: {($0.column == constants.rightKnightStartColumn || $0.column == constants.rightBishopStartColumn) && $0.row == row}) {
+            let firstCondition = gameBoard[constants.rightRookStartColumn, row]?.figure != nil
+            let secondCondition = gameBoard[constants.rightKnightStartColumn, row]?.figure == nil
+            let thirdCondition = gameBoard[constants.rightBishopStartColumn, row]?.figure == nil
             if firstCondition && secondCondition && thirdCondition {
-                if let square = gameBoard[.B, row] {
+                if let square = gameBoard[constants.kingColumnForShortCastle, row] {
                     availableSquares.append(square)
                 }
             }
         }
         //adds additional square for long castle, if all conditions met
-        if canCastle.long && !check && !checkSquares.contains(where: {($0.column == constants.rightBishopStartColumn || $0.column == constants.rightKnightStartColumn || $0.column == constants.queenStartColumn) && $0.row == row}) {
+        if canCastle.long && !check && !checkSquares.contains(where: {($0.column == constants.leftKnightStartColumn || $0.column == constants.leftBishopStartColumn || $0.column == constants.queenStartColumn) && $0.row == row}) {
             let firstCondition = gameBoard[constants.queenStartColumn, row]?.figure == nil
-            let secondCondition = gameBoard[constants.rightBishopStartColumn, row]?.figure == nil
-            let thirdCondition = gameBoard[constants.rightRookStartColumn, row]?.figure != nil
-            let fourthCondition = gameBoard[constants.rightKnightStartColumn, row]?.figure == nil
+            let secondCondition = gameBoard[constants.leftBishopStartColumn, row]?.figure == nil
+            let thirdCondition = gameBoard[constants.leftRookStartColumn, row]?.figure != nil
+            let fourthCondition = gameBoard[constants.leftKnightStartColumn, row]?.figure == nil
             if firstCondition && secondCondition && thirdCondition && fourthCondition {
-                if let square = gameBoard[.F, row] {
+                if let square = gameBoard[constants.kingColumnForLongCastle, row] {
                     availableSquares.append(square)
                 }
             }
@@ -535,14 +606,19 @@ class GameLogic {
     private func checkForRealCheck(color: GameColors) {
         blockFromCheckSquares = []
         checkingKingSquares = true
+        checkMate = false
         check = false
         blockFromCheckSquares = checkForCheck(color: color)
         if checkSquares.contains(where: {$0.figure?.name == .king && $0.figure?.color != color}) {
             check = true
-            checkForEndGame()
+            if !forwardRewind && !backwardRewind {
+                checkForEndGame()
+            }
         }
         else {
-            checkForDraw(color: color.opposite())
+            if !forwardRewind && !backwardRewind && !gameEnded {
+                checkForDraw(color: color.opposite())
+            }
         }
     }
     
@@ -570,25 +646,22 @@ class GameLogic {
             if let figure = square.figure, figure.color == color {
                 calculateAvailableSquares(square: square)
                 checkSquares += availableSquares
-                if availableSquares.contains(where: {$0.figure?.name == .king}) {
-                    let kingSquare = availableSquares.first(where: {$0.figure?.name == .king})
-                    if let kingSquare = kingSquare {
-                        switch figure.name {
-                        case .pawn:
-                            blockedSquares += []
-                        case .rook:
-                            blockedSquares += findBlockedSquaresForRook(square: square, kingSquare: kingSquare)
-                        case .knight:
-                            blockedSquares += []
-                        case .bishop:
-                            blockedSquares += findBlockedSquaresForBishop(square: square, kingSquare: kingSquare)
-                        case .queen:
-                            blockedSquares += findBlockedSquaresForQueen(square: square, kingSquare: kingSquare)
-                        case .king:
-                            blockedSquares += []
-                        }
-                        checkSquare = square
+                if let kingSquare = availableSquares.first(where: {$0.figure?.name == .king && $0.figure?.color == color.opposite()}) {
+                    switch figure.name {
+                    case .pawn:
+                        blockedSquares += []
+                    case .rook:
+                        blockedSquares += findBlockedSquaresForRook(square: square, kingSquare: kingSquare)
+                    case .knight:
+                        blockedSquares += []
+                    case .bishop:
+                        blockedSquares += findBlockedSquaresForBishop(square: square, kingSquare: kingSquare)
+                    case .queen:
+                        blockedSquares += findBlockedSquaresForQueen(square: square, kingSquare: kingSquare)
+                    case .king:
+                        blockedSquares += []
                     }
+                    checkSquare = square
                 }
             }
         }
@@ -636,14 +709,17 @@ class GameLogic {
                 }
             }
         }
-        gameEnded = true
-        winner = currentPlayer
-        calculatePoints()
+        if !gameEnded {
+            gameEnded = true
+            winner = currentPlayer
+            calculatePoints()
+        }
+        checkMate = true
     }
     
     private func calculatePoints() {
         if gameMode == .multiplayer {
-            var points = (abs(players.first!.points - players.second!.points)) / players.first!.rank.factor
+            var points = (abs(players.first!.user.points - players.second!.user.points)) / players.first!.user.rank.factor
             if points < constants.minimumPointsForGame {
                 points = constants.minimumPointsForGame
             }
@@ -654,7 +730,7 @@ class GameLogic {
                 points = -points
             }
             if let index = players.firstIndex(where: {$0.type == .player1}) {
-                players[index].addPoints(points)
+                players[index].addPointsToUser(points)
                 if currentPlayer.type == .player1 {
                     currentPlayer = players[index]
                 }
@@ -663,10 +739,12 @@ class GameLogic {
     }
     
     func surender() {
-        timer?.invalidate()
-        gameEnded = true
-        winner = currentPlayer == players.first! ? players.second! : players.first!
-        calculatePoints()
+        if !gameEnded {
+            timer?.invalidate()
+            gameEnded = true
+            winner = currentPlayer == players.first! ? players.second! : players.first!
+            calculatePoints()
+        }
     }
     
     // MARK: - Draw
@@ -678,9 +756,12 @@ class GameLogic {
         let deadPosition = checkForDeadPosition()
         var allEnemyAvailableSquares = [Square]()
         //stalemate
-        for square in squares {
+        outerLoop: for square in squares {
             findAvailableSquares(square)
             allEnemyAvailableSquares += availableSquares
+            if !allEnemyAvailableSquares.isEmpty {
+                break outerLoop
+            }
         }
         if allEnemyAvailableSquares.isEmpty || threeSameTurnsInARow || insufficientMaterial || deadPosition {
             forceDraw()
@@ -688,7 +769,9 @@ class GameLogic {
     }
     
     private func checkIfTurnsEqual() -> Bool {
-        if turns.count >= constants.sameTurnsForDraw * players.count {
+        //if turns contains castle, it should be counted as 1 turn, not as 2
+        let specialFactor = turns.filter({$0.shortCastle || $0.longCastle}).count
+        if turns.count >= constants.sameTurnsForDraw * players.count + specialFactor / 2 {
             let firstPlayerHaveUniqueTurns = checkIfPlayerTurnsEqual(players.first!)
             let secondPlayerHaveUniqueTurns = checkIfPlayerTurnsEqual(players.second!)
             if firstPlayerHaveUniqueTurns  && secondPlayerHaveUniqueTurns {
@@ -713,17 +796,18 @@ class GameLogic {
     }
     
     private func checkForDeadPosition() -> Bool {
-        var allAvailableSquares = [Square]()
         //if at least 1 figure is not blocked, this is not dead position yet
         var figuresBlocked = true
         //dead position of both players
         var deadPositions: [Bool] = []
-        for square in gameBoard.squares {
+        outerLoop: for square in gameBoard.squares.filter({$0.figure != nil}) {
             findAvailableSquares(square)
-            if square.figure?.name != .king && figuresBlocked {
+            if square.figure?.name != .king {
                 figuresBlocked = availableSquares.isEmpty
+                if !figuresBlocked {
+                    break outerLoop
+                }
             }
-            allAvailableSquares += availableSquares
         }
         if figuresBlocked {
             let kingsSquares = gameBoard.squares.filter({$0.figure?.name == .king})
@@ -867,9 +951,6 @@ class GameLogic {
     
     func forceDraw() {
         gameEnded = true
-        draw = true
-        //just for proper UI update
-        winner = currentPlayer
     }
     
     // MARK: - Chess time
@@ -905,29 +986,31 @@ class GameLogic {
     //switches first and second square for that
     func backward() -> Turn? {
         resetPickedSquares()
-        if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
-            backwardRewind.toggle()
-            timer?.invalidate()
-            if !shortCastle && !longCastle {
-                currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
+        if !firstTurn {
+            if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+                if (!currentTurn.shortCastle && !currentTurn.longCastle) || currentTurn.squares.first?.figure?.name == .king {
+                    switchPlayer()
+                }
+                backwardRewind.toggle()
+                timer?.invalidate()
+                var firstSquare = turns[currentTurnIndex].squares.second!
+                let firstSquareFigure = turns[currentTurnIndex].squares.second!.figure
+                firstSquare.updateFigure(newValue: turns[currentTurnIndex].squares.first!.figure)
+                var secondSquare = turns[currentTurnIndex].squares.first!
+                secondSquare.updateFigure(newValue: firstSquareFigure)
+                let turn = Turn(squares: [firstSquare, secondSquare], turnDuration: currentTurn.turnDuration, shortCastle: currentTurn.shortCastle, longCastle: currentTurn.longCastle, check: currentTurn.check, checkMate: currentTurn.checkMate, pawnTransform: currentTurn.pawnTransform, pawnSquare: currentTurn.pawnSquare, checkSquare: currentTurn.checkSquare)
+                if timerEnabled, let index = players.firstIndex(where: {$0 == currentPlayer}) {
+                    players[index].increaseTimeLeft(with: turn.turnDuration)
+                    currentPlayer = players[index]
+                    timeLeft = currentPlayer.timeLeft
+                }
+                for square in turn.squares {
+                    makeTurn(square: square)
+                }
+                backwardRewind.toggle()
+                backCurrentTurn()
+                return turn
             }
-            var firstSquare = turns[currentTurnIndex].squares.second!
-            let firstSquareFigure = turns[currentTurnIndex].squares.second!.figure
-            firstSquare.figure = turns[currentTurnIndex].squares.first!.figure
-            var secondSquare = turns[currentTurnIndex].squares.first!
-            secondSquare.figure = firstSquareFigure
-            let turn = Turn(squares: [firstSquare, secondSquare], pawnTransform: currentTurn.pawnTransform, pawnSquare: currentTurn.pawnSquare, turnDuration: currentTurn.turnDuration)
-            if timerEnabled, let index = players.firstIndex(where: {$0 == currentPlayer}) {
-                players[index].timeLeft += turn.turnDuration
-                currentPlayer = players[index]
-                timeLeft = currentPlayer.timeLeft
-            }
-            for square in turn.squares {
-                makeTurn(square: square)
-            }
-            backwardRewind.toggle()
-            backCurrentTurn()
-            return turn
         }
         return nil
     }
@@ -935,30 +1018,32 @@ class GameLogic {
     //returns turn to animate, if forward rewind and makes turn
     func forward() -> Turn? {
         resetPickedSquares()
-        if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
-            forwardRewind.toggle()
-            timer?.invalidate()
-            var turn = currentTurn
-            if currentTurnIndex != turns.count - 1 && !firstTurn {
-                turn = turns[currentTurnIndex + 1]
-            }
-            if timerEnabled, let index = players.firstIndex(where: {$0 == currentPlayer}) {
-                players[index].timeLeft -= turn.turnDuration
-                currentPlayer = players[index]
-                timeLeft = currentPlayer.timeLeft
-            }
-            for square in turn.squares {
-                makeTurn(square: square)
-            }
-            if pawnWizard {
-                transformPawn(turn: turn)
-            }
-            forwardRewind.toggle()
-            forwardCurrentTurn()
-            if shortCastle || longCastle {
+        if !lastTurn {
+            if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+                if (currentTurn.shortCastle || currentTurn.longCastle) && currentTurn.squares.first?.figure?.name == .king {
+                    switchPlayer()
+                }
+                forwardRewind.toggle()
+                timer?.invalidate()
+                var turn = currentTurn
+                if currentTurnIndex != turns.count - 1 && !firstTurn {
+                    turn = turns[currentTurnIndex + 1]
+                }
+                if timerEnabled, let index = players.firstIndex(where: {$0 == currentPlayer}) {
+                    players[index].increaseTimeLeft(with: -turn.turnDuration)
+                    currentPlayer = players[index]
+                    timeLeft = currentPlayer.timeLeft
+                }
+                for square in turn.squares {
+                    makeTurn(square: square)
+                }
+                if pawnWizard {
+                    transformPawn(turn: turn)
+                }
+                forwardRewind.toggle()
                 forwardCurrentTurn()
+                return turn
             }
-            return turn
         }
         return nil
     }
@@ -994,13 +1079,15 @@ class GameLogic {
     //if some turn was changed, erases game after that turn
     private func removeTurnsIfTurnChanged() {
         if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
-            turns = turns.dropLast(turns.count - 1 - currentTurnIndex)
+            //when we dropping turns, our currentTurn is -1 from that turn, which we about to change, except, if its a firstTurn
+            let specialFactor = currentTurnIndex == 0 && firstTurn ? 0 : 1
+            turns = turns.dropLast(turns.count - specialFactor - currentTurnIndex)
         }
     }
     
     //returns how much turns to current turn and whether it is ahead or behind
     func turnsLeft(to turn: Turn) -> (forward: Bool, count: Int) {
-        if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn), let indexOfTurn = turns.firstIndex(of: turn) {
+        if turn != currentTurn, let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn), let indexOfTurn = turns.firstIndex(of: turn) {
             var turnsLeft = [Turn]()
             var forward = true
             if indexOfTurn > currentTurnIndex {
@@ -1032,21 +1119,25 @@ class GameLogic {
     
     // MARK: - Other
     
-    func resetPickedSquares() {
-        pickedSquares = []
+    private func switchPlayer() {
+        currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
     }
     
-    func resetCastle() {
+    private func getKingSquare(color: GameColors) -> Square? {
+        return gameBoard.squares.first(where: {$0.figure?.name == .king && $0.figure?.color != color})
+    }
+    
+    private func resetCastle() {
         shortCastle = false
         longCastle = false
     }
     
-    func resetPawnWizard() {
-        pawnWizard = false
+    func saveTurns() {
+        storedTurns = turns
     }
     
-    func switchPlayer() {
-        currentPlayer = currentPlayer == players.first! ? players.second! : players.first!
+    func resetPickedSquares() {
+        pickedSquares = []
     }
     
     func getUpdatedSquares(from turn: Turn) -> (first: Square?, second: Square?){
@@ -1060,15 +1151,11 @@ class GameLogic {
     
     func addCoinsToPlayer(coins: Int) {
         if let index = players.firstIndex(of: players.first!) {
-            players[index].coins += coins
+            players[index].addCoinsToUser(coins)
             if currentPlayer.type == .player1 {
                 currentPlayer = players[index]
             }
         }
-    }
-    
-    func getCheckSquare() -> Square? {
-        return gameBoard.squares.first(where: {$0.figure?.name == .king && $0.figure?.color != currentTurn?.squares.first?.figure?.color})
     }
     
 }
@@ -1078,18 +1165,18 @@ class GameLogic {
 private struct GameLogic_Constants {
     static let startRowsForPawn = [2,7]
     static let lastRowsForPawn = [firstRow,lastRow]
-    static let kingColumnForLongCastle: BoardFiles = .F
-    static let kingColumnForShortCastle: BoardFiles = .B
+    static let kingColumnForLongCastle: BoardFiles = .C
+    static let kingColumnForShortCastle: BoardFiles = .G
     static let firstRow = 1
     static let lastRow = 8
-    static let columnsForRookShortCastle: [BoardFiles] = [.A, .C]
-    static let columnsForRookLongCastle: [BoardFiles] = [.H, .E]
+    static let columnsForRookShortCastle: [BoardFiles] = [.H, .F]
+    static let columnsForRookLongCastle: [BoardFiles] = [.A, .D]
     //minimum distance between rows or columns
     static let minimumDistance = 1
     static let leftRookStartColumn: BoardFiles = .A
     static let leftKnightStartColumn: BoardFiles = .B
     static let leftBishopStartColumn: BoardFiles = .C
-    static let queenStartColumn: BoardFiles = .E
+    static let queenStartColumn: BoardFiles = .D
     static let rightBishopStartColumn: BoardFiles = .F
     static let rightKnightStartColumn: BoardFiles = .G
     static let rightRookStartColumn: BoardFiles = .H

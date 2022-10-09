@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Some usefull enums
 
 //columns in chess called files
-enum BoardFiles: String, CaseIterable, Equatable, Comparable {
+enum BoardFiles: String, CaseIterable, Equatable, Comparable, Codable {
     
     case A
     case B
@@ -48,7 +48,7 @@ enum BoardFiles: String, CaseIterable, Equatable, Comparable {
     
 }
 
-enum Figures: String, Equatable {
+enum Figures: String, Equatable, Codable {
     case pawn
     case rook
     case knight
@@ -57,14 +57,15 @@ enum Figures: String, Equatable {
     case king
 }
 
-enum GamePlayers: String {
+enum GamePlayers: String, Codable {
     case player1
     case player2
 }
 
-enum GameColors: String {
+enum GameColors: String, CaseIterable, Codable {
     case white
     case black
+    case random
     
     func opposite() -> Self {
         switch self {
@@ -72,11 +73,19 @@ enum GameColors: String {
             return .black
         case .black:
             return .white
+        case .random:
+            return random()
         }
     }
+    
+    func random() -> Self {
+        let possibleCases: [Self] = [.black, .white]
+        return possibleCases.randomElement() ?? .random
+    }
+    
 }
 
-enum Colors: String {
+enum Colors: String, Codable {
     case white
     case black
     case blue
@@ -85,7 +94,7 @@ enum Colors: String {
     case green
 }
 
-enum SquaresThemes: String {
+enum SquaresThemes: String, Codable {
     case defaultTheme
 }
 
@@ -93,7 +102,7 @@ enum FiguresThemes: String {
     case defaultTheme
 }
 
-enum BoardThemes: String {
+enum BoardThemes: String, Codable {
     case defaultTheme
 }
 
@@ -197,7 +206,12 @@ enum Titles: String {
     case the_Chosen_One
 }
 
-enum GameModes: String {
+enum GameModes: String, CaseIterable, Codable {
     case oneScreen
     case multiplayer
+}
+
+enum Answers: String, CaseIterable {
+    case yes
+    case no
 }

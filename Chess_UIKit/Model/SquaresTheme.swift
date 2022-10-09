@@ -8,7 +8,8 @@
 import Foundation
  
 //struct that represents theme of the squares of the game
-struct SquaresTheme: Equatable {
+struct SquaresTheme: Equatable, Codable {
+    
     let name: SquaresThemes
     //e.g. black/white
     let firstColor: Colors
@@ -17,4 +18,5 @@ struct SquaresTheme: Equatable {
     let availableSquaresColor: Colors
     let pickColor: Colors
     let checkColor: Colors
+    
 }

@@ -8,54 +8,100 @@
 import Foundation
 
 //struct that represents player
-struct Player: Equatable {
-    
+struct Player: Equatable, Codable {
+
     // MARK: - Properties
     
-    let name: String
-    var squaresTheme = SquaresTheme(name: .defaultTheme, firstColor: .white, secondColor: .black, turnColor: .orange, availableSquaresColor: .green, pickColor: .red, checkColor: .blue)
-    //background of player part of the screen
-    var background: Backgrounds = .defaultBackground
-    //background of player trash and name
-    var playerBackground: Backgrounds = .defaultBackground
-    var frame: Frames = .ukraineFlag
-    var figuresTheme: FiguresThemes = .defaultTheme
-    var boardTheme: BoardThemes = .defaultTheme
-    var coins: Int = 0
-    var points: Int = 0 {
-        didSet {
-            rank = getRank(from: points)
-        }
-    }
-    var pointsForGame = 0
-    var rank: Ranks = .bronze
-    var title: Titles = .novice
+    private(set) var user: User
+    private(set) var pointsForGame = 0
+    private(set) var timeLeft: Int
+    private(set) var destroyedFigures = [Figure]()
+            
     let type: GamePlayers
     let figuresColor: GameColors
-    var timeLeft = 300
+    
+    enum CodingKeys: String, CodingKey {
+        case user
+        case pointsForGame
+        case type
+        case figuresColor
+        case timeLeft
+        case destroyedFigures
+    }
+    
+    //TODO: - Add more user data to player
+    
+    enum UserKeys: String, CodingKey {
+        case name, email, points
+    }
+    
+    //
+    
+    // MARK: - Inits
+    
+    init(user: User, type: GamePlayers, figuresColor: GameColors, timeLeft: Int) {
+        self.user = user
+        self.type = type
+        self.figuresColor = figuresColor
+        self.timeLeft = timeLeft
+    }
+    
+    //Firebase don`t store empty arrays, that`s why we need custom decoder
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        pointsForGame = try values.decode(Int.self, forKey: .pointsForGame)
+        type = try values.decode(GamePlayers.self, forKey: .type)
+        figuresColor = try values.decode(GameColors.self, forKey: .figuresColor)
+        timeLeft = try values.decode(Int.self, forKey: .timeLeft)
+        user = try values.decode(User.self, forKey: .user)
+        destroyedFigures = (try? values.decode([Figure].self, forKey: .destroyedFigures)) ?? []
+    }
     
     // MARK: - Methods
     
-    mutating func addPoints(_ points: Int) {
+    mutating func addPointsToUser(_ points: Int) {
         pointsForGame = points
-        self.points += pointsForGame
+        user.addPoints(pointsForGame)
     }
     
-    func getRank(from points: Int) -> Ranks {
-        switch points {
-        case _ where points >= Ranks.bronze.minimumPoints && points <= Ranks.bronze.maximumPoints:
-            return .bronze
-        case _ where points >= Ranks.silver.minimumPoints && points <= Ranks.silver.maximumPoints:
-            return .silver
-        case _ where points >= Ranks.gold.minimumPoints && points <= Ranks.gold.maximumPoints:
-            return .gold
-        case _ where points >= Ranks.diamond.minimumPoints && points <= Ranks.diamond.maximumPoints:
-            return .diamond
-        case _ where points >= Ranks.master.minimumPoints:
-            return .master
-        default:
-            return .bronze
+    mutating func addCoinsToUser(_ coins: Int) {
+        user.addCoins(coins)
+    }
+    
+    mutating func updateTimeLeft(newValue: Int) {
+        timeLeft = newValue
+    }
+    
+    mutating func increaseTimeLeft(with value: Int) {
+        timeLeft += value
+    }
+    
+    mutating func addDestroyedFigure(_ figure: Figure) {
+        destroyedFigures.append(figure)
+    }
+    
+    mutating func removeDestroyedFigure(_ figure: Figure) {
+        if let figureIndex = destroyedFigures.firstIndex(of: figure) {
+            destroyedFigures.remove(at: figureIndex)
         }
+    }
+    
+    static func == (lhs: Player, rhs: Player) -> Bool {
+        lhs.type == rhs.type
+    }
+    
+    //we don`t need all info about user to store in player, that`s why we use custom encoder
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(pointsForGame, forKey: .pointsForGame)
+        try container.encode(type, forKey: .type)
+        try container.encode(figuresColor, forKey: .figuresColor)
+        try container.encode(timeLeft, forKey: .timeLeft)
+        try container.encode(destroyedFigures, forKey: .destroyedFigures)
+        var additionalInfo = container.nestedContainer(keyedBy: UserKeys.self, forKey: .user)
+        try additionalInfo.encode(user.name, forKey: .name)
+        try additionalInfo.encode(user.email, forKey: .email)
+        try additionalInfo.encode(user.points, forKey: .points)
     }
     
 }
