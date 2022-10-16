@@ -10,6 +10,13 @@ import UIKit
 //view that represents custom progress bar
 class ProgressBar: UIView {
     
+    // MARK: - View Functions
+    
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        setNeedsDisplay()
+    }
+    
     // MARK: - Properties
     
     var progressColor: UIColor = constants.defaultProgressColor {
@@ -60,7 +67,8 @@ class ProgressBar: UIView {
     // MARK: - Draw
 
     override func draw(_ rect: CGRect) {
-        backgroundMask.path = UIBezierPath(roundedRect: rect, cornerRadius: rect.height * constants.multiplierForCornerRadius).cgPath
+        let newPath = UIBezierPath(roundedRect: rect, cornerRadius: rect.height * constants.multiplierForCornerRadius).cgPath
+        backgroundMask.updatePath(with: newPath, animated: true)
         let progressRect = CGRect(origin: .zero, size: CGSize(width: rect.width * progress, height: rect.height))
         progressLayer.frame = progressRect
         progressLayer.backgroundColor = progressColor.cgColor

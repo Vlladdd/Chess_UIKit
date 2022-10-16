@@ -49,8 +49,14 @@ extension UIButton {
         translatesAutoresizingMaskIntoConstraints = false
         isExclusiveTouch = true
         addTarget(nil, action: function, for: .touchUpInside)
-        setBackgroundImage(image, for: .normal)
+        if image != nil {
+            contentVerticalAlignment = .fill
+            contentHorizontalAlignment = .fill
+            setImage(image, for: .normal)
+            imageView?.contentMode = .scaleAspectFit
+        }
         setTitle(text, for: .normal)
+        titleLabel?.textAlignment = .center
         titleLabel?.font = font
     }
     
@@ -377,7 +383,7 @@ extension UIScrollView {
     //scrols to view and centers him on center of ScrollView on the available area on screen
     func scrollToViewAndCenterOnScreen(view: UIView, animated: Bool) {
         if let content = subviews.first, content.subviews.contains(view) {
-            let childPoint = convert(view.frame, to: self)
+            let childPoint = content.convert(view.frame, to: self)
             let screenMidY = bounds.maxY - bounds.midY
             let screenMidX = bounds.maxX - bounds.midX
             setContentOffset(CGPoint(x: childPoint.midX - screenMidX, y: childPoint.midY - screenMidY), animated: animated)
@@ -386,7 +392,7 @@ extension UIScrollView {
     
     func checkIfViewInCenterOfTheScreen(view: UIView) -> Bool {
         if let content = subviews.first, content.subviews.contains(view) {
-            let childPoint = convert(view.frame, to: self)
+            let childPoint = content.convert(view.frame, to: self)
             let screenMidY = bounds.maxY - bounds.midY
             let screenMidX = bounds.maxX - bounds.midX
             let offset = CGPoint(x: round(childPoint.midX - screenMidX), y: round(childPoint.midY - screenMidY))

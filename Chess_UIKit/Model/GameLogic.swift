@@ -43,6 +43,8 @@ class GameLogic: Codable {
     let totalTime: Int
     let rewindEnabled: Bool
     
+    private var storedGameBoard = GameBoard()
+    private var storedPlayers = [Player]()
     //when current player made check
     private var check = false
     //when last turn was short or long castle
@@ -111,7 +113,7 @@ class GameLogic: Codable {
     
     //when user choose game to load for the first time
     func configureAfterLoad() {
-        saveTurns()
+        saveGameDataForRestore()
         checkForRealCheck(color: currentPlayer.figuresColor.opposite())
     }
     
@@ -119,6 +121,22 @@ class GameLogic: Codable {
     func restoreFromStoredTurns() {
         turns = storedTurns
         startFromFirstTurn()
+    }
+    
+    func restoreFromStoredTurnsToLastTurn() {
+        turns = storedTurns
+        gameBoard = storedGameBoard
+        players = storedPlayers
+        resetPickedSquares()
+        currentPlayer = turns.last?.squares.first?.figure?.color == players.first?.figuresColor ? players.second! : players.first!
+        timeLeft = currentPlayer.timeLeft
+        currentTurn = turns.last
+        pawnWizard = false
+        shortCastle = false
+        longCastle = false
+        firstTurn = false
+        lastTurn = true
+        checkForRealCheck(color: currentPlayer.figuresColor.opposite())
     }
     
     //restarts game
@@ -135,6 +153,7 @@ class GameLogic: Codable {
         shortCastle = false
         longCastle = false
         firstTurn = true
+        lastTurn = false
     }
     
     func makeTurn(square: Square) {
@@ -1132,8 +1151,11 @@ class GameLogic: Codable {
         longCastle = false
     }
     
-    func saveTurns() {
+    //when user made changes to loaded game and want to undo them
+    func saveGameDataForRestore() {
         storedTurns = turns
+        storedGameBoard = gameBoard
+        storedPlayers = players
     }
     
     func resetPickedSquares() {
