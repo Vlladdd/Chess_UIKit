@@ -438,9 +438,7 @@ class GameViewController: UIViewController {
                 if square.figure?.color == color || color == nil {
                     for subview in squareView.subviews {
                         if let figureImageView = subview as? UIImageView {
-                            if (figureImageView != figureToTrash && !figuresInMotion.contains(figureImageView)) || color == nil {
-                                figureImageView.image = figureImageView.image?.rotate(radians: .pi)
-                            }
+                            figureImageView.image = figureImageView.image?.rotate(radians: .pi)
                         }
                     }
                 }
@@ -456,17 +454,15 @@ class GameViewController: UIViewController {
             }
         }
         if color == gameLogic.players.first!.figuresColor || color == nil {
-            rotateFiguresIn(destroyedFigures2, rotateFigureFromTrash: color == nil)
+            rotateFiguresIn(destroyedFigures2)
         }
         if color == gameLogic.players.second!.figuresColor || color == nil {
-            rotateFiguresIn(destroyedFigures1, rotateFigureFromTrash: color == nil)
+            rotateFiguresIn(destroyedFigures1)
         }
-        if let color = color {
-            checkSpecialFigureView(figureToTrash, color: color, operation: {$0 != $1})
-            checkSpecialFigureView(figureFromTrash, color: color, operation: {$0 == $1})
-            for figureInMotion in figuresInMotion {
-                checkSpecialFigureView(figureInMotion, color: color, operation: {$0 == $1})
-            }
+        checkSpecialFigureView(figureToTrash, color: color, operation: {$0 != $1})
+        checkSpecialFigureView(figureFromTrash, color: color, operation: {$0 == $1})
+        for figureInMotion in figuresInMotion {
+            checkSpecialFigureView(figureInMotion, color: color, operation: {$0 == $1})
         }
         transformViews([player1FrameForDF, player1Timer, player1FrameView, player1TitleView], with: player1RotateFiguresButton.transform)
         transformViews([player2FrameForDF, player2Timer, player2FrameView, player2TitleView], with: player2RotateFiguresButton.transform)
@@ -481,9 +477,9 @@ class GameViewController: UIViewController {
     //we have some rotation animations when we animating turn
     //this function is used to prevent double rotation
     //and also figure can be in wrong place, cuz animation don`t finish, so we also need to rotate her
-    private func checkSpecialFigureView(_ figureView: UIView?, color: GameColors, operation: @escaping (GameColors, GameColors) -> Bool) {
+    private func checkSpecialFigureView(_ figureView: UIView?, color: GameColors?, operation: @escaping (GameColors, GameColors) -> Bool) {
         if let figureView = figureView {
-            if let figureData = figureView.layer.value(forKey: constants.keyForFIgure) as? Figure, operation(figureData.color, color) {
+            if let figureData = figureView.layer.value(forKey: constants.keyForFIgure) as? Figure, color != nil ? operation(figureData.color, color!) : true {
                 if let figureImageView = figureView as? UIImageView {
                     figureImageView.image = figureImageView.image?.rotate(radians: .pi)
                 }
@@ -500,11 +496,11 @@ class GameViewController: UIViewController {
         }
     }
     
-    private func rotateFiguresIn(_ destroyedFiguresView: UIView, rotateFigureFromTrash: Bool) {
+    private func rotateFiguresIn(_ destroyedFiguresView: UIView) {
         for subview in destroyedFiguresView.subviews {
             if let figuresStack = subview as? UIStackView {
                 for figureView in figuresStack.arrangedSubviews {
-                    if figureView != figureFromTrash || rotateFigureFromTrash {
+                    if figureView != figureFromTrash {
                         if let figureImageView = figureView as? UIImageView {
                             figureImageView.image = figureImageView.image?.rotate(radians: .pi)
                         }
@@ -1225,6 +1221,10 @@ class GameViewController: UIViewController {
     
     //moves figure between squares and trash, both forward and backward, and also transform pawn when rewind
     private func animateFigures(firstSquareView: UIImageView, secondSquareView: UIImageView, thirdSquareView: UIImageView?, firstSquare: Square, secondSquare: Square, pawnSquare: Square?, pawnTransform: Figure?, backwardSquareView: UIImageView?) {
+        //for proper coordinates for transform of figure, when we removing it from square
+        firstSquareView.layoutIfNeeded()
+        secondSquareView.layoutIfNeeded()
+        thirdSquareView?.layoutIfNeeded()
         //bacwardRewind will change after animation will finish, so we need to capture it
         let backwardRewind = self.backwardRewind
         if backwardRewind {
@@ -1234,7 +1234,6 @@ class GameViewController: UIViewController {
         }
         var frameForBackward: (x: CGFloat, y: CGFloat) = (0, 0)
         var backwardFigureView: UIImageView?
-        bringFigureToFront(figureView: firstSquareView)
         if let backwardSquareView = backwardSquareView {
             backwardFigureView = getBackwardFigureView()
             if let backwardFigureView = backwardFigureView {
@@ -1259,16 +1258,28 @@ class GameViewController: UIViewController {
             thirdSquareView?.layer.setValue(newSquare, forKey: constants.keyNameForSquare)
         }
         figureFromTrash = backwardFigureView
-        for squareView in [firstSquareView, secondSquareView, thirdSquareView] {
-            if let figureView = squareView?.subviews.second {
+        let firstFigureView = firstSquareView.subviews.second
+        let secondFigureView = secondSquareView.subviews.second
+        let thirdFigureView = thirdSquareView?.subviews.second
+        for figureView in [firstFigureView, secondFigureView, thirdFigureView] {
+            if let figureView = figureView {
                 figuresInMotion.append(figureView)
+                let bounds = getFrameForAnimation(firstView: scrollContentOfGame, secondView: figureView)
+                //when we remove figure from square, we need to move figure to square position
+                figureView.transform = CGAffineTransform(translationX: bounds.minX, y: bounds.minY)
+                //we are doing this to be able to have both figures on top of gameBoard(useful in castle, for example)
+                scrollContentOfGame.addSubview(figureView)
             }
         }
+        if let firstFigureView = firstFigureView {
+            scrollContentOfGame.bringSubviewToFront(firstFigureView)
+        }
+        viewsOnTop()
         //turn animation
         let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
             backwardFigureView?.transform = CGAffineTransform(translationX: frameForBackward.x, y: frameForBackward.y)
-            if let subview = firstSquareView.subviews.second {
-                subview.transform = CGAffineTransform(translationX: frame.minX - firstSquareView.bounds.minX, y: frame.minY - firstSquareView.bounds.minY)
+            if let firstFigureView = firstFigureView {
+                firstFigureView.transform = firstFigureView.transform.translatedBy(x: frame.minX - firstSquareView.bounds.minX, y: frame.minY - firstSquareView.bounds.minY)
             }
         }) { [weak self] _ in
             if let self = self {
@@ -1283,21 +1294,17 @@ class GameViewController: UIViewController {
                     backwardSquareView.addSubview(backwardFigureView)
                     destroyedFiguresView?.layoutIfNeeded()
                 }
-                if secondSquareView.subviews.count > 1 {
-                    self.moveFigureToTrash(squareView: secondSquareView, currentPlayer: currentPlayer)
+                if let secondFigureView = secondFigureView as? UIImageView {
+                    self.moveFigureToTrash(figureView: secondFigureView, currentPlayer: currentPlayer)
                 }
-                var figure = firstSquareView.subviews.last!
-                if backwardSquareView != nil {
-                    figure = firstSquareView.subviews.second!
+                if let firstFigureView = firstFigureView {
+                    firstFigureView.transform = .identity
+                    secondSquareView.addSubview(firstFigureView)
+                    let figureViewConstraints = [firstFigureView.centerXAnchor.constraint(equalTo: secondSquareView.centerXAnchor), firstFigureView.centerYAnchor.constraint(equalTo: secondSquareView.centerYAnchor)]
+                    NSLayoutConstraint.activate(figureViewConstraints)
                 }
-                figure.transform = .identity
-                secondSquareView.addSubview(figure)
-                let imageViewConstraints = [figure.centerXAnchor.constraint(equalTo: secondSquareView.centerXAnchor), figure.centerYAnchor.constraint(equalTo: secondSquareView.centerYAnchor)]
-                NSLayoutConstraint.activate(imageViewConstraints)
-                if let thirdSquareView = thirdSquareView {
-                    if thirdSquareView.subviews.count > 0 {
-                        self.moveFigureToTrash(squareView: thirdSquareView, currentPlayer: currentPlayer)
-                    }
+                if let thirdFigureView = thirdFigureView as? UIImageView {
+                    self.moveFigureToTrash(figureView: thirdFigureView, currentPlayer: currentPlayer)
                 }
                 if self.gameLogic.gameEnded && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
                     self.makeEndOfTheGameView()
@@ -1345,19 +1352,6 @@ class GameViewController: UIViewController {
         return nil
     }
     
-    //we need to move figure image to the top
-    private func bringFigureToFront(figureView: UIView) {
-        let verticalStackView = figureView.superview?.superview
-        let horizontalStackView = figureView.superview
-        if let verticalStackView = verticalStackView, let horizontalStackView = horizontalStackView {
-            scrollContentOfGame.bringSubviewToFront(verticalStackView)
-            verticalStackView.bringSubviewToFront(horizontalStackView)
-            horizontalStackView.bringSubviewToFront(figureView)
-        }
-        figureView.bringSubviewToFront(figureView.subviews.second!)
-        viewsOnTop()
-    }
-    
     private func bringFigureToFrontFromTrash(figureView: UIView) {
         let trashView = figureView.superview?.superview
         let trashStack = figureView.superview
@@ -1373,50 +1367,45 @@ class GameViewController: UIViewController {
         return firstView.convert(secondView.bounds, from: secondView)
     }
     
-    private func moveFigureToTrash(squareView: UIImageView, currentPlayer: Player) {
-        if let subview = squareView.subviews.last {
-            figureToTrash = subview
-            bringFigureToFront(figureView: squareView)
-            if player1RotateFiguresButton.transform != player2RotateFiguresButton.transform  {
-                if let subview = subview as? UIImageView {
-                    subview.image = subview.image?.rotate(radians: .pi)
-                }
-            }
-            var coordinates: (xCoordinate: CGFloat, yCoordinate: CGFloat) = (0, 0)
-            switch currentPlayer.type {
-            case .player1:
-                coordinates = coordinatesForTrashAnimation(player: .player1, squareView: squareView, destroyedFiguresStack1: player1DestroyedFigures1, destroyedFiguresStack2: player1DestroyedFigures2)
-            case .player2:
-                coordinates = coordinatesForTrashAnimation(player: .player2, squareView: squareView, destroyedFiguresStack1: player2DestroyedFigures1, destroyedFiguresStack2: player2DestroyedFigures2)
-            }
-            animateFigureToTrash(figure: subview, x: coordinates.xCoordinate, y: coordinates.yCoordinate, currentPlayer: currentPlayer)
+    private func moveFigureToTrash(figureView: UIImageView, currentPlayer: Player) {
+        figureToTrash = figureView
+        if player1RotateFiguresButton.transform != player2RotateFiguresButton.transform  {
+            figureView.image = figureView.image?.rotate(radians: .pi)
         }
+        var coordinates: (xCoordinate: CGFloat, yCoordinate: CGFloat) = (0, 0)
+        switch currentPlayer.type {
+        case .player1:
+            coordinates = coordinatesForTrashAnimation(player: .player1, figureView: figureView, destroyedFiguresStack1: player1DestroyedFigures1, destroyedFiguresStack2: player1DestroyedFigures2)
+        case .player2:
+            coordinates = coordinatesForTrashAnimation(player: .player2, figureView: figureView, destroyedFiguresStack1: player2DestroyedFigures1, destroyedFiguresStack2: player2DestroyedFigures2)
+        }
+        animateFigureToTrash(figure: figureView, x: coordinates.xCoordinate, y: coordinates.yCoordinate, currentPlayer: currentPlayer)
     }
     
-    private func coordinatesForTrashAnimation(player: GamePlayers, squareView: UIImageView, destroyedFiguresStack1: UIStackView, destroyedFiguresStack2: UIStackView) -> (xCoordinate: CGFloat, yCoordinate: CGFloat) {
+    private func coordinatesForTrashAnimation(player: GamePlayers, figureView: UIImageView, destroyedFiguresStack1: UIStackView, destroyedFiguresStack2: UIStackView) -> (xCoordinate: CGFloat, yCoordinate: CGFloat) {
         var frame = CGRect.zero
         var xCoordinate: CGFloat = 0
         var yCoordinate: CGFloat = 0
         //we have 2 lines of trash figures
         if destroyedFiguresStack1.subviews.count == constants.maxFiguresInTrashLine {
-            frame = getFrameForAnimation(firstView: squareView, secondView: destroyedFiguresStack2)
+            frame = getFrameForAnimation(firstView: figureView, secondView: destroyedFiguresStack2)
         }
         else {
-            frame = getFrameForAnimation(firstView: squareView, secondView: destroyedFiguresStack1)
+            frame = getFrameForAnimation(firstView: figureView, secondView: destroyedFiguresStack1)
         }
         if gameLogic.gameMode == .oneScreen && player == .player1 {
-            xCoordinate = frame.minX - squareView.bounds.maxX
-            yCoordinate = frame.maxY - squareView.bounds.maxY
+            xCoordinate = frame.minX - figureView.bounds.maxX
+            yCoordinate = frame.maxY - figureView.bounds.maxY
             //at the start StackView have height 0
             if destroyedFiguresStack1.subviews.count == constants.maxFiguresInTrashLine && destroyedFiguresStack2.subviews.isEmpty {
-                yCoordinate = frame.maxY - squareView.bounds.minY
+                yCoordinate = frame.maxY - figureView.bounds.minY
             }
         }
         else if gameLogic.gameMode == .multiplayer || player == .player2{
-            xCoordinate = frame.maxX - squareView.bounds.minX
-            yCoordinate = frame.minY - squareView.bounds.minY
+            xCoordinate = frame.maxX - figureView.bounds.minX
+            yCoordinate = frame.minY - figureView.bounds.minY
             if destroyedFiguresStack1.subviews.count == constants.maxFiguresInTrashLine && destroyedFiguresStack2.subviews.isEmpty {
-                yCoordinate = frame.minY - squareView.bounds.maxY
+                yCoordinate = frame.minY - figureView.bounds.maxY
             }
         }
         return (xCoordinate, yCoordinate)
@@ -1424,7 +1413,7 @@ class GameViewController: UIViewController {
     
     private func animateFigureToTrash(figure: UIView, x: CGFloat, y: CGFloat, currentPlayer: Player) {
         trashAnimation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
-            figure.transform = CGAffineTransform(translationX: x, y: y)
+            figure.transform = figure.transform.translatedBy(x: x, y: y)
         }) {[weak self] _ in
             if let self = self {
                 figure.transform = .identity
@@ -2380,9 +2369,6 @@ class GameViewController: UIViewController {
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: gameBoard.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: gameBoard.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: gameBoard.widthAnchor, multiplier: constants.sizeMultiplierForSpinnerView), loadingSpinner.heightAnchor.constraint(equalTo: gameBoard.heightAnchor, multiplier: constants.sizeMultiplierForSpinnerView), spinner.widthAnchor.constraint(equalTo: loadingSpinner.widthAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.heightAnchor.constraint(equalTo: loadingSpinner.heightAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.centerXAnchor.constraint(equalTo: loadingSpinner.centerXAnchor), spinner.centerYAnchor.constraint(equalTo: loadingSpinner.centerYAnchor)]
         NSLayoutConstraint.activate(spinnerConstraints)
     }
-    
-    //TODO: -
-    //add ability to rotate figures and configure gameBoard for automatic rotation on currentPLayer change
     
 }
 
