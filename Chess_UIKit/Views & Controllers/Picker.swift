@@ -14,6 +14,10 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     
     var pickedData: T?
     
+    //textField have some problems with animations
+    //by making this 2 labels to represent placeholder and actual text, we are fixing this problem
+    private let textView = UILabel()
+    private let placeHolderView = UILabel()
     private let data: [T]
     //could make a retain cycle
     private var doneAction: (() -> ())?
@@ -28,7 +32,8 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     @objc func donePicker(_ sender: UIBarButtonItem? = nil) {
         resignFirstResponder()
         pickedData = pickedData == nil ? data.first : pickedData
-        text = pickedData?.rawValue
+        textView.text = pickedData?.rawValue
+        placeHolderView.text = ""
         doneAction?()
     }
     
@@ -45,8 +50,7 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
         self.cancelAction = cancelAction
         super.init(frame: .zero)
         self.font = font
-        self.placeholder = placeholder
-        setup()
+        setup(placeholder: placeholder)
     }
     
     required init?(coder: NSCoder) {
@@ -63,8 +67,13 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
          return super.canPerformAction(action, withSender: sender)
     }
     
-    private func setup() {
-        setup(placeholder: placeholder!, font: font!)
+    private func setup(placeholder: String) {
+        setup(placeholder: "", font: font!)
+        textView.setup(text: "", alignment: .center, font: font!)
+        placeHolderView.setup(text: placeholder, alignment: .center, font: font!)
+        placeHolderView.textColor = constants.placeholderColor
+        addSubview(placeHolderView)
+        addSubview(textView)
         let toolbarBackgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         let toolbarBackground = toolbarBackgroundColor.image()
         toolbar.translatesAutoresizingMaskIntoConstraints = false
@@ -85,6 +94,8 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
         picker.dataSource = self
         inputView = picker
         inputAccessoryView = toolbar
+        let textViewConstraints = [textView.centerXAnchor.constraint(equalTo: centerXAnchor), textView.centerYAnchor.constraint(equalTo: centerYAnchor), placeHolderView.centerXAnchor.constraint(equalTo: centerXAnchor), placeHolderView.centerYAnchor.constraint(equalTo: centerYAnchor), textView.heightAnchor.constraint(equalTo: heightAnchor), textView.widthAnchor.constraint(equalTo: widthAnchor), placeHolderView.heightAnchor.constraint(equalTo: heightAnchor), placeHolderView.widthAnchor.constraint(equalTo: widthAnchor)]
+        NSLayoutConstraint.activate(textViewConstraints)
     }
     
     func numberOfComponents(in pickerView: UIPickerView) -> Int {
@@ -116,4 +127,5 @@ private struct Picker_Constants {
     static let optimalAlpha = 0.5
     static let darkModeBackgroundColor = UIColor.black.withAlphaComponent(optimalAlpha)
     static let lightModeBackgroundColor = UIColor.white.withAlphaComponent(optimalAlpha)
+    static let placeholderColor = UIColor.red.withAlphaComponent(optimalAlpha)
 }

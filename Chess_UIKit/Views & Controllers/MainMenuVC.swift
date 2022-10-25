@@ -226,7 +226,11 @@ class MainMenuVC: UIViewController {
     private lazy var fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
     
     private var buttonsStack = UIStackView()
-    private var scrollView = UIScrollView()
+    //there is a bug, when animating scrollView, which leads to weird jump of first arrangedSubview subviews of buttonsStack
+    //by putting scrollView inside a view, we are fixing this bug
+    //other approach is to simply call view.setNeedsLayout() and view.layoutIfNeeded(), but that will also affect backButton,
+    //which i don`t want to
+    private var viewForScrollView = UIView()
     private var scrollViewContent = UIView()
     private var backButton = UIImageView()
     
@@ -239,22 +243,26 @@ class MainMenuVC: UIViewController {
     }
     
     private func makeScrollView(backButtonOutside: Bool) {
-        scrollView = CustomScrollView()
+        viewForScrollView = UIView()
+        viewForScrollView.translatesAutoresizingMaskIntoConstraints = false
+        let scrollView = CustomScrollView()
         scrollViewContent = UIView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollViewContent.translatesAutoresizingMaskIntoConstraints = false
         scrollView.delaysContentTouches = false
-        view.addSubview(scrollView)
+        viewForScrollView.addSubview(scrollView)
+        view.addSubview(viewForScrollView)
         scrollView.addSubview(scrollViewContent)
-        var scrollViewBottomConstraint = scrollView.bottomAnchor.constraint(lessThanOrEqualTo: view.layoutMarginsGuide.bottomAnchor)
+        var viewForScrollViewBottomConstraint = viewForScrollView.bottomAnchor.constraint(lessThanOrEqualTo: view.layoutMarginsGuide.bottomAnchor)
         if backButtonOutside {
-            scrollViewBottomConstraint = scrollView.bottomAnchor.constraint(lessThanOrEqualTo: backButton.topAnchor)
+            viewForScrollViewBottomConstraint = viewForScrollView.bottomAnchor.constraint(lessThanOrEqualTo: backButton.topAnchor)
         }
         let contentHeight = scrollViewContent.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
         contentHeight.priority = .defaultLow
-        let scrollViewConstraints = [scrollView.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor), scrollView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), scrollView.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), scrollView.topAnchor.constraint(greaterThanOrEqualTo: view.layoutMarginsGuide.topAnchor), scrollViewBottomConstraint]
+        let viewForScrollViewConstraints = [viewForScrollView.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor), viewForScrollView.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor), viewForScrollView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), viewForScrollView.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), viewForScrollView.topAnchor.constraint(greaterThanOrEqualTo: view.layoutMarginsGuide.topAnchor), viewForScrollViewBottomConstraint]
+        let scrollViewConstraints = [scrollView.leadingAnchor.constraint(equalTo: viewForScrollView.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: viewForScrollView.trailingAnchor), scrollView.topAnchor.constraint(equalTo: viewForScrollView.topAnchor), scrollView.bottomAnchor.constraint(equalTo: viewForScrollView.bottomAnchor)]
         let contentConstraints = [scrollViewContent.topAnchor.constraint(equalTo: scrollView.topAnchor), scrollViewContent.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor), scrollViewContent.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor), scrollViewContent.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor), scrollViewContent.widthAnchor.constraint(equalTo: scrollView.widthAnchor), contentHeight]
-        NSLayoutConstraint.activate(scrollViewConstraints + contentConstraints)
+        NSLayoutConstraint.activate(viewForScrollViewConstraints + scrollViewConstraints + contentConstraints)
     }
     
     //makes background of the view
@@ -281,9 +289,9 @@ class MainMenuVC: UIViewController {
     private func animateButtonsStack(reversed: Bool = false, addBackButton: Bool = false) {
         let yForAnimation = reversed ? view.frame.height : -view.frame.height
         let xForBackButton = view.frame.width
-        if let subview = view.subviews.first(where: {$0 as? UIScrollView != nil}) {
+        if let subview = view.subviews.first(where: {$0.subviews.first as? UIScrollView != nil}) {
             UIView.animate(withDuration: constants.animationDuration, animations: {
-                subview.transform = CGAffineTransform(translationX: 0, y: yForAnimation)
+                subview.subviews.first?.transform = CGAffineTransform(translationX: 0, y: yForAnimation)
             }) { _ in
                 subview.removeFromSuperview()
             }
@@ -299,9 +307,9 @@ class MainMenuVC: UIViewController {
             backButton.transform = CGAffineTransform(translationX: -xForBackButton, y: 0)
         }
         configureButtonsStack(backButtonOutside: addBackButton)
-        scrollView.transform = CGAffineTransform(translationX: 0, y: -yForAnimation)
+        viewForScrollView.subviews.first?.transform = CGAffineTransform(translationX: 0, y: -yForAnimation)
         UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-            self?.scrollView.transform = .identity
+            self?.viewForScrollView.subviews.first?.transform = .identity
             if addBackButton {
                 self?.backButton.transform = .identity
             }
@@ -318,7 +326,7 @@ class MainMenuVC: UIViewController {
         let button = MainMenuButton(type: .system)
         button.buttonWith(text: text, font: font, and: action)
         buttonBG.addSubview(button)
-        let buttonConstraints = [buttonBG.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForButtonSize), button.widthAnchor.constraint(equalTo: buttonBG.widthAnchor), button.heightAnchor.constraint(equalTo: buttonBG.heightAnchor)]
+        let buttonConstraints = [buttonBG.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForButtonSize), button.widthAnchor.constraint(equalTo: buttonBG.widthAnchor), button.heightAnchor.constraint(equalTo: buttonBG.heightAnchor), button.centerXAnchor.constraint(equalTo: buttonBG.centerXAnchor), button.centerYAnchor.constraint(equalTo: buttonBG.centerYAnchor)]
         NSLayoutConstraint.activate(buttonConstraints)
         return buttonBG
     }

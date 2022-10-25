@@ -1263,12 +1263,16 @@ class GameViewController: UIViewController {
         let thirdFigureView = thirdSquareView?.subviews.second
         for figureView in [firstFigureView, secondFigureView, thirdFigureView] {
             if let figureView = figureView {
+                figureView.isUserInteractionEnabled = false
                 figuresInMotion.append(figureView)
                 let bounds = getFrameForAnimation(firstView: scrollContentOfGame, secondView: figureView)
                 //when we remove figure from square, we need to move figure to square position
                 figureView.transform = CGAffineTransform(translationX: bounds.minX, y: bounds.minY)
                 //we are doing this to be able to have both figures on top of gameBoard(useful in castle, for example)
                 scrollContentOfGame.addSubview(figureView)
+                //positioning figure in 0 0, to be sure, that transform is correct
+                let figureViewConstraints = [figureView.leadingAnchor.constraint(equalTo: scrollContentOfGame.leadingAnchor), figureView.topAnchor.constraint(equalTo: scrollContentOfGame.topAnchor)]
+                NSLayoutConstraint.activate(figureViewConstraints)
             }
         }
         if let firstFigureView = firstFigureView {
@@ -1283,6 +1287,7 @@ class GameViewController: UIViewController {
             }
         }) { [weak self] _ in
             if let self = self {
+                NSLayoutConstraint.deactivate(self.scrollContentOfGame.constraints.filter({$0.firstItem === firstFigureView || $0.firstItem === secondFigureView || $0.firstItem === thirdFigureView}))
                 self.figuresInMotion = []
                 //stops trashAnimation before starting new one
                 self.trashAnimation?.stopAnimation(false)
@@ -2006,6 +2011,8 @@ class GameViewController: UIViewController {
         let border = UIImageView()
         border.rectangleView(width: width)
         square.addSubview(border)
+        let borderConstraints = [border.centerXAnchor.constraint(equalTo: square.centerXAnchor), border.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
+        NSLayoutConstraint.activate(borderConstraints)
         //we are adding image in this way, so we can move figure separately from square
         if image != nil {
             let imageView = UIImageView()
@@ -2014,6 +2021,8 @@ class GameViewController: UIViewController {
             imageView.image = image
             imageView.layer.setValue(figure, forKey: constants.keyForFIgure)
             square.addSubview(imageView)
+            let imageViewConstraints = [imageView.centerXAnchor.constraint(equalTo: square.centerXAnchor), imageView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
+            NSLayoutConstraint.activate(imageViewConstraints)
         }
         return square
     }
@@ -2346,7 +2355,7 @@ class GameViewController: UIViewController {
         contentHeight.priority = .defaultLow
         let gameInfoConstraints = [gameInfo.topAnchor.constraint(equalTo: turnsButtons.bottomAnchor, constant: constants.distanceForGameInfoInTurnsView), gameInfo.leadingAnchor.constraint(equalTo: turnsView.layoutMarginsGuide.leadingAnchor), gameInfo.trailingAnchor.constraint(equalTo: turnsView.layoutMarginsGuide.trailingAnchor)]
         let turnsViewConstraints = [turnsView.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor), turnsView.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor), turnsView.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForTurns), turnsView.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor)]
-        let turnsScrollViewConstraints = [turnsScrollView.leadingAnchor.constraint(equalTo: turnsView.leadingAnchor), turnsScrollView.trailingAnchor.constraint(equalTo: turnsView.trailingAnchor), turnsScrollView.topAnchor.constraint(equalTo: gameInfo.bottomAnchor, constant: constants.topDistanceForTurnsScrollView), turnsScrollView.bottomAnchor.constraint(equalTo: turnsView.bottomAnchor)]
+        let turnsScrollViewConstraints = [turnsScrollView.leadingAnchor.constraint(equalTo: turnsView.leadingAnchor), turnsScrollView.trailingAnchor.constraint(equalTo: turnsView.trailingAnchor), turnsScrollView.topAnchor.constraint(equalTo: gameInfo.bottomAnchor, constant: constants.topDistanceForTurnsScrollView), turnsScrollView.bottomAnchor.constraint(lessThanOrEqualTo: turnsView.bottomAnchor)]
         let contentConstraints = [turnsContent.topAnchor.constraint(equalTo: turnsScrollView.topAnchor), turnsContent.bottomAnchor.constraint(equalTo: turnsScrollView.bottomAnchor), turnsContent.leadingAnchor.constraint(equalTo: turnsScrollView.leadingAnchor), turnsContent.trailingAnchor.constraint(equalTo: turnsScrollView.trailingAnchor), turnsContent.widthAnchor.constraint(equalTo: turnsScrollView.widthAnchor), contentHeight]
         let buttonsConstraints = [turnsButtons.topAnchor.constraint(equalTo: turnsView.topAnchor), turnsButtons.centerXAnchor.constraint(equalTo: turnsView.centerXAnchor), turnsButtons.heightAnchor.constraint(equalToConstant: heightForButtons), turnBackward.widthAnchor.constraint(equalToConstant: heightForButtons)]
         let turnsConstraints = [turns.topAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.topAnchor), turns.bottomAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.bottomAnchor), turns.leadingAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.leadingAnchor), turns.trailingAnchor.constraint(equalTo: turnsContent.layoutMarginsGuide.trailingAnchor)]

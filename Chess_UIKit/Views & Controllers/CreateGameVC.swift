@@ -106,190 +106,43 @@ class CreateGameVC: UIViewController {
     // MARK: - Local Methods
     
     private func doneModePicker() {
+        let viewToToggle = rewindLine
         if let mode = modePicker.pickedData, mode as GameModes == .oneScreen {
-            if rewindLine.isHidden {
-                animateToggleInDataStack(of: [rewindLine])
+            if viewToToggle.isHidden {
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    viewToToggle.isHidden = false
+                })
             }
         }
         else {
-            if !rewindLine.isHidden {
-                animateToggleInDataStack(of: [rewindLine])
+            if !viewToToggle.isHidden {
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    viewToToggle.isHidden = true
+                })
             }
         }
     }
     
     private func doneTimerPicker() {
+        let viewsToToggle = [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine]
         if let enableTimer = timerPicker.pickedData, enableTimer as Answers == .yes {
-            if totalTimeLine.isHidden {
-                animateToggleInDataStack(of: [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine])
+            if viewsToToggle.first!.isHidden {
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    for view in viewsToToggle {
+                        view.isHidden = false
+                    }
+                })
             }
         }
         else {
-            if !totalTimeLine.isHidden {
-                animateToggleInDataStack(of: [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine])
+            if !viewsToToggle.first!.isHidden {
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    for view in viewsToToggle {
+                        view.isHidden = true
+                    }
+                })
             }
         }
-    }
-    
-    //custom animation for hide/show lines in dataFieldsStack
-    //default animation of hide/unhide doesn`t work properly with UITextField leading to text jumps
-    //to final position straight away
-    //didnt find any fix for that
-    //this bug still exists, when dataFieldsStack gets autolayouted, but that not as visible
-    //also had custom animation for that, but that didnt fix the problem
-    private func animateToggleInDataStack(of lines: [UIStackView]) {
-        if !lines.isEmpty {
-            let boundsForAnimation = getBoundsForAnimation(for: lines)
-            let prepareForToggle = prepareForToogleInDataStack(of: lines, with: boundsForAnimation)
-            let dummyViews = prepareForToggle.dummyViews
-            let constraintsToDeactivate = prepareForToggle.constraintsToDeactivate
-            for (line, dummyView) in zip(lines, dummyViews) {
-                let indexOfLIne = dataFieldsStack.arrangedSubviews.firstIndex(of: dummyView)
-                let isHidden = line.isHidden
-                let newBounds = boundsForAnimation[line]
-                if let indexOfLIne = indexOfLIne, let newBounds = newBounds, let constraintsToDeactivate = constraintsToDeactivate[line] {
-                    var indexForAdditionalY = 0
-                    if indexOfLIne > 0 {
-                        if let newIndexForAdditionalYdex = dataFieldsStack.arrangedSubviews[0..<indexOfLIne].lastIndex(where: {!$0.isHidden}) {
-                            indexForAdditionalY = newIndexForAdditionalYdex
-                        }
-                    }
-                    //line will appear/disappear from/in a previous non hidden line
-                    let additionalY = view.convert(dataFieldsStack.arrangedSubviews[indexForAdditionalY].bounds, from: dataFieldsStack.arrangedSubviews[indexForAdditionalY]).minY
-                    UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                        self?.animationBlockForToggleInDataStack(line: line, dummyView: dummyView, newBounds: newBounds, additionalY: additionalY)
-                    }) {[weak self] _ in
-                        self?.callbackBlockForToggleInDataStack(isHidden: isHidden, line: line, dummyView: dummyView, indexOfLine: indexOfLIne, constraintsToDeactivate: constraintsToDeactivate)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func animationBlockForToggleInDataStack(line: UIStackView, dummyView: UIView, newBounds: CGRect, additionalY: CGFloat) {
-        dummyView.isHidden.toggle()
-        if line.isHidden {
-            line.transform = CGAffineTransform(translationX: newBounds.minX, y: newBounds.minY)
-            line.isHidden = false
-            for subview in line.arrangedSubviews {
-                subview.transform = .identity
-            }
-        }
-        else {
-            line.transform = line.transform.translatedBy(x: 0, y: -abs(newBounds.minY - additionalY))
-            for subview in line.arrangedSubviews {
-                if let subview = subview as? UILabel {
-                    subview.transform = constants.transformForLabelInDataStack
-                }
-                if let subview = subview as? UIStepper ?? subview as? UITextField {
-                    subview.transform = constants.transformForTextFieldAndStepperInDataStack
-                }
-            }
-        }
-    }
-    
-    private func callbackBlockForToggleInDataStack(isHidden: Bool, line: UIStackView, dummyView: UIView, indexOfLine: Int, constraintsToDeactivate: [NSLayoutConstraint]) {
-        if !isHidden {
-            line.isHidden = true
-        }
-        dummyView.removeFromSuperview()
-        NSLayoutConstraint.deactivate(constraintsToDeactivate)
-        dataFieldsStack.insertArrangedSubview(line, at: indexOfLine)
-        for subview in line.arrangedSubviews {
-            subview.transform = .identity
-            subview.setAnchorPoint(constants.defaultAnchorPoint)
-        }
-        for view in dataFieldsStack.arrangedSubviews {
-            view.transform = .identity
-        }
-    }
-    
-    private func prepareForToogleInDataStack(of lines: [UIStackView], with bounds: [UIStackView: CGRect]) -> (dummyViews: [UIView], constraintsToDeactivate: [UIStackView: [NSLayoutConstraint]]) {
-        var dummyViews = [UIView]()
-        var constraintsToDeactivate = [UIStackView: [NSLayoutConstraint]]()
-        for line in lines {
-            let index = dataFieldsStack.arrangedSubviews.firstIndex(of: line)
-            let newBounds = bounds[line]
-            if let index = index, let newBounds = newBounds {
-                let dummyView = UIView()
-                dummyView.translatesAutoresizingMaskIntoConstraints = false
-                view.addSubview(line)
-                dummyView.isHidden = line.isHidden
-                //basically what we are doing, is creating a dummyView to replace line and animating line by ourself
-                //then in callback of animation we gonna return line back
-                dataFieldsStack.insertArrangedSubview(dummyView, at: index)
-                let dummyViewConstraints = [dummyView.widthAnchor.constraint(equalToConstant: newBounds.width), dummyView.heightAnchor.constraint(equalToConstant: newBounds.height)]
-                let lineConstraints = [line.widthAnchor.constraint(equalToConstant: newBounds.width), line.heightAnchor.constraint(equalToConstant: newBounds.height)]
-                constraintsToDeactivate[line] = lineConstraints
-                NSLayoutConstraint.activate(lineConstraints + dummyViewConstraints)
-                line.transform = CGAffineTransform(translationX: newBounds.minX, y: newBounds.minY)
-                dummyViews.append(dummyView)
-                view.layoutIfNeeded()
-                if line.isHidden {
-                    var indexForAdditionalY = 0
-                    if index > 0 {
-                        if let newIndexForAdditionalYdex = dataFieldsStack.arrangedSubviews[0..<index].lastIndex(where: {!$0.isHidden}) {
-                            indexForAdditionalY = newIndexForAdditionalYdex
-                        }
-                    }
-                    for subview in line.arrangedSubviews {
-                        subview.setAnchorPoint(constants.anchorPointForDataInDataStack)
-                        if let subview = subview as? UILabel {
-                            subview.transform = constants.transformForLabelInDataStack
-                        }
-                        if let subview = subview as? UIStepper ?? subview as? UITextField {
-                            subview.transform = constants.transformForTextFieldAndStepperInDataStack
-                        }
-                    }
-                    let additionalY = view.convert(dataFieldsStack.arrangedSubviews[indexForAdditionalY].bounds, from: dataFieldsStack.arrangedSubviews[indexForAdditionalY]).minY
-                    line.transform = line.transform.translatedBy(x: 0, y: -abs(newBounds.minY - additionalY))
-                }
-                else {
-                    for subview in line.arrangedSubviews {
-                        subview.setAnchorPoint(constants.anchorPointForDataInDataStack)
-                    }
-                }
-            }
-        }
-        return (dummyViews, constraintsToDeactivate)
-    }
-    
-    //we need to calculate old/new bounds before our custom animation, cuz they gonna change, if we hide/unhide line
-    private func getBoundsForAnimation(for line: [UIStackView]) -> [UIStackView: CGRect] {
-        var result: [UIStackView: CGRect] = [:]
-        if !line.isEmpty {
-            var needSecondLoop = true
-            for arrangedSubview in dataFieldsStack.arrangedSubviews {
-                if let arrangedSubview = arrangedSubview as? UIStackView {
-                    if line.contains(arrangedSubview) {
-                        if !arrangedSubview.isHidden {
-                            let bounds = view.convert(arrangedSubview.bounds, from: arrangedSubview)
-                            result[arrangedSubview] = bounds
-                            needSecondLoop = false
-                        }
-                        else {
-                            arrangedSubview.isHidden.toggle()
-                        }
-                    }
-                }
-            }
-            view.layoutIfNeeded()
-            if needSecondLoop {
-                for arrangedSubview in dataFieldsStack.arrangedSubviews {
-                    if let arrangedSubview = arrangedSubview as? UIStackView {
-                        if line.contains(arrangedSubview) {
-                            if !arrangedSubview.isHidden {
-                                let bounds = view.convert(arrangedSubview.bounds, from: arrangedSubview)
-                                result[arrangedSubview] = bounds
-                                arrangedSubview.isHidden.toggle()
-                            }
-                        }
-                    }
-                }
-                view.layoutIfNeeded()
-            }
-        }
-        return result
     }
     
     // MARK: - UI
@@ -342,7 +195,7 @@ class CreateGameVC: UIViewController {
         dataFieldsStack.addArrangedSubviews([modeLine, rewindLine, colorLine, timerLine, totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine])
         dataFieldsStack.addArrangedSubviews([additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine])
         scrollViewContent.addSubview(dataFieldsStack)
-        let dataConstraints = [dataFieldsStack.centerXAnchor.constraint(equalTo: scrollViewContent.centerXAnchor), dataFieldsStack.topAnchor.constraint(equalTo: scrollViewContent.topAnchor), dataFieldsStack.leadingAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.leadingAnchor), dataFieldsStack.trailingAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.trailingAnchor), dataFieldsStack.bottomAnchor.constraint(equalTo: scrollViewContent.bottomAnchor)]
+        let dataConstraints = [dataFieldsStack.centerXAnchor.constraint(equalTo: scrollViewContent.centerXAnchor), dataFieldsStack.topAnchor.constraint(equalTo: scrollViewContent.topAnchor), dataFieldsStack.leadingAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.leadingAnchor), dataFieldsStack.trailingAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.trailingAnchor), dataFieldsStack.bottomAnchor.constraint(lessThanOrEqualTo: scrollViewContent.bottomAnchor)]
         NSLayoutConstraint.activate(dataConstraints)
     }
     
@@ -396,8 +249,8 @@ class CreateGameVC: UIViewController {
         let totalTimeSecondsStepper = UIStepper()
         totalTimeSecondsStepper.stepperWith(minValue: constants.minSecondsForTimer, maxValue: constants.maxSecondsForTimer, stepValue: constants.stepValueForTimer, and: #selector(changeTotalSeconds))
         totalTimeLine = makeDataLine(with: [totalTimeLabel], isHidden: true)
-        totalTimeMinutesLine = makeDataLine(with: [totalTimeMinutesLabel, totalTimeMinutesStepper, totalTimeMinutesValue], isHidden: true)
-        totalTimeSecondsLine = makeDataLine(with: [totalTimeSecondsLabel, totalTimeSecondsStepper, totalTimeSecondsValue], isHidden: true)
+        totalTimeMinutesLine = makeDataLine(with: [totalTimeMinutesLabel, makeSpecialViewForStepper(totalTimeMinutesStepper), totalTimeMinutesValue], isHidden: true)
+        totalTimeSecondsLine = makeDataLine(with: [totalTimeSecondsLabel, makeSpecialViewForStepper(totalTimeSecondsStepper), totalTimeSecondsValue], isHidden: true)
     }
     
     private func makeAdditionalTimeLines() {
@@ -416,8 +269,20 @@ class CreateGameVC: UIViewController {
         let additionalTimeSecondsStepper = UIStepper()
         additionalTimeSecondsStepper.stepperWith(minValue: constants.minSecondsForTimer, maxValue: constants.maxSecondsForTimer, stepValue: constants.stepValueForTimer, and: #selector(changeAdditionalSeconds))
         additionalTimeLine = makeDataLine(with: [additionalTimeLabel], isHidden: true)
-        additionalTimeMinutesLine = makeDataLine(with: [additionalTimeMinutesLabel, additionalTimeMinutesStepper, additionalTimeMinutesValue], isHidden: true)
-        additionalTimeSecondsLine = makeDataLine(with: [additionalTimeSecondsLabel, additionalTimeSecondsStepper, additionalTimeSecondsValue], isHidden: true)
+        additionalTimeMinutesLine = makeDataLine(with: [additionalTimeMinutesLabel, makeSpecialViewForStepper(additionalTimeMinutesStepper), additionalTimeMinutesValue], isHidden: true)
+        additionalTimeSecondsLine = makeDataLine(with: [additionalTimeSecondsLabel, makeSpecialViewForStepper(additionalTimeSecondsStepper), additionalTimeSecondsValue], isHidden: true)
+    }
+    
+    //stepper is not well animatable
+    //by putting it in another view and making layer.maskToBounds = true, we are fixing this problem
+    private func makeSpecialViewForStepper(_ stepper: UIStepper) -> UIView {
+        let specialView = UIView()
+        specialView.translatesAutoresizingMaskIntoConstraints = false
+        specialView.layer.masksToBounds = true
+        specialView.addSubview(stepper)
+        let specialViewConstraints = [stepper.centerXAnchor.constraint(equalTo: specialView.centerXAnchor), stepper.centerYAnchor.constraint(equalTo: specialView.centerYAnchor)]
+        NSLayoutConstraint.activate(specialViewConstraints)
+        return specialView
     }
     
     private func makeToolBar() {

@@ -157,6 +157,40 @@ extension UILabel {
         }
     }
     
+    //custom adjustFontSizeToFitWidth, which can be beautifully animated
+    //i am not using it now, but may come in handy in future
+    func updateFontSizeToFitSuperview() {
+        if let superview = superview {
+            let fontSize = getFontSizeToFitRect(superview.bounds)
+            if fontSize > 0 && font.pointSize > 0 {
+                transform = CGAffineTransform(scaleX: fontSize/font.pointSize , y: fontSize/font.pointSize)
+            }
+        }
+    }
+    
+    private func getFontSizeToFitRect(_ rect: CGRect) -> CGFloat {
+        var currentFont = UIFont.systemFont(ofSize: font.pointSize)
+        if let text = text, rect.size.width > 0 && rect.size.height > 0 {
+            var initialSize : CGSize = text.size(withAttributes: [NSAttributedString.Key.font : currentFont])
+            if initialSize.width > rect.size.width || initialSize.height > rect.size.height {
+                while initialSize.width > rect.size.width || initialSize.height > rect.size.height {
+                    currentFont = currentFont.withSize(currentFont.pointSize - 1)
+                    initialSize = text.size(withAttributes: [NSAttributedString.Key.font : currentFont])
+                }
+            }
+            else {
+                while initialSize.width < rect.size.width && initialSize.height < rect.size.height {
+                    currentFont = currentFont.withSize(currentFont.pointSize + 1)
+                    initialSize = text.size(withAttributes: [NSAttributedString.Key.font : currentFont])
+                }
+                //went 1 point too large so compensate here
+                currentFont = currentFont.withSize(currentFont.pointSize - 1)
+            }
+            return currentFont.pointSize
+        }
+        return .zero
+    }
+    
     private struct Constants {
         static let cornerRadius: CGFloat = 10
         static let borderWidth: CGFloat = 1
