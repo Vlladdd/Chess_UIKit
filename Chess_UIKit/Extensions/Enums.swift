@@ -48,7 +48,7 @@ enum BoardFiles: String, CaseIterable, Equatable, Comparable, Codable {
     
 }
 
-enum Figures: String, Equatable, Codable {
+enum Figures: String, Equatable, Codable, CaseIterable {
     case pawn
     case rook
     case knight
@@ -94,25 +94,154 @@ enum Colors: String, Codable {
     case green
 }
 
-enum SquaresThemes: String, Codable {
+enum SquaresThemes: String, Codable, CaseIterable, Item {
     case defaultTheme
+    
+    var cost: Int {
+        switch self {
+        case .defaultTheme:
+            return 0
+        }
+    }
+    
+    var type: ItemTypes {
+        .squaresTheme
+    }
+    
+    var description: String {
+        switch self {
+        case .defaultTheme:
+            return "Just a default theme, nothing special"
+        }
+    }
+    
+    func getTheme() -> SquaresTheme {
+        switch self {
+        case .defaultTheme:
+            return SquaresTheme(name: .defaultTheme, firstColor: .white, secondColor: .black, turnColor: .orange, availableSquaresColor: .green, pickColor: .red, checkColor: .blue)
+        }
+    }
+    
 }
 
-enum FiguresThemes: String {
+enum FiguresThemes: String, Codable, CaseIterable, Item {
     case defaultTheme
+    
+    var cost: Int {
+        switch self {
+        case .defaultTheme:
+            return 0
+        }
+    }
+    
+    var type: ItemTypes {
+        .figuresTheme
+    }
+    
+    var description: String {
+        switch self {
+        case .defaultTheme:
+            return "Just a default theme, nothing special"
+        }
+    }
+    
 }
 
-enum BoardThemes: String, Codable {
+enum BoardThemes: String, CaseIterable, Codable, Item {
     case defaultTheme
+    
+    var cost: Int {
+        switch self {
+        case .defaultTheme:
+            return 0
+        }
+    }
+    
+    var type: ItemTypes {
+        .boardTheme
+    }
+    
+    var description: String {
+        switch self {
+        case .defaultTheme:
+            return "Just a default theme, nothing special"
+        }
+    }
+    
 }
 
-enum Frames: String {
+enum Frames: String, Codable, CaseIterable, Item {
     case defaultFrame
     case ukraineFlag
+    
+    var cost: Int {
+        switch self {
+        case .defaultFrame:
+            return 0
+        case .ukraineFlag:
+            return 100
+        }
+    }
+    
+    var type: ItemTypes {
+        .frame
+    }
+    
+    var description: String {
+        switch self {
+        case .defaultFrame:
+            return "Just a default frame, nothing special"
+        case .ukraineFlag:
+            return "Show support to Ukraine with this frame"
+        }
+    }
+    
 }
 
-enum Backgrounds: String {
+enum Backgrounds: String, Codable, CaseIterable, Item {
     case defaultBackground
+    
+    var cost: Int {
+        switch self {
+        case .defaultBackground:
+            return 0
+        }
+    }
+    
+    var type: ItemTypes {
+        .background
+    }
+    
+    var description: String {
+        switch self {
+        case .defaultBackground:
+            return "Just a default background, nothing special"
+        }
+    }
+    
+}
+
+enum Avatars: String, Codable, CaseIterable, Item {
+    case defaultAvatar
+    
+    var cost: Int {
+        switch self {
+        case .defaultAvatar:
+            return 0
+        }
+    }
+    
+    var type: ItemTypes {
+        .avatar
+    }
+    
+    var description: String {
+        switch self {
+        case .defaultAvatar:
+            return "Just a default avatar, nothing special"
+        }
+    }
+    
 }
 
 enum Ranks: String {
@@ -200,10 +329,41 @@ enum Ranks: String {
     
 }
 
-enum Titles: String {
+enum Titles: String, Codable, CaseIterable, Item {
     case novice
     case admin
     case the_Chosen_One
+    case waster
+    
+    static let purchachableTitles: [Self] = [.waster]
+    
+    var cost: Int {
+        switch self {
+        case .novice, .admin, .the_Chosen_One:
+            return 0
+        case .waster:
+            return 10000
+        }
+    }
+    
+    var type: ItemTypes {
+        .title
+    }
+    
+    var description: String {
+        switch self {
+        case .novice:
+            return "First step to become master"
+        case .waster:
+            return "You really spend 10000 coins for this?"
+        case .admin:
+            return "I am an admin, ye boy"
+        case .the_Chosen_One:
+            return "Gods believe in you"
+        }
+    }
+    
+    
 }
 
 enum GameModes: String, CaseIterable, Codable {
@@ -214,4 +374,25 @@ enum GameModes: String, CaseIterable, Codable {
 enum Answers: String, CaseIterable {
     case yes
     case no
+}
+
+enum ItemTypes: String, CaseIterable {
+    case squaresTheme
+    case figuresTheme
+    case boardTheme
+    case frame
+    case background
+    case title
+    case avatar
+}
+
+protocol Item {
+    var type: ItemTypes { get }
+    var name: String { get }
+    var cost: Int { get }
+    var description: String { get }
+}
+
+extension Item where Self: RawRepresentable, Self.RawValue == String {
+    var name: String { rawValue }
 }

@@ -623,6 +623,7 @@ class GameViewController: UIViewController {
         player1FrameView.setNeedsDisplay()
         player2TitleView.setNeedsDisplay()
         player1TitleView.setNeedsDisplay()
+        playerProgress.setNeedsDisplay()
         view.layoutIfNeeded()
     }
     
@@ -1042,12 +1043,13 @@ class GameViewController: UIViewController {
     
     //highlights current turn
     private func updateCurrentTurn() {
+        let squaresTheme = gameLogic.players.first!.user.squaresTheme.getTheme()
         for turnsStack in turns.arrangedSubviews {
             if let turnsStack = turnsStack as? UIStackView {
                 for turn in turnsStack.arrangedSubviews {
                     if let turnData = turn.layer.value(forKey: constants.keyNameForTurn) as? Turn {
                         if turnData == gameLogic.currentTurn {
-                            let newColor = constants.convertLogicColor(gameLogic.players.first!.user.squaresTheme.turnColor)
+                            let newColor = constants.convertLogicColor(squaresTheme.turnColor)
                             let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
                                 turn.backgroundColor = newColor.withAlphaComponent(constants.optimalAlpha)
                             })
@@ -1115,9 +1117,9 @@ class GameViewController: UIViewController {
     private func showPawnPicker(square: Square, figure: Figure) {
         makePawnPicker(figure: figure, squareColor: square.color)
         scrollContentOfGame.addSubview(pawnPicker)
-        pawnPicker.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.secondColor)
+        pawnPicker.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().secondColor)
         if square.color == .white {
-            pawnPicker.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.firstColor)
+            pawnPicker.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().firstColor)
         }
         var pawnPickerConstraints: [NSLayoutConstraint] = []
         if gameLogic.currentPlayer.type == .player1 {
@@ -1140,14 +1142,14 @@ class GameViewController: UIViewController {
             if let square = view.layer.value(forKey: constants.keyNameForSquare) as? Square {
                 var newColor: UIColor?
                 if let currentTurn = gameLogic.currentTurn, currentTurn.squares.contains(square) {
-                    newColor = constants.convertLogicColor(gameLogic.squaresTheme.turnColor)
+                    newColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().turnColor)
                 }
                 else {
                     switch square.color {
                     case .white:
-                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.firstColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().firstColor)
                     case .black:
-                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.secondColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().secondColor)
                     case .random:
                         fatalError("Somehow we have .random color!")
                     }
@@ -1166,15 +1168,15 @@ class GameViewController: UIViewController {
                 }
                 if gameLogic.pickedSquares.count == 1 {
                     if gameLogic.pickedSquares.contains(square) {
-                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.pickColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().pickColor)
                     }
                     else if gameLogic.availableSquares.contains(square) {
-                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.availableSquaresColor)
+                        newColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().availableSquaresColor)
                         view.isUserInteractionEnabled = true
                     }
                 }
                 if gameLogic.currentTurn?.checkSquare == square {
-                    newColor = constants.convertLogicColor(gameLogic.squaresTheme.checkColor)
+                    newColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().checkColor)
                 }
                 if animate {
                     let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, options: .allowUserInteraction, animations: {
@@ -1934,11 +1936,11 @@ class GameViewController: UIViewController {
     private func addPlayersBackgrounds() {
         let bottomPlayerBackground = UIImageView()
         bottomPlayerBackground.defaultSettings()
-        bottomPlayerBackground.image = UIImage(named: "backgrounds/\(gameLogic.players.second!.user.background.rawValue)")
+        bottomPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.second!.user.playerAvatar.rawValue)")
         if gameLogic.gameMode == .multiplayer {
             let topPlayerBackground = UIImageView()
             topPlayerBackground.defaultSettings()
-            topPlayerBackground.image = UIImage(named: "backgrounds/\(gameLogic.players.first!.user.background.rawValue)")
+            topPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")
             view.addSubviews([topPlayerBackground, bottomPlayerBackground])
             let topConstraints = [topPlayerBackground.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor), topPlayerBackground.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.multiplierForBackground), topPlayerBackground.leadingAnchor.constraint(equalTo: view.leadingAnchor), topPlayerBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
             let bottomConstraints = [bottomPlayerBackground.bottomAnchor.constraint(equalTo: view.bottomAnchor), bottomPlayerBackground.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.multiplierForBackground), bottomPlayerBackground.leadingAnchor.constraint(equalTo: view.leadingAnchor), bottomPlayerBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
@@ -1979,9 +1981,9 @@ class GameViewController: UIViewController {
                     let squareView = getSquareView(image: figureImage, figure: square.figure)
                     switch square.color {
                     case .white:
-                        squareView.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.firstColor)
+                        squareView.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().firstColor)
                     case .black:
-                        squareView.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.secondColor)
+                        squareView.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().secondColor)
                     case .random:
                         fatalError("Somehow we have .random color!")
                     }
@@ -2269,10 +2271,10 @@ class GameViewController: UIViewController {
         data.defaultSettings()
         data.isUserInteractionEnabled = true
         data.backgroundColor = data.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let playerBackground = UIImage(named: "backgrounds/\(gameLogic.players.first!.user.playerBackground.rawValue)")?.alpha(constants.alphaForPlayerBackground)
+        let playerAvatarImage = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")?.alpha(constants.alphaForPlayerBackground)
         let playerAvatar = UIImageView()
         playerAvatar.rectangleView(width: min(view.frame.width, view.frame.height) / constants.dividerForCurrentPlayerAvatar)
-        playerAvatar.image = playerBackground
+        playerAvatar.image = playerAvatarImage
         var hideButtonConstraints = [NSLayoutConstraint]()
         var wheelConstraints = [NSLayoutConstraint]()
         if !loadedEndedGame && gameLogic.gameMode != .oneScreen {
@@ -2408,9 +2410,9 @@ private struct GameVC_Constants {
     static let distanceForFrame: CGFloat = optimalDistance / 2
     static let widthDividerForTrash: CGFloat = dividerForSquare / 8.5
     static let heightDividerForTrash: CGFloat = dividerForSquare / 2.5
-    static let heightDividerForFrame: CGFloat = dividerForSquare / 1.5
-    static let heightDividerForTitle: CGFloat = dividerForSquare / 0.8
-    static let distanceForTitle: CGFloat = 1
+    static let heightDividerForFrame: CGFloat = dividerForSquare / 2
+    static let heightDividerForTitle: CGFloat = dividerForSquare / 1
+    static let distanceForTitle: CGFloat = -10
     static let optimalSpacing: CGFloat = 5
     static let keyNameForSquare = "Square"
     static let keyNameForTurn = "Turn"

@@ -58,6 +58,7 @@ extension UIButton {
         setTitle(text, for: .normal)
         titleLabel?.textAlignment = .center
         titleLabel?.font = font
+        titleLabel?.adjustsFontSizeToFitWidth = true
     }
     
 }

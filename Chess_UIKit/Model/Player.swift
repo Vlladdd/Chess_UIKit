@@ -29,13 +29,9 @@ struct Player: Equatable, Codable {
         case destroyedFigures
     }
     
-    //TODO: - Add more user data to player
-    
     enum UserKeys: String, CodingKey {
-        case name, email, points
+        case name, email, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, title
     }
-    
-    //
     
     // MARK: - Inits
     
@@ -102,6 +98,13 @@ struct Player: Equatable, Codable {
         try additionalInfo.encode(user.name, forKey: .name)
         try additionalInfo.encode(user.email, forKey: .email)
         try additionalInfo.encode(user.points, forKey: .points)
+        try additionalInfo.encode(user.squaresTheme, forKey: .squaresTheme)
+        try additionalInfo.encode(user.playerBackground, forKey: .playerBackground)
+        try additionalInfo.encode(user.playerAvatar, forKey: .playerAvatar)
+        try additionalInfo.encode(user.frame, forKey: .frame)
+        try additionalInfo.encode(user.figuresTheme, forKey: .figuresTheme)
+        try additionalInfo.encode(user.boardTheme, forKey: .boardTheme)
+        try additionalInfo.encode(user.title, forKey: .title)
     }
     
 }

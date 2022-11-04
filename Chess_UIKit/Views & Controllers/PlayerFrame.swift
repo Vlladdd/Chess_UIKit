@@ -46,12 +46,12 @@ class PlayerFrame: UIView {
         let height = size.height
         let width = size.width
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: constants.edgeSideLength, y: constants.startYInShape))
-        path.addLine(to: CGPoint(x: width - constants.edgeSideLength, y: constants.startYInShape))
-        path.addLine(to: CGPoint(x: width, y: height / constants.dividerForHeightInShape))
-        path.addLine(to: CGPoint(x: width - constants.edgeSideLength, y: height))
-        path.addLine(to: CGPoint(x: constants.edgeSideLength, y: height))
-        path.addLine(to: CGPoint(x: constants.startXInShape, y: height / constants.dividerForHeightInShape))
+        path.move(to: CGPoint(x: size.minX + constants.edgeSideLength, y: size.minY))
+        path.addLine(to: CGPoint(x: size.minX + width - constants.edgeSideLength, y: size.minY))
+        path.addLine(to: CGPoint(x: size.minX + width, y: size.minY + height / constants.dividerForHeightInShape))
+        path.addLine(to: CGPoint(x: size.minX + width - constants.edgeSideLength, y: size.minY + height))
+        path.addLine(to: CGPoint(x: size.minX + constants.edgeSideLength, y: size.minY + height))
+        path.addLine(to: CGPoint(x: size.minX, y: size.minY + height / constants.dividerForHeightInShape))
         path.close()
         return path
     }
@@ -72,7 +72,7 @@ class PlayerFrame: UIView {
         frameBackground.image = backgroundImage
         frameBorder.image = frameImage
         addSubviews([frameBorder, frameBackground, dataBackgroundView, data])
-        let constraints = [data.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: constants.distanceForTextInFrame), data.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -constants.distanceForTextInFrame), data.centerXAnchor.constraint(equalTo: centerXAnchor), data.centerYAnchor.constraint(equalTo: centerYAnchor), frameBackground.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.widthAnchor.constraint(equalTo: widthAnchor, constant: constants.additionalSizeForFrameBorder), frameBorder.heightAnchor.constraint(equalTo: heightAnchor, constant: constants.additionalSizeForFrameBorder), frameBorder.centerXAnchor.constraint(equalTo: centerXAnchor), frameBorder.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.heightAnchor.constraint(equalTo: heightAnchor), dataBackgroundView.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.centerXAnchor.constraint(equalTo: centerXAnchor), frameBackground.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.centerXAnchor.constraint(equalTo: centerXAnchor), dataBackgroundView.centerYAnchor.constraint(equalTo: centerYAnchor)]
+        let constraints = [data.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: constants.distanceForTextInFrame), data.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -constants.distanceForTextInFrame), data.centerXAnchor.constraint(equalTo: centerXAnchor), data.centerYAnchor.constraint(equalTo: centerYAnchor), frameBackground.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.widthAnchor.constraint(equalTo: widthAnchor), frameBorder.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.centerXAnchor.constraint(equalTo: centerXAnchor), frameBorder.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.heightAnchor.constraint(equalTo: heightAnchor), dataBackgroundView.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.centerXAnchor.constraint(equalTo: centerXAnchor), frameBackground.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.centerXAnchor.constraint(equalTo: centerXAnchor), dataBackgroundView.centerYAnchor.constraint(equalTo: centerYAnchor)]
         NSLayoutConstraint.activate(constraints)
         frameBackground.layer.mask = backgroundLayer
         frameBorder.layer.mask = frameLayer
@@ -89,11 +89,13 @@ class PlayerFrame: UIView {
     override func draw(_ rect: CGRect) {
         //in other words we have 2 backgrounds, second is bigger then first a little bit
         //and in this way he looks like a frame
-        let frameRect = CGRect(x: constants.startXInFrame, y: constants.startYInFrame, width: rect.width + constants.additionalSizeForFrameBorder, height: rect.height + constants.additionalSizeForFrameBorder)
-        let path = createPlayerFrameShape(with: rect).cgPath
-        backgroundLayer.updatePath(with: path, animated: true, duration: constants.animationDuration)
-        dataBackgroundLayer.updatePath(with: path, animated: true, duration: constants.animationDuration)
-        frameLayer.updatePath(with: createPlayerFrameShape(with: frameRect).cgPath, animated: true, duration: constants.animationDuration)
+        let dataRect = CGRect(x: constants.startXInData, y: constants.startYInData, width: rect.width - constants.additionalSizeForFrameBorder, height: rect.height - constants.additionalSizeForFrameBorder)
+        let dataPath = createPlayerFrameShape(with: dataRect).cgPath
+        let frameRect = CGRect(x: constants.startXInFrame, y: constants.startYInFrame, width: rect.width, height: rect.height)
+        let framePath = createPlayerFrameShape(with: frameRect).cgPath
+        backgroundLayer.updatePath(with: dataPath, animated: true, duration: constants.animationDuration)
+        dataBackgroundLayer.updatePath(with: dataPath, animated: true, duration: constants.animationDuration)
+        frameLayer.updatePath(with: framePath, animated: true, duration: constants.animationDuration)
     }
     
 }
@@ -101,8 +103,8 @@ class PlayerFrame: UIView {
 // MARK: - Constants
 
 private struct PlayerFrame_Constants {
-    static let startXInShape: CGFloat = 0
-    static let startYInShape: CGFloat = 0
+    static let startXInFrame: CGFloat = 0
+    static let startYInFrame: CGFloat = 0
     static let dividerForHeightInShape: CGFloat = 2
     static let edgeSideLength: CGFloat = 50
     static let alphaForDataBackground: CGFloat = 0.5
@@ -110,8 +112,8 @@ private struct PlayerFrame_Constants {
     static let additionalSizeForFrameBorder: CGFloat = 20
     static let dividerForFont: CGFloat = 13
     static let distanceForTextInFrame: CGFloat = 30
-    static let startXInFrame: CGFloat = startXInShape - (additionalSizeForFrameBorder / dividerForHeightInShape)
-    static let startYInFrame: CGFloat = startYInShape - (additionalSizeForFrameBorder / dividerForHeightInShape)
+    static let startXInData: CGFloat = startXInFrame + (additionalSizeForFrameBorder / dividerForHeightInShape)
+    static let startYInData: CGFloat = startYInFrame + (additionalSizeForFrameBorder / dividerForHeightInShape)
     static let defaultLightModeColorForDataBackground = UIColor.white.withAlphaComponent(alphaForDataBackground)
     static let defaultDarkModeColorForDataBackground = UIColor.black.withAlphaComponent(alphaForDataBackground)
 }

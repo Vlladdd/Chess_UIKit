@@ -274,7 +274,7 @@ class CreateGameVC: UIViewController {
     }
     
     //stepper is not well animatable
-    //by putting it in another view and making layer.maskToBounds = true, we are fixing this problem
+    //by putting it in another view and making layer.masksToBounds = true, we are fixing this problem
     private func makeSpecialViewForStepper(_ stepper: UIStepper) -> UIView {
         let specialView = UIView()
         specialView.translatesAutoresizingMaskIntoConstraints = false

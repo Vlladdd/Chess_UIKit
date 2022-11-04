@@ -35,7 +35,7 @@ class GameLogic: Codable {
     private(set) var timeLeft: Int
     private(set) var startDate = Date()
     
-    let squaresTheme: SquaresTheme
+    let squaresTheme: SquaresThemes
     let boardTheme: BoardThemes
     let maximumCoinsForWheel: Int
     //every time player makes a turn, he got extra time for that

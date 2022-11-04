@@ -10,13 +10,6 @@ import UIKit
 //view that represents custom progress bar
 class ProgressBar: UIView {
     
-    // MARK: - View Functions
-    
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        setNeedsDisplay()
-    }
-    
     // MARK: - Properties
     
     var progressColor: UIColor = constants.defaultProgressColor {
