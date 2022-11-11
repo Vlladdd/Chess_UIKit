@@ -12,7 +12,7 @@ struct User: Codable {
     
     // MARK: - Properties
     
-    private(set) var name: String
+    private(set) var nickname: String
     private(set) var email: String
     private(set) var squaresTheme: SquaresThemes = .defaultTheme
     private(set) var playerAvatar: Avatars = .defaultAvatar
@@ -52,21 +52,20 @@ struct User: Codable {
     
     //storing encryptionKey along with the password is probably a bad idea, but that`s how it`s for now
     enum CodingKeys: String, CodingKey {
-        case name, email, games, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, coins, title, availableSquaresThemes, availableBackgrounds, availableFrames, availableFiguresThemes, availableBoardThemes, availableTitles, availableAvatars, seenSquaresThemes, seenBackgrounds, seenFrames, seenFiguresThemes, seenBoardThemes, seenTitles, seenAvatars
+        case nickname, email, games, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, coins, title, availableSquaresThemes, availableBackgrounds, availableFrames, availableFiguresThemes, availableBoardThemes, availableTitles, availableAvatars, seenSquaresThemes, seenBackgrounds, seenFrames, seenFiguresThemes, seenBoardThemes, seenTitles, seenAvatars
     }
     
     // MARK: - Inits
     
-    //we are making name same as email, but user can change it later on
-    init(email: String) {
-        self.name = email
+    init(email: String, nickname: String = "") {
         self.email = email
+        self.nickname = nickname
     }
     
     //Firebase don`t store empty arrays, that`s why we need custom decoder
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        name = try values.decode(String.self, forKey: .name)
+        nickname = try values.decode(String.self, forKey: .nickname)
         email = try values.decode(String.self, forKey: .email)
         points = try values.decode(Int.self, forKey: .points)
         squaresTheme = try values.decode(SquaresThemes.self, forKey: .squaresTheme)
@@ -77,13 +76,13 @@ struct User: Codable {
         figuresTheme = try values.decode(FiguresThemes.self, forKey: .figuresTheme)
         title = try values.decode(Titles.self, forKey: .title)
         coins = (try? values.decode(Int.self, forKey: .coins)) ?? 0
-        availableSquaresThemes = (try? values.decode([SquaresThemes].self, forKey: .availableSquaresThemes)) ?? []
-        availableBackgrounds = (try? values.decode([Backgrounds].self, forKey: .availableBackgrounds)) ?? []
-        availableFrames = (try? values.decode([Frames].self, forKey: .availableFrames)) ?? []
-        availableFiguresThemes = (try? values.decode([FiguresThemes].self, forKey: .availableFiguresThemes)) ?? []
-        availableBoardThemes = (try? values.decode([BoardThemes].self, forKey: .availableBoardThemes)) ?? []
-        availableTitles = (try? values.decode([Titles].self, forKey: .availableTitles)) ?? []
-        availableAvatars = (try? values.decode([Avatars].self, forKey: .availableAvatars)) ?? []
+        availableSquaresThemes = (try? values.decode([SquaresThemes].self, forKey: .availableSquaresThemes)) ?? [SquaresThemes.defaultTheme]
+        availableBackgrounds = (try? values.decode([Backgrounds].self, forKey: .availableBackgrounds)) ?? [Backgrounds.defaultBackground]
+        availableFrames = (try? values.decode([Frames].self, forKey: .availableFrames)) ?? [Frames.defaultFrame]
+        availableFiguresThemes = (try? values.decode([FiguresThemes].self, forKey: .availableFiguresThemes)) ?? [FiguresThemes.defaultTheme]
+        availableBoardThemes = (try? values.decode([BoardThemes].self, forKey: .availableBoardThemes)) ?? [BoardThemes.defaultTheme]
+        availableTitles = (try? values.decode([Titles].self, forKey: .availableTitles)) ?? [Titles.novice]
+        availableAvatars = (try? values.decode([Avatars].self, forKey: .availableAvatars)) ?? [Avatars.defaultAvatar]
         seenSquaresThemes = (try? values.decode([SquaresThemes].self, forKey: .seenSquaresThemes)) ?? []
         seenBackgrounds = (try? values.decode([Backgrounds].self, forKey: .seenBackgrounds)) ?? []
         seenFrames = (try? values.decode([Frames].self, forKey: .seenFrames)) ?? []
@@ -262,12 +261,36 @@ struct User: Codable {
         containsNewItemIn(items: Titles.allCases)
     }
     
-    func haveNewTitlesInShop() -> Bool {
-        containsNewItemIn(items: Titles.purchachableTitles)
-    }
-    
     func haveNewAvatarsInInventory() -> Bool {
         containsNewItemIn(items: Avatars.allCases)
+    }
+    
+    func haveNewSquaresThemesInShop() -> Bool {
+        containsNewItemIn(items: SquaresThemes.purchasable)
+    }
+    
+    func haveNewFiguresThemesInShop() -> Bool {
+        containsNewItemIn(items: FiguresThemes.purchasable)
+    }
+    
+    func haveNewBoardThemesInShop() -> Bool {
+        containsNewItemIn(items: BoardThemes.purchasable)
+    }
+    
+    func haveNewFramesInShop() -> Bool {
+        containsNewItemIn(items: Frames.purchasable)
+    }
+    
+    func haveNewBackgroundsInShop() -> Bool {
+        containsNewItemIn(items: Backgrounds.purchasable)
+    }
+    
+    func haveNewTitlesInShop() -> Bool {
+        containsNewItemIn(items: Titles.purchasable)
+    }
+    
+    func haveNewAvatarsInShop() -> Bool {
+        containsNewItemIn(items: Avatars.purchasable)
     }
     
     mutating func setValue(with item: Item) {
@@ -301,6 +324,10 @@ struct User: Codable {
                 self.playerAvatar = playerAvatar
             }
         }
+    }
+    
+    mutating func updateNickname(newValue: String) {
+        nickname = newValue
     }
     
 }

@@ -25,6 +25,7 @@ class MainMenuVC: UIViewController {
         if let additionalButtons = view.subviews.first(where: {$0 == additionalButtons}) {
             randomAnimationFor(view: additionalButtons)
         }
+        randomAnimationFor(view: userDataView)
     }
     
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -33,8 +34,13 @@ class MainMenuVC: UIViewController {
             UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
                 if let self = self {
                     for button in self.buttonsStack.arrangedSubviews {
-                        for subview in button.subviews {
-                            if let frame = subview as? PlayerFrame {
+                        if let viewWithNotif = button as? ViewWithNotifIcon {
+                            if let frame = viewWithNotif.mainView.subviews.first(where: {$0 as? PlayerFrame != nil}) {
+                                frame.setNeedsDisplay()
+                            }
+                        }
+                        else {
+                            if let frame = button.subviews.first(where: {$0 as? PlayerFrame != nil}) {
                                 frame.setNeedsDisplay()
                             }
                         }
@@ -54,23 +60,33 @@ class MainMenuVC: UIViewController {
     
     // MARK: - Buttons Methods
     
+    @objc private func exitFromAccount(_ sender: UIButton? = nil) {
+        let exitAlert = UIAlertController(title: "Exit", message: "Are you sure?", preferredStyle: .alert)
+        exitAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
+            if let self = self {
+                self.storage.exitFromAccount()
+                self.dismiss(animated: true)
+            }
+        }))
+        exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
+        present(exitAlert, animated: true)
+    }
+    
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
-        let createButton = makeMainMenuButtonView(with: UIImage(named: "misc/createButtonBG"), buttonImage: nil, buttontext: "Create", and: #selector(makeCreateGameVC))
+        let createButton = makeMainMenuButtonView(with: UIImage(named: "misc/createButtonBG"), buttonImage: nil, buttontext: "Create", and: #selector(showCreateGameVC))
         let joinButton = makeMainMenuButtonView(with: UIImage(named: "misc/joinButtonBG"), buttonImage: nil, buttontext: "Join", and: #selector(makeMultiplayerGamesList))
         let loadButton = makeMainMenuButtonView(with: UIImage(named: "misc/loadButtonBG"), buttonImage: nil, buttontext: "Load", and: #selector(makeUserGamesList))
-        updateButtonsStack(with: [createButton, joinButton, loadButton], addBackButton: true)
+        updateButtonsStack(with: [createButton, joinButton, loadButton], addBackButton: true, distribution: .fillEqually)
         animateButtonsStack()
     }
     
     @objc private func makeInventoryMenu(_ sender: UIButton? = nil) {
-        updateButtonsStack(with: makeInventoryOrShopButtons(isShopButtons: false), addBackButton: true)
-        addNotificationIconsInButtonsStack()
+        updateButtonsStack(with: makeInventoryOrShopButtons(isShopButtons: false), addBackButton: true, distribution: .fillEqually)
         animateButtonsStack()
     }
     
     @objc private func makeShopMenu(_ sender: UIButton? = nil) {
-        updateButtonsStack(with: makeInventoryOrShopButtons(isShopButtons: true), addBackButton: true)
-        addNotificationIconsInButtonsStack()
+        updateButtonsStack(with: makeInventoryOrShopButtons(isShopButtons: true), addBackButton: true, distribution: .fillEqually)
         animateButtonsStack()
     }
     
@@ -106,10 +122,11 @@ class MainMenuVC: UIViewController {
                             buttons = makeTitlesView(titles: titles, isShopButtons: isShopButtons)
                         }
                     case .avatar:
-                        break
+                        if let avatars = sender.superview?.layer.value(forKey: constants.keyForItems) as? [Avatars] {
+                            buttons = makeAvatarsViews(avatars: avatars)
+                        }
                     }
-                    updateButtonsStack(with: buttons, addBackButton: false)
-                    addNotificationIconsInButtonsStack()
+                    updateButtonsStack(with: buttons, addBackButton: false, distribution: .fillEqually)
                     makeAdditionalButtonsForShopOrInventory(isShopButtons: isShopButtons)
                     updateItemsColor(inShop: isShopButtons)
                 }
@@ -136,20 +153,26 @@ class MainMenuVC: UIViewController {
                 if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? Item {
                     currentUser.addSeenItem(item)
                     for button in buttonsStack.arrangedSubviews {
-                        button.layer.borderColor = defaultTextColor.cgColor
-                    }
-                    mainMenuButton.layer.borderColor = constants.pickItemBorderColor
-                    if let buttonsStack = mainMenuButton.superview {
-                        if let notificationIcon = buttonsStack.subviews.first(where: {
-                            if let parentView = $0.layer.value(forKey: constants.keyForParentView) as? UIView {
-                                return parentView == mainMenuButton
-                            }
-                            return false
-                        }) {
-                            notificationIcon.removeFromSuperview()
+                        if let viewWithNotif = button as? ViewWithNotifIcon {
+                            viewWithNotif.mainView.layer.borderColor = defaultTextColor.cgColor
+                        }
+                        else {
+                            button.layer.borderColor = defaultTextColor.cgColor
                         }
                     }
+                    mainMenuButton.layer.borderColor = constants.pickItemBorderColor
                     storage.saveUser(currentUser)
+                    if let viewWithNotif = mainMenuButton.superview as? ViewWithNotifIcon {
+                        viewWithNotif.removeNotificationIcon()
+                    }
+                    removeNotificationIconsIfNeeded()
+                    if let frame = sender.view as? PlayerFrame {
+                        frame.setNeedsDisplay()
+                    }
+                    if let userProfileVC = presentedViewController as? UserProfileVC {
+                        userProfileVC.currentUser = currentUser
+                        userProfileVC.removeNotificationIconsIfNeeded()
+                    }
                 }
             }
         }
@@ -195,7 +218,7 @@ class MainMenuVC: UIViewController {
                             snapshotOfShopitem.removeFromSuperview()
                         }
                         let interval = constants.animationDuration / Double(startCoins - endCoins)
-                        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true, block: { timer in
+                        let timer = Timer(timeInterval: interval, repeats: true, block: { timer in
                             if startCoins == endCoins {
                                 timer.invalidate()
                                 return
@@ -203,19 +226,16 @@ class MainMenuVC: UIViewController {
                             startCoins -= 1
                             self.coinsText.text = String(startCoins)
                         })
+                        timer.fire()
                         RunLoop.main.add(timer, forMode: .common)
                     }
                 }))
-                present(alert, animated: true, completion: nil)
+                present(alert, animated: true)
             }
         }
     }
     
     @objc private func makeMainMenu(_ sender: UIButton? = nil) {
-        let gameButton = makeMainMenuButtonView(with: UIImage(named: "misc/gameButtonBG"), buttonImage: nil, buttontext: "Game", and: #selector(makeGameMenu))
-        let inventoryButton = makeMainMenuButtonView(with: UIImage(named: "misc/inventoryButtonBG"), buttonImage: nil, buttontext: "Inventory", and: #selector(makeInventoryMenu))
-        let shopButton = makeMainMenuButtonView(with: UIImage(named: "misc/shopButtonBG"), buttonImage: nil, buttontext: "Shop", and: #selector(makeShopMenu))
-        updateButtonsStack(with: [gameButton, inventoryButton, shopButton], addBackButton: false)
         var haveNewInventoryItem = false
         var haveNewShopItem = false
         //right now only titles can be different in shop and inventory, but it might change in future
@@ -223,70 +243,75 @@ class MainMenuVC: UIViewController {
             switch itemType {
             case .squaresTheme:
                 haveNewInventoryItem = currentUser.haveNewSquaresThemesInInventory()
-                haveNewShopItem = currentUser.haveNewSquaresThemesInInventory()
+                haveNewShopItem = currentUser.haveNewSquaresThemesInShop()
             case .figuresTheme:
                 haveNewInventoryItem = currentUser.haveNewFiguresThemesInInventory()
-                haveNewShopItem = currentUser.haveNewFiguresThemesInInventory()
+                haveNewShopItem = currentUser.haveNewFiguresThemesInShop()
             case .boardTheme:
                 haveNewInventoryItem = currentUser.haveNewBoardThemesInInventory()
-                haveNewShopItem = currentUser.haveNewBoardThemesInInventory()
+                haveNewShopItem = currentUser.haveNewBoardThemesInShop()
             case .frame:
                 haveNewInventoryItem = currentUser.haveNewFramesInInventory()
-                haveNewShopItem = currentUser.haveNewFramesInInventory()
+                haveNewShopItem = currentUser.haveNewFramesInShop()
             case .background:
                 haveNewInventoryItem = currentUser.haveNewBackgroundsInInventory()
-                haveNewShopItem = currentUser.haveNewBackgroundsInInventory()
+                haveNewShopItem = currentUser.haveNewBackgroundsInShop()
             case .title:
                 haveNewInventoryItem = currentUser.haveNewTitlesInInventory()
                 haveNewShopItem = currentUser.haveNewTitlesInShop()
             case .avatar:
-                break
+                haveNewShopItem = currentUser.haveNewAvatarsInShop()
             }
             if haveNewInventoryItem && haveNewShopItem {
                 break
             }
         }
-        if haveNewInventoryItem {
-            addNotificationIconTo(view: inventoryButton)
-        }
-        if haveNewShopItem {
-            addNotificationIconTo(view: shopButton)
-        }
+        let gameButton = makeMainMenuButtonView(with: UIImage(named: "misc/gameButtonBG"), buttonImage: nil, buttontext: "Game", and: #selector(makeGameMenu))
+        let inventoryButton = makeMainMenuButtonView(with: UIImage(named: "misc/inventoryButtonBG"), buttonImage: nil, buttontext: "Inventory", and: #selector(makeInventoryMenu), addNotificationIcon: haveNewInventoryItem)
+        let shopButton = makeMainMenuButtonView(with: UIImage(named: "misc/shopButtonBG"), buttonImage: nil, buttontext: "Shop", and: #selector(makeShopMenu), addNotificationIcon: haveNewShopItem)
+        updateButtonsStack(with: [gameButton, inventoryButton, shopButton], addBackButton: false, distribution: .fillEqually)
         animateButtonsStack(reversed: true)
     }
     
-    //makes view for game creation
-    @objc private func makeCreateGameVC(_ sender: UIButton? = nil) {
-        //when we enter this view, we turn off all buttons, because its a sheet view and dont let user create
-        //new view, without closing this one
-        for subview in buttonsStack.arrangedSubviews {
-            if let subview = subview.subviews.first as? UIButton {
-                UIView.transition(with: subview, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {
-                    subview.isHighlighted = false
-                    subview.isEnabled = false
-                })
+    //shows view for game creation
+    @objc private func showCreateGameVC(_ sender: UIButton? = nil) {
+        if (presentedViewController as? CreateGameVC) == nil {
+            if let presentedViewController = presentedViewController {
+                presentedViewController.dismiss(animated: true) {[weak self] in
+                    self?.makeCreateGameVC()
+                }
+            }
+            else {
+                makeCreateGameVC()
             }
         }
-        let createGameVC = CreateGameVC()
-        createGameVC.currentUser = currentUser
-        createGameVC.buttonsStack = buttonsStack
-        if #available(iOS 15.0, *) {
-            if let sheet = createGameVC.sheetPresentationController {
-                sheet.detents = [.medium(), .large()]
-                sheet.largestUndimmedDetentIdentifier = .medium
-                sheet.prefersScrollingExpandsWhenScrolledToEdge = false
-                sheet.prefersEdgeAttachedInCompactHeight = true
-                sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
+        else {
+            presentedViewController?.dismiss(animated: true)
+        }
+    }
+    
+    //shows view for redacting user profile
+    @objc private func showUserProfileVC(_ sender: UITapGestureRecognizer? = nil) {
+        if (presentedViewController as? UserProfileVC) == nil {
+            if let presentedViewController = presentedViewController {
+                presentedViewController.dismiss(animated: true) {[weak self] in
+                    self?.makeUserProfileVC()
+                }
+            }
+            else {
+                makeUserProfileVC()
             }
         }
-        present(createGameVC, animated: true, completion: nil)
+        else {
+            presentedViewController?.dismiss(animated: true)
+        }
     }
     
     //creates games for load, if they ended or in oneScreen mode
     @objc private func makeUserGamesList(_ sender: UIButton? = nil) {
         let backButton = makeMainMenuButtonView(with: UIImage(systemName: "arrow.left"), buttonImage: nil, buttontext: "Back", and: #selector(makeGameMenu))
         makeAdditionalButtons(with: [backButton])
-        updateButtonsStack(with: currentUser.games.sorted(by: {$0.startDate > $1.startDate}).map({makeInfoView(of: $0)}), addBackButton: false)
+        updateButtonsStack(with: currentUser.games.sorted(by: {$0.startDate > $1.startDate}).map({makeInfoView(of: $0)}), addBackButton: false, distribution: .fill)
         animateButtonsStack(reversed: Bool.random(), addAdditionalButtons: true)
     }
     
@@ -349,11 +374,14 @@ class MainMenuVC: UIViewController {
     @objc private func loadGame(_ sender: UIButton? = nil) {
         if let sender = sender {
             if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
-                let gameVC = GameViewController()
-                gameVC.currentUser = currentUser
-                gameVC.gameLogic = game
-                gameVC.modalPresentationStyle = .fullScreen
-                present(gameVC, animated: true)
+                if let presentedViewController = presentedViewController {
+                    presentedViewController.dismiss(animated: true) {[weak self] in
+                        self?.makeGameVC(with: game)
+                    }
+                }
+                else {
+                    makeGameVC(with: game)
+                }
             }
         }
     }
@@ -386,17 +414,6 @@ class MainMenuVC: UIViewController {
     
     //random transition from left or right for view
     private func randomAnimationFor(view: UIView) {
-        var notificationIcon: UIView?
-        if let superview = view.superview {
-            if let notificationIconView = superview.subviews.first(where: {
-                if let parentView = $0.layer.value(forKey: constants.keyForParentView) as? UIView {
-                    return parentView == view
-                }
-                return false
-            }) {
-                notificationIcon = notificationIconView
-            }
-        }
         let sumOperation: (CGFloat, CGFloat) -> CGFloat = {$0 + $1}
         let subtractOperation: (CGFloat, CGFloat) -> CGFloat = {$0 - $1}
         let operations = [sumOperation, subtractOperation]
@@ -405,11 +422,46 @@ class MainMenuVC: UIViewController {
         if let randomOperation = randomOperation {
             let startX = randomOperation(endX, self.view.frame.width)
             view.transform = CGAffineTransform(translationX: startX, y: 0)
-            notificationIcon?.transform = CGAffineTransform(translationX: startX, y: 0)
             UIView.animate(withDuration: constants.animationDuration, animations: {
                 view.transform = CGAffineTransform(translationX: endX, y: 0)
-                notificationIcon?.transform = CGAffineTransform(translationX: endX, y: 0)
             })
+        }
+    }
+    
+    //makes view for redacting user profile
+    private func makeUserProfileVC() {
+        let userProfileVC = UserProfileVC()
+        userProfileVC.currentUser = currentUser
+        configureSheetController(of: userProfileVC)
+        present(userProfileVC, animated: true)
+    }
+    
+    //makes view for game creation
+    private func makeCreateGameVC() {
+        let createGameVC = CreateGameVC()
+        createGameVC.currentUser = currentUser
+        configureSheetController(of: createGameVC)
+        present(createGameVC, animated: true)
+    }
+    
+    //makes game view with chosen game
+    private func makeGameVC(with game: GameLogic) {
+        let gameVC = GameViewController()
+        gameVC.currentUser = currentUser
+        gameVC.gameLogic = game
+        gameVC.modalPresentationStyle = .fullScreen
+        present(gameVC, animated: true)
+    }
+    
+    private func configureSheetController(of viewController: UIViewController) {
+        if #available(iOS 15.0, *) {
+            if let sheet = viewController.sheetPresentationController {
+                sheet.detents = [.medium(), .large()]
+                sheet.largestUndimmedDetentIdentifier = .medium
+                sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+                sheet.prefersEdgeAttachedInCompactHeight = true
+                sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
+            }
         }
     }
     
@@ -420,7 +472,7 @@ class MainMenuVC: UIViewController {
     private lazy var fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
     private lazy var defaultFont = UIFont.systemFont(ofSize: fontSize)
     private lazy var defaultBackgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
-    private lazy var defaultTextColor = traitCollection.userInterfaceStyle == .dark ? constants.lightModeBackgroundColor : constants.darkModeBackgroundColor
+    private lazy var defaultTextColor = traitCollection.userInterfaceStyle == .dark ? constants.lightModeTextColor : constants.darkModeTextColor
     
     private var buttonsStack = UIStackView()
     //there is a bug, when animating scrollView, which leads to weird jump of first arrangedSubview subviews of buttonsStack
@@ -430,6 +482,8 @@ class MainMenuVC: UIViewController {
     private var viewForScrollView = UIView()
     private var scrollViewContent = UIView()
     private var additionalButtons = UIStackView()
+    private var userDataView = ViewWithNotifIcon()
+    
     private let coinsText = UILabel()
     
     // MARK: - UI Methods
@@ -437,6 +491,7 @@ class MainMenuVC: UIViewController {
     private func makeUI() {
         view.backgroundColor = defaultBackgroundColor
         makeBackground()
+        makeUserData()
         makeMainMenu()
     }
     
@@ -457,7 +512,11 @@ class MainMenuVC: UIViewController {
         }
         let contentHeight = scrollViewContent.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
         contentHeight.priority = .defaultLow
-        let viewForScrollViewConstraints = [viewForScrollView.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor), viewForScrollView.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor), viewForScrollView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), viewForScrollView.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), viewForScrollView.topAnchor.constraint(greaterThanOrEqualTo: view.layoutMarginsGuide.topAnchor), viewForScrollViewBottomConstraint]
+        let centerXForViewForScrollView = viewForScrollView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor)
+        centerXForViewForScrollView.priority = .defaultLow
+        let centerYForViewForScrollView = viewForScrollView.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor)
+        centerYForViewForScrollView.priority = .defaultLow
+        let viewForScrollViewConstraints = [viewForScrollView.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor), viewForScrollView.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor), viewForScrollView.topAnchor.constraint(greaterThanOrEqualTo: userDataView.bottomAnchor), centerXForViewForScrollView, centerYForViewForScrollView, viewForScrollViewBottomConstraint]
         let scrollViewConstraints = [scrollView.leadingAnchor.constraint(equalTo: viewForScrollView.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: viewForScrollView.trailingAnchor), scrollView.topAnchor.constraint(equalTo: viewForScrollView.topAnchor), scrollView.bottomAnchor.constraint(equalTo: viewForScrollView.bottomAnchor)]
         let contentConstraints = [scrollViewContent.topAnchor.constraint(equalTo: scrollView.topAnchor), scrollViewContent.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor), scrollViewContent.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor), scrollViewContent.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor), scrollViewContent.widthAnchor.constraint(equalTo: scrollView.widthAnchor), contentHeight]
         NSLayoutConstraint.activate(viewForScrollViewConstraints + scrollViewConstraints + contentConstraints)
@@ -515,10 +574,10 @@ class MainMenuVC: UIViewController {
     }
     
     //makes big round buttons to navigate through main menu
-    private func makeMainMenuButtonView(with backgroundImage: UIImage?, buttonImage: UIImage?, buttontext: String, and action: Selector?, circleButton: Bool = false) -> UIImageView {
+    private func makeMainMenuButtonView(with backgroundImage: UIImage?, buttonImage: UIImage?, buttontext: String, and action: Selector?, addNotificationIcon: Bool = false, needHeightConstraint: Bool = true) -> UIImageView {
         let buttonBG = UIImageView()
         buttonBG.defaultSettings()
-        buttonBG.settingsForBackgroundOfTheButton(cornerRadius: constants.cornerRadiusForButton)
+        buttonBG.settingsForBackgroundOfTheButton(cornerRadius: fontSize * constants.multiplierForButtonSize / constants.optimalDividerForCornerRadius)
         buttonBG.image = backgroundImage
         var buttonConstraints = [NSLayoutConstraint]()
         if let action = action {
@@ -530,18 +589,25 @@ class MainMenuVC: UIViewController {
                 button.contentEdgeInsets = constants.insetsForCircleButton
             }
         }
-        if !circleButton {
+        if needHeightConstraint && !addNotificationIcon {
             buttonConstraints.append(buttonBG.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForButtonSize))
         }
+        var buttonView: ViewWithNotifIcon?
+        if addNotificationIcon {
+            buttonView = ViewWithNotifIcon(mainView: buttonBG, cornerRadius: fontSize * constants.multiplierForButtonSize / constants.optimalDividerForCornerRadius)
+            if needHeightConstraint {
+                buttonConstraints.append(buttonView!.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForButtonSize))
+            }
+        }
         NSLayoutConstraint.activate(buttonConstraints)
-        return buttonBG
+        return buttonView ?? buttonBG
     }
     
     //creates view with basic and additional info about game
     private func makeInfoView(of game: GameLogic) -> UIImageView {
         let infoView = UIImageView()
         infoView.defaultSettings()
-        infoView.settingsForBackgroundOfTheButton(cornerRadius: constants.cornerRadiusForButton)
+        infoView.settingsForBackgroundOfTheButton(cornerRadius: fontSize * constants.multiplierForButtonSize / constants.optimalDividerForCornerRadius)
         let date = game.startDate.toStringDateHMS
         let dateLabel = UILabel()
         dateLabel.setup(text: date, alignment: .left, font: UIFont.systemFont(ofSize: fontSize / constants.dividerForDateFont))
@@ -557,7 +623,7 @@ class MainMenuVC: UIViewController {
         additionalInfo.alpha = 0
         let helperButtons = makeHelperButtonsView(game: game)
         if game.gameEnded {
-            if game.winner?.user.name == currentUser.name {
+            if game.winner?.user.nickname == currentUser.nickname {
                 infoView.backgroundColor = constants.gameWinnerColor
             }
             else if game.winner != nil {
@@ -583,8 +649,8 @@ class MainMenuVC: UIViewController {
     
     private func makeInfoLabel(of game: GameLogic) -> UILabel {
         let gameInfoLabel = UILabel()
-        var gameInfoText = game.players.first!.user.name + " " + String(game.players.first!.user.points) + "(" + String(game.players.first!.pointsForGame)
-        gameInfoText += ")" + " " + "vs " + game.players.second!.user.name + " " + String(game.players.second!.user.points)
+        var gameInfoText = game.players.first!.user.nickname + " " + String(game.players.first!.user.points) + "(" + String(game.players.first!.pointsForGame)
+        gameInfoText += ")" + " " + "vs " + game.players.second!.user.nickname + " " + String(game.players.second!.user.points)
         gameInfoText += "(" + String(game.players.second!.pointsForGame) + ")"
         gameInfoLabel.setup(text: gameInfoText, alignment: .center, font: defaultFont)
         return gameInfoLabel
@@ -613,32 +679,21 @@ class MainMenuVC: UIViewController {
         return helperButtonsView
     }
     
-    private func updateButtonsStack(with views: [UIView], addBackButton: Bool) {
+    private func updateButtonsStack(with views: [UIView], addBackButton: Bool, distribution: UIStackView.Distribution) {
         buttonsStack = UIStackView()
-        buttonsStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        buttonsStack.setup(axis: .vertical, alignment: .fill, distribution: distribution, spacing: constants.optimalSpacing)
         buttonsStack.addArrangedSubviews(views)
         if addBackButton {
-            buttonsStack.addArrangedSubview(makeMainMenuButtonView(with: UIImage(systemName: "arrow.left"), buttonImage: nil, buttontext: "Back", and: #selector(makeMainMenu)))
-        }
-    }
-    
-    private func addNotificationIconsInButtonsStack() {
-        for button in buttonsStack.arrangedSubviews {
-            if let inventoryItems = button.layer.value(forKey: constants.keyForItems) as? [Item] {
-                if currentUser.containsNewItemIn(items: inventoryItems) {
-                    addNotificationIconTo(view: button)
-                }
-            }
-            else if let inventoryItem = button.layer.value(forKey: constants.keyForItem) as? Item {
-                if currentUser.containsNewItemIn(items: [inventoryItem]) {
-                    addNotificationIconTo(view: button)
-                }
-            }
+            let backButton = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "Back", and: #selector(makeMainMenu))
+            addBackButtonSFImageTo(view: backButton)
+            buttonsStack.addArrangedSubview(backButton)
         }
     }
     
     private func makeShopItemButton(with view: UIView, shopItem: Item, inInventory: Bool) -> UIImageView {
-        let buttonBG = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "", and: nil)
+        let addNotificationIcon = currentUser.containsNewItemIn(items: [shopItem])
+        let buttonView = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "", and: nil, addNotificationIcon: addNotificationIcon)
+        let buttonBG = addNotificationIcon ? buttonView.subviews.first as! UIImageView : buttonView
         let buyButton = makeMainMenuButtonView(with: UIImage(named: "misc/coinsBG"), buttonImage: nil, buttontext: String(shopItem.cost), and: #selector(buyItem))
         buttonBG.addSubview(buyButton)
         buttonBG.addSubview(view)
@@ -649,10 +704,11 @@ class MainMenuVC: UIViewController {
         let buyButtonConstraints = [buyButton.trailingAnchor.constraint(equalTo: buttonBG.trailingAnchor), buyButton.widthAnchor.constraint(equalTo: buttonBG.widthAnchor, multiplier: constants.multiplierForAdditionalButtonsSizeInMainMenuButton), buyButton.centerYAnchor.constraint(equalTo: buttonBG.centerYAnchor)]
         NSLayoutConstraint.activate(buyButtonConstraints + viewConstraints)
         buttonBG.layer.setValue(shopItem, forKey: constants.keyForItem)
-        return buttonBG
+        return buttonBG.superview as? UIImageView ?? buttonBG
     }
     
     private func makeInventoryItemButton(with view: UIView, inventoryItem: Item, inInventory: Bool) -> UIImageView {
+        let addNotificationIcon = currentUser.containsNewItemIn(items: [inventoryItem])
         let descriptionScrollView = UIScrollView()
         descriptionScrollView.translatesAutoresizingMaskIntoConstraints = false
         descriptionScrollView.delaysContentTouches = false
@@ -664,9 +720,14 @@ class MainMenuVC: UIViewController {
         descriptionScrollView.addSubview(itemDescription)
         let descriptionHeightConstraint = itemDescription.heightAnchor.constraint(equalTo: descriptionScrollView.heightAnchor)
         descriptionHeightConstraint.priority = .defaultLow
-        let buttonBG = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "", and: nil)
-        let chooseButton = makeMainMenuButtonView(with: nil, buttonImage: UIImage(systemName: "checkmark"), buttontext: "", and: #selector(chooseItemInInventory), circleButton: true)
-        let descriptionButton = makeMainMenuButtonView(with: nil, buttonImage: UIImage(systemName: "info"), buttontext: "", and: #selector(showDescriptionForItemInInventory), circleButton: true)
+        let itemDescriptionCenterX = itemDescription.centerXAnchor.constraint(equalTo: descriptionScrollView.centerXAnchor)
+        itemDescriptionCenterX.priority = .defaultLow
+        let itemDescriptionCenterY = itemDescription.centerYAnchor.constraint(equalTo: descriptionScrollView.centerYAnchor)
+        itemDescriptionCenterY.priority = .defaultLow
+        let buttonView = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "", and: nil, addNotificationIcon: addNotificationIcon)
+        let buttonBG = addNotificationIcon ? buttonView.subviews.first as! UIImageView : buttonView
+        let chooseButton = makeMainMenuButtonView(with: nil, buttonImage: UIImage(systemName: "checkmark"), buttontext: "", and: #selector(chooseItemInInventory), needHeightConstraint: false)
+        let descriptionButton = makeMainMenuButtonView(with: nil, buttonImage: UIImage(systemName: "info"), buttontext: "", and: #selector(showDescriptionForItemInInventory), needHeightConstraint: false)
         buttonBG.addSubview(chooseButton)
         buttonBG.addSubview(descriptionButton)
         buttonBG.addSubview(view)
@@ -678,10 +739,10 @@ class MainMenuVC: UIViewController {
         let viewConstraints = [view.leadingAnchor.constraint(equalTo: buttonBG.leadingAnchor), view.trailingAnchor.constraint(equalTo: chooseButton.leadingAnchor), view.topAnchor.constraint(equalTo: buttonBG.topAnchor), view.bottomAnchor.constraint(equalTo: buttonBG.bottomAnchor)]
         let chooseButtonConstraints = [chooseButton.trailingAnchor.constraint(equalTo: descriptionButton.leadingAnchor), chooseButton.widthAnchor.constraint(equalTo: buttonBG.widthAnchor, multiplier: constants.multiplierForAdditionalButtonsSizeInMainMenuButton / 2), chooseButton.topAnchor.constraint(equalTo: buttonBG.topAnchor, constant: constants.optimalDistance), chooseButton.bottomAnchor.constraint(equalTo: buttonBG.bottomAnchor, constant: -constants.optimalDistance)]
         let descriptionConstraints = [descriptionButton.trailingAnchor.constraint(equalTo: buttonBG.trailingAnchor), descriptionButton.widthAnchor.constraint(equalTo: buttonBG.widthAnchor, multiplier: constants.multiplierForAdditionalButtonsSizeInMainMenuButton / 2), descriptionButton.topAnchor.constraint(equalTo: buttonBG.topAnchor, constant: constants.optimalDistance), descriptionButton.bottomAnchor.constraint(equalTo: buttonBG.bottomAnchor, constant: -constants.optimalDistance)]
-        let itemDescriptionConstraint = [itemDescription.leadingAnchor.constraint(equalTo: descriptionScrollView.leadingAnchor), itemDescription.trailingAnchor.constraint(equalTo: descriptionScrollView.trailingAnchor), itemDescription.topAnchor.constraint(equalTo: descriptionScrollView.topAnchor), itemDescription.bottomAnchor.constraint(equalTo: descriptionScrollView.bottomAnchor), itemDescription.widthAnchor.constraint(equalTo: descriptionScrollView.widthAnchor), descriptionHeightConstraint]
+        let itemDescriptionConstraint = [itemDescription.leadingAnchor.constraint(equalTo: descriptionScrollView.leadingAnchor), itemDescription.trailingAnchor.constraint(equalTo: descriptionScrollView.trailingAnchor), itemDescription.topAnchor.constraint(equalTo: descriptionScrollView.topAnchor), itemDescription.bottomAnchor.constraint(equalTo: descriptionScrollView.bottomAnchor), itemDescription.widthAnchor.constraint(equalTo: descriptionScrollView.widthAnchor), itemDescriptionCenterX, itemDescriptionCenterY, descriptionHeightConstraint]
         let descriptionScrollViewConstraints = [descriptionScrollView.leadingAnchor.constraint(equalTo: buttonBG.leadingAnchor), descriptionScrollView.trailingAnchor.constraint(equalTo: chooseButton.leadingAnchor), descriptionScrollView.topAnchor.constraint(equalTo: buttonBG.topAnchor), descriptionScrollView.bottomAnchor.constraint(equalTo: buttonBG.bottomAnchor)]
         NSLayoutConstraint.activate(chooseButtonConstraints + viewConstraints + descriptionConstraints + itemDescriptionConstraint + descriptionScrollViewConstraints)
-        return buttonBG
+        return buttonBG.superview as? UIImageView ?? buttonBG
     }
     
     private func makeShowcase(items: UIStackView, item: Item, inInventory: Bool, axis: NSLayoutConstraint.Axis, isShopButton: Bool) -> UIImageView {
@@ -701,7 +762,6 @@ class MainMenuVC: UIViewController {
             itemsConstraints += [items.topAnchor.constraint(equalTo: showcaseScrollView.topAnchor, constant: constants.optimalDistance), items.bottomAnchor.constraint(equalTo: showcaseScrollView.bottomAnchor, constant: -constants.optimalDistance), items.leadingAnchor.constraint(equalTo: showcaseScrollView.leadingAnchor, constant: constants.optimalDistance), items.trailingAnchor.constraint(equalTo: showcaseScrollView.trailingAnchor, constant: -constants.optimalDistance), items.centerXAnchor.constraint(equalTo: showcaseScrollView.centerXAnchor), heightConstraint]
         }
         NSLayoutConstraint.activate(itemsConstraints)
-        showCaseBG.layer.setValue(item, forKey: constants.keyForItem)
         return showCaseBG
     }
     
@@ -720,20 +780,27 @@ class MainMenuVC: UIViewController {
     }
     
     private func makeInventoryOrShopButtons(isShopButtons: Bool) -> [UIView] {
-        let figuresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: FiguresThemes.allCases, backgroundImage: UIImage(named: "misc/figuresBG"), buttonText: "Figures")
-        let backgroundButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: Backgrounds.allCases, backgroundImage: UIImage(named: "misc/defaultBG"), buttonText: "Background")
-        let titleButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Titles.purchachableTitles : Titles.allCases, backgroundImage: nil, buttonText: "Title")
-        let boardButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: BoardThemes.allCases, backgroundImage: UIImage(named: "misc/boardBG"), buttonText: "Board")
-        let frameButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: Frames.allCases, backgroundImage: UIImage(named: "misc/frameBG"), buttonText: "Frame")
-        let squaresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: SquaresThemes.allCases, backgroundImage: UIImage(named: "misc/squaresBG"), buttonText: "Squares")
-        return [figuresButton, backgroundButton, titleButton, boardButton, frameButton, squaresButton]
+        let figuresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? FiguresThemes.purchasable : FiguresThemes.allCases, backgroundImage: UIImage(named: "misc/figuresBG"), buttonText: "Figures")
+        let backgroundButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Backgrounds.purchasable : Backgrounds.allCases, backgroundImage: UIImage(named: "backgrounds/\(currentUser.playerBackground.rawValue)"), buttonText: "Background")
+        let titleButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Titles.purchasable : Titles.allCases, backgroundImage: nil, buttonText: "Title")
+        let boardButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? BoardThemes.purchasable : BoardThemes.allCases, backgroundImage: UIImage(named: "misc/boardBG"), buttonText: "Board")
+        let frameButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Frames.purchasable : Frames.allCases, backgroundImage: UIImage(named: "misc/frameBG"), buttonText: "Frame")
+        let squaresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? SquaresThemes.purchasable : SquaresThemes.allCases, backgroundImage: UIImage(named: "misc/squaresBG"), buttonText: "Squares")
+        var buttons = [figuresButton, backgroundButton, titleButton, boardButton, frameButton, squaresButton]
+        if isShopButtons {
+            let avatarsButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: Avatars.purchasable, backgroundImage: UIImage(named: "avatars/\(currentUser.playerAvatar.rawValue)"), buttonText: "Avatars")
+            buttons.append(avatarsButton)
+        }
+        return buttons
     }
     
     private func makeInventoryOrShopButton(isShopButton: Bool, items: [Item], backgroundImage: UIImage?, buttonText: String) -> UIView {
-        let button = makeMainMenuButtonView(with: backgroundImage, buttonImage: nil, buttontext: buttonText, and: #selector(makeListOfItems))
+        let addNotificationIcon = currentUser.containsNewItemIn(items: items)
+        let buttonView = makeMainMenuButtonView(with: backgroundImage, buttonImage: nil, buttontext: buttonText, and: #selector(makeListOfItems), addNotificationIcon: addNotificationIcon)
+        let button = addNotificationIcon ? buttonView.subviews.first as! UIImageView : buttonView
         button.layer.setValue(items, forKey: constants.keyForItems)
         button.layer.setValue(isShopButton, forKey: constants.keyForIsShopButton)
-        return button
+        return button.superview ?? button
     }
     
     private func makeFiguresView(figuresThemes: [FiguresThemes], isShopButtons: Bool) -> [UIView] {
@@ -799,6 +866,22 @@ class MainMenuVC: UIViewController {
         return backgroundThemesViews
     }
     
+    private func makeAvatarsViews(avatars: [Avatars]) -> [UIView] {
+        var avatarsViews = [UIView]()
+        for avatar in avatars {
+            let avatarData = UIStackView()
+            avatarData.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+            let avatarImage = makeSquareView(with: UIImage(named: "avatars/\(avatar.rawValue)"))
+            let avatarName = UILabel()
+            avatarName.setup(text: avatar.rawValue.replacingOccurrences(of: "_", with: " ").capitalizingFirstLetter(), alignment: .center, font: defaultFont)
+            avatarData.addArrangedSubviews([avatarImage, avatarName])
+            let inInventory = currentUser.availableItems.contains(where: {$0 as? Avatars == avatar})
+            let avatarView = makeShopItemButton(with: avatarData, shopItem: avatar, inInventory: inInventory)
+            avatarsViews.append(avatarView)
+        }
+        return avatarsViews
+    }
+    
     private func makeTitlesView(titles: [Titles], isShopButtons: Bool) -> [UIView] {
         var titlesViews = [UIView]()
         for title in titles {
@@ -829,7 +912,7 @@ class MainMenuVC: UIViewController {
         for squaresThemeName in squaresThemes {
             let squareTheme = squaresThemeName.getTheme()
             let dataStack = UIStackView()
-            dataStack.setup(axis: .vertical, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+            dataStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
             dataStack.addArrangedSubview(makeColorData(text: "First Color", color: squareTheme.firstColor))
             dataStack.addArrangedSubview(makeColorData(text: "Second Color", color: squareTheme.secondColor))
             dataStack.addArrangedSubview(makeColorData(text: "Turn Color", color: squareTheme.turnColor))
@@ -864,17 +947,28 @@ class MainMenuVC: UIViewController {
     }
     
     private func makeAdditionalButtonsForShopOrInventory(isShopButtons: Bool) {
-        let coinsView = UIImageView()
-        coinsView.defaultSettings()
-        coinsView.settingsForBackgroundOfTheButton(cornerRadius: constants.cornerRadiusForButton)
-        coinsView.image = UIImage(named: "misc/coinsBG")
+        let coinsView = makeMainMenuButtonView(with: UIImage(named: "misc/coinsBG"), buttonImage: nil, buttontext: "", and: nil)
         coinsText.setup(text: String(currentUser.coins), alignment: .center, font: defaultFont)
         coinsText.backgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         coinsView.addSubview(coinsText)
         let coinsTextConstraints = [coinsText.topAnchor.constraint(equalTo: coinsView.topAnchor), coinsText.bottomAnchor.constraint(equalTo: coinsView.bottomAnchor), coinsText.leadingAnchor.constraint(equalTo: coinsView.leadingAnchor), coinsText.trailingAnchor.constraint(equalTo: coinsView.trailingAnchor)]
         NSLayoutConstraint.activate(coinsTextConstraints)
-        let backButton = makeMainMenuButtonView(with: UIImage(systemName: "arrow.left"), buttonImage: nil, buttontext: "Back", and: isShopButtons ? #selector(makeShopMenu) : #selector(makeInventoryMenu))
+        let backButton = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "Back", and: isShopButtons ? #selector(makeShopMenu) : #selector(makeInventoryMenu))
+        addBackButtonSFImageTo(view: backButton)
         makeAdditionalButtons(with: [backButton, coinsView])
+    }
+    
+    //we are using system image(SF Symbol) in imageView, which causes a bug with constraints for some reason(height of imageView is
+    //less than it should be), so we have to add it like this
+    private func addBackButtonSFImageTo(view: UIView) {
+        let backButtonView = UIImageView()
+        backButtonView.translatesAutoresizingMaskIntoConstraints = false
+        backButtonView.contentMode = view.contentMode
+        backButtonView.image = UIImage(systemName: "arrow.left")
+        view.addSubview(backButtonView)
+        view.sendSubviewToBack(backButtonView)
+        let backButtonViewConstraints = [backButtonView.topAnchor.constraint(equalTo: view.topAnchor), backButtonView.bottomAnchor.constraint(equalTo: view.bottomAnchor), backButtonView.leadingAnchor.constraint(equalTo: view.leadingAnchor), backButtonView.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
+        NSLayoutConstraint.activate(backButtonViewConstraints)
     }
     
     private func makeAdditionalButtons(with views: [UIView]) {
@@ -888,7 +982,11 @@ class MainMenuVC: UIViewController {
     
     private func updateItemsColor(inShop: Bool) {
         for button in buttonsStack.arrangedSubviews {
-            if let shopItem = button.layer.value(forKey: constants.keyForItem) as? Item {
+            var actualButton = button
+            if let viewWithNotif = button as? ViewWithNotifIcon {
+                actualButton = viewWithNotif.mainView
+            }
+            if let shopItem = actualButton.layer.value(forKey: constants.keyForItem) as? Item {
                 var inInventory = false
                 var chosen = false
                 let available = shopItem.cost < currentUser.coins
@@ -951,29 +1049,98 @@ class MainMenuVC: UIViewController {
                     isEnabled = inInventory && !chosen
                 }
                 UIView.animate(withDuration: constants.animationDuration, animations: {
-                    button.backgroundColor = color
-                    button.subviews.first?.subviews.first?.backgroundColor = color
-                    (button.subviews.first?.subviews.first as? UIButton)?.isEnabled = isEnabled
+                    actualButton.backgroundColor = color
+                    actualButton.subviews.first?.subviews.first?.backgroundColor = color
+                    (actualButton.subviews.first?.subviews.first as? UIButton)?.isEnabled = isEnabled
                     if inShop && !isEnabled {
-                        (button.subviews.first?.subviews.first as? UIButton)?.setTitleColor(textColor, for: .normal)
+                        (actualButton.subviews.first?.subviews.first as? UIButton)?.setTitleColor(textColor, for: .normal)
                     }
                 })
             }
         }
     }
     
-    private func addNotificationIconTo(view: UIView) {
-        let notificationView = UIImageView()
-        notificationView.defaultSettings()
-        notificationView.settingsForBackgroundOfTheButton(cornerRadius: constants.cornerRadiusForButton)
-        notificationView.isUserInteractionEnabled = false
-        notificationView.backgroundColor = constants.notificationIconBackgroundColor
-        //we are doing it like so, cuz superview could have masksToBounds = true and in that case
-        //notification icon will be showed improperly
-        notificationView.layer.setValue(view, forKey: constants.keyForParentView)
-        view.superview?.addSubview(notificationView)
-        let notificationViewConstraints = [notificationView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.sizeMultiplierForNotificationIcon), notificationView.widthAnchor.constraint(equalTo: notificationView.heightAnchor), notificationView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: constants.optimalDistance), notificationView.topAnchor.constraint(equalTo: view.topAnchor, constant: -constants.optimalDistance)]
-        NSLayoutConstraint.activate(notificationViewConstraints)
+    private func makeUserData() {
+        userDataView.translatesAutoresizingMaskIntoConstraints = false
+        let widthForAvatar = min(view.frame.height, view.frame.width) / constants.sizeMultiplayerForAvatar
+        let userData = UIStackView()
+        userData.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+        userData.defaultSettings()
+        userData.layer.masksToBounds = true
+        userData.backgroundColor = userData.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(showUserProfileVC))
+        let userAvatar = UIImageView()
+        userAvatar.rectangleView(width: widthForAvatar)
+        userAvatar.contentMode = .scaleAspectFill
+        userAvatar.layer.masksToBounds = true
+        userAvatar.image = UIImage(named: "avatars/\(currentUser.playerAvatar.rawValue)")
+        userAvatar.addGestureRecognizer(tapGesture)
+        let userName = UILabel()
+        userName.setup(text: currentUser.nickname, alignment: .center, font: defaultFont)
+        let exitButton = UIButton()
+        if #available(iOS 15.0, *) {
+            exitButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right"), and: #selector(exitFromAccount))
+        }
+        else {
+            exitButton.buttonWith(image: UIImage(systemName: "arrow.left.square"), and: #selector(exitFromAccount))
+        }
+        userData.addArrangedSubviews([userAvatar, userName, exitButton])
+        var userDataConstraints = [NSLayoutConstraint]()
+        if currentUser.haveNewAvatarsInInventory() || currentUser.nickname.isEmpty {
+            userDataView = ViewWithNotifIcon(mainView: userData, cornerRadius: widthForAvatar / constants.optimalDividerForCornerRadius)
+        }
+        else {
+            userDataView.addSubview(userData)
+            userDataConstraints += [userData.topAnchor.constraint(equalTo: userDataView.topAnchor), userData.trailingAnchor.constraint(equalTo: userDataView.trailingAnchor)]
+        }
+        view.addSubview(userDataView)
+        userDataConstraints += [userDataView.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor, constant: constants.optimalDistance), userDataView.trailingAnchor.constraint(lessThanOrEqualTo: view.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance), userDataView.leadingAnchor.constraint(greaterThanOrEqualTo: view.layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), userDataView.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), exitButton.widthAnchor.constraint(equalTo: exitButton.heightAnchor), userData.leadingAnchor.constraint(equalTo: userDataView.leadingAnchor), userData.bottomAnchor.constraint(equalTo: userDataView.bottomAnchor)]
+        NSLayoutConstraint.activate(userDataConstraints)
+    }
+    
+    func updateUserData() {
+        if let userAvatar = (userDataView.subviews.first as? UIStackView)?.arrangedSubviews.first as? UIImageView {
+            UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
+                if let self = self {
+                    userAvatar.image = UIImage(named: "avatars/\(self.currentUser.playerAvatar.rawValue)")
+                }
+            })
+        }
+        if let userName = (userDataView.subviews.first as? UIStackView)?.arrangedSubviews.second as? UILabel {
+            UIView.transition(with: userName, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
+                if let self = self {
+                    userName.text = self.currentUser.nickname
+                    self.userDataView.layoutIfNeeded()
+                }
+            })
+        }
+    }
+    
+    func removeNotificationIconsIfNeeded() {
+        if !currentUser.haveNewAvatarsInInventory() && !currentUser.nickname.isEmpty {
+            userDataView.removeNotificationIcon()
+        }
+        if !currentUser.haveNewAvatarsInShop() {
+            if buttonsStack.arrangedSubviews.count == 3 {
+                if let viewWithNotif = buttonsStack.arrangedSubviews.third as? ViewWithNotifIcon {
+                    viewWithNotif.removeNotificationIcon()
+                }
+            }
+        }
+        for button in buttonsStack.arrangedSubviews {
+            if let viewWithNotif = button as? ViewWithNotifIcon {
+                if let item = viewWithNotif.mainView.layer.value(forKey: constants.keyForItem) as? Item {
+                    if !currentUser.containsNewItemIn(items: [item]) {
+                        viewWithNotif.removeNotificationIcon()
+                    }
+                }
+                else if let items = viewWithNotif.mainView.layer.value(forKey: constants.keyForItems) as? [Item] {
+                    if !currentUser.containsNewItemIn(items: items) {
+                        viewWithNotif.removeNotificationIcon()
+                    }
+                }
+            }
+        }
     }
     
 }
@@ -985,16 +1152,19 @@ private struct MainMenuVC_Constants {
     static let optimalSpacing = 5.0
     static let spacingForHelperButtons = 15.0
     static let optimalAlpha = 0.5
-    static let cornerRadiusForButton = 30.0
+    static let optimalDividerForCornerRadius = 4.0
     static let multiplierForButtonSize = 3.0
     static let darkModeBackgroundColor = UIColor.black.withAlphaComponent(optimalAlpha)
     static let lightModeBackgroundColor = UIColor.white.withAlphaComponent(optimalAlpha)
+    static let darkModeTextColor = UIColor.black
+    static let lightModeTextColor = UIColor.white
     static let gameWinnerColor = UIColor.green.withAlphaComponent(optimalAlpha)
     static let gameLoserColor = UIColor.red.withAlphaComponent(optimalAlpha)
     static let gameDrawColor = UIColor.yellow.withAlphaComponent(optimalAlpha)
     static let gameNotEndedColor = UIColor.orange.withAlphaComponent(optimalAlpha)
     static let animationDuration = 0.5
     static let sizeMultiplayerForGameInfo = 2.0
+    static let sizeMultiplayerForAvatar = 5.0
     static let sizeMultiplayerForHelperButtonsStack = 0.9
     static let dividerForDateFont = 3.0
     static let optimalDistance = 10.0
@@ -1003,7 +1173,6 @@ private struct MainMenuVC_Constants {
     static let keyForIsShopButton = "isShopButton"
     static let keyForItems = "Items"
     static let keyForItem = "Item"
-    static let keyForParentView = "parentView"
     static let chosenItemColor = UIColor.green.withAlphaComponent(optimalAlpha)
     static let inInventoryColor = UIColor.green.withAlphaComponent(optimalAlpha)
     static let notAvailableColor = UIColor.red.withAlphaComponent(optimalAlpha)
@@ -1012,9 +1181,7 @@ private struct MainMenuVC_Constants {
     static let multiplierForAdditionalButtonsSizeInMainMenuButton = 0.3
     static let distanceForContentInHorizontalShowcase = 20.0
     static let multiplierForSpecialSquareViewSize = 0.6
-    static let sizeMultiplierForNotificationIcon = 0.5
     static let pickItemBorderColor = UIColor.yellow.cgColor
-    static let notificationIconBackgroundColor = UIColor.red
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

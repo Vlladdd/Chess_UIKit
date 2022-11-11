@@ -298,7 +298,7 @@ class GameViewController: UIViewController {
                 }
             }))
             surenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
-            present(surenderAlert, animated: true, completion: nil)
+            present(surenderAlert, animated: true)
         }
     }
     
@@ -326,11 +326,11 @@ class GameViewController: UIViewController {
                 if let mainMenuVC = self.presentingViewController as? MainMenuVC {
                     mainMenuVC.currentUser = self.currentUser
                 }
-                self.dismiss(animated: true, completion: nil)
+                self.dismiss(animated: true)
             }
         }))
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
-        present(exitAlert, animated: true, completion: nil)
+        present(exitAlert, animated: true)
     }
     
     //
@@ -1091,7 +1091,7 @@ class GameViewController: UIViewController {
             if let self = self {
                 currentPlayerFrame.updateDataBackgroundColor(self.currentPlayerDataColor)
                 enemyPlayerFrame.updateDataBackgroundColor(self.defaultPlayerDataColor)
-                self.currentPlayerForTurns.text = self.gameLogic.currentPlayer.user.name
+                self.currentPlayerForTurns.text = self.gameLogic.currentPlayer.user.nickname
                 if self.gameLogic.timerEnabled {
                     let currentPlayerTimer = currentPlayer.type == .player1 ? self.player1Timer : self.player2Timer
                     let enemyPlayerTimer = currentPlayer.type == .player1 ? self.player2Timer : self.player1Timer
@@ -1500,7 +1500,7 @@ class GameViewController: UIViewController {
     private lazy var defaultPlayerDataColor = traitCollection.userInterfaceStyle == .dark ? constants.defaultDarkModeColorForDataBackground : constants.defaultLightModeColorForDataBackground
     private lazy var currentPlayerDataColor = traitCollection.userInterfaceStyle == .dark ? constants.currentPlayerDataColorDarkMode : constants.currentPlayerDataColorLightMode
     
-    private var loadingSpinner = UIImageView()
+    private var loadingSpinner = LoadingSpinner()
     //contains currentTurn of both players
     private var turnData = UIStackView()
     private var player1Timer = UILabel()
@@ -1831,7 +1831,7 @@ class GameViewController: UIViewController {
         turnsScrollView.backgroundColor = .clear
         arrowToAdditionalButtons.contentMode = .scaleAspectFit
         arrowToAdditionalButtons.layer.borderWidth = 0
-        currentPlayerForTurns = makeLabel(text: gameLogic.currentPlayer.user.name)
+        currentPlayerForTurns = makeLabel(text: gameLogic.currentPlayer.user.nickname)
         currentPlayerForTurns.backgroundColor = currentPlayerDataColor
         if gameLogic.timerEnabled {
             player1Timer = makeTimer(with: gameLogic.players.first!.timeLeft.timeAsString)
@@ -1862,7 +1862,7 @@ class GameViewController: UIViewController {
     private func makePlayer2Frame() {
         let player2Background = gameLogic.players.second!.user.playerBackground
         let player2Frame = gameLogic.players.second!.user.frame
-        let player2Data = makeLabel(text: gameLogic.players.second!.user.name + " " + String(gameLogic.players.second!.user.points))
+        let player2Data = makeLabel(text: gameLogic.players.second!.user.nickname + " " + String(gameLogic.players.second!.user.points))
         player2FrameView = PlayerFrame(background: player2Background, playerFrame: player2Frame, data: player2Data)
         scrollContentOfGame.addSubview(player2FrameView)
         if gameLogic.gameMode == .oneScreen {
@@ -1874,7 +1874,7 @@ class GameViewController: UIViewController {
     private func makePlayer1Frame() {
         let player1Background = gameLogic.players.first!.user.playerBackground
         let player1Frame = gameLogic.players.first!.user.frame
-        let player1Data = makeLabel(text: gameLogic.players.first!.user.name + " " + String(gameLogic.players.first!.user.points))
+        let player1Data = makeLabel(text: gameLogic.players.first!.user.nickname + " " + String(gameLogic.players.first!.user.points))
         player1FrameView = PlayerFrame(background: player1Background, playerFrame: player1Frame, data: player1Data)
         scrollContentOfGame.addSubview(player1FrameView)
     }
@@ -1936,11 +1936,11 @@ class GameViewController: UIViewController {
     private func addPlayersBackgrounds() {
         let bottomPlayerBackground = UIImageView()
         bottomPlayerBackground.defaultSettings()
-        bottomPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.second!.user.playerAvatar.rawValue)")
+        bottomPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")
         if gameLogic.gameMode == .multiplayer {
             let topPlayerBackground = UIImageView()
             topPlayerBackground.defaultSettings()
-            topPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")
+            topPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.second!.user.playerAvatar.rawValue)")
             view.addSubviews([topPlayerBackground, bottomPlayerBackground])
             let topConstraints = [topPlayerBackground.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor), topPlayerBackground.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.multiplierForBackground), topPlayerBackground.leadingAnchor.constraint(equalTo: view.leadingAnchor), topPlayerBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
             let bottomConstraints = [bottomPlayerBackground.bottomAnchor.constraint(equalTo: view.bottomAnchor), bottomPlayerBackground.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.multiplierForBackground), bottomPlayerBackground.leadingAnchor.constraint(equalTo: view.leadingAnchor), bottomPlayerBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
@@ -2271,9 +2271,11 @@ class GameViewController: UIViewController {
         data.defaultSettings()
         data.isUserInteractionEnabled = true
         data.backgroundColor = data.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let playerAvatarImage = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")?.alpha(constants.alphaForPlayerBackground)
+        let playerAvatarImage = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")
         let playerAvatar = UIImageView()
-        playerAvatar.rectangleView(width: min(view.frame.width, view.frame.height) / constants.dividerForCurrentPlayerAvatar)
+        playerAvatar.rectangleView(width: min(view.frame.width, view.frame.height) / constants.dividerForPlayerAvatar)
+        playerAvatar.contentMode = .scaleAspectFill
+        playerAvatar.layer.masksToBounds = true
         playerAvatar.image = playerAvatarImage
         var hideButtonConstraints = [NSLayoutConstraint]()
         var wheelConstraints = [NSLayoutConstraint]()
@@ -2297,10 +2299,10 @@ class GameViewController: UIViewController {
         }
         let infoStack = makeInfoStack()
         let titleLabel = makeLabel(text: titleText)
-        let nameLabel = makeLabel(text: "\(gameLogic.players.first!.user.name)")
-        data.addSubviews([nameLabel, titleLabel, infoStack, playerAvatar, hideButton])
+        let nicknameLabel = makeLabel(text: "\(gameLogic.players.first!.user.nickname)")
+        data.addSubviews([nicknameLabel, titleLabel, infoStack, playerAvatar, hideButton])
         let titleLabelConstraints = [titleLabel.centerXAnchor.constraint(equalTo: data.centerXAnchor), titleLabel.topAnchor.constraint(equalTo: data.topAnchor, constant: constants.optimalDistance), titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: data.leadingAnchor, constant: constants.optimalDistance), titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: data.trailingAnchor, constant: -constants.optimalDistance)]
-        let playerDataConstraints = [nameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: constants.optimalDistance), nameLabel.centerXAnchor.constraint(equalTo: data.centerXAnchor), nameLabel.leadingAnchor.constraint(greaterThanOrEqualTo: data.layoutMarginsGuide.leadingAnchor), nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: data.layoutMarginsGuide.trailingAnchor), playerAvatar.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: constants.optimalDistance), playerAvatar.leadingAnchor.constraint(equalTo: data.leadingAnchor, constant: constants.optimalDistance), infoStack.centerYAnchor.constraint(equalTo: playerAvatar.centerYAnchor),  infoStack.leadingAnchor.constraint(equalTo: playerAvatar.trailingAnchor, constant: constants.optimalDistance), infoStack.trailingAnchor.constraint(equalTo: data.trailingAnchor, constant: -constants.optimalDistance)]
+        let playerDataConstraints = [nicknameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: constants.optimalDistance), nicknameLabel.centerXAnchor.constraint(equalTo: data.centerXAnchor), nicknameLabel.leadingAnchor.constraint(greaterThanOrEqualTo: data.layoutMarginsGuide.leadingAnchor), nicknameLabel.trailingAnchor.constraint(lessThanOrEqualTo: data.layoutMarginsGuide.trailingAnchor), playerAvatar.topAnchor.constraint(equalTo: nicknameLabel.bottomAnchor, constant: constants.optimalDistance), playerAvatar.leadingAnchor.constraint(equalTo: data.leadingAnchor, constant: constants.optimalDistance), infoStack.centerYAnchor.constraint(equalTo: playerAvatar.centerYAnchor),  infoStack.leadingAnchor.constraint(equalTo: playerAvatar.trailingAnchor, constant: constants.optimalDistance), infoStack.trailingAnchor.constraint(equalTo: data.trailingAnchor, constant: -constants.optimalDistance)]
         hideButtonConstraints += [hideButton.centerXAnchor.constraint(equalTo: data.centerXAnchor), hideButton.widthAnchor.constraint(equalToConstant: min(view.frame.width, view.frame.height) / constants.dividerForButton), hideButton.heightAnchor.constraint(equalTo: hideButton.widthAnchor), hideButton.bottomAnchor.constraint(equalTo: data.layoutMarginsGuide.bottomAnchor)]
         NSLayoutConstraint.activate(titleLabelConstraints + playerDataConstraints + hideButtonConstraints + wheelConstraints)
         return data
@@ -2366,18 +2368,9 @@ class GameViewController: UIViewController {
     }
     
     private func makeLoadingSpinner() {
-        loadingSpinner = UIImageView()
-        loadingSpinner.defaultSettings()
-        loadingSpinner.backgroundColor = loadingSpinner.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let figureName = traitCollection.userInterfaceStyle == .dark ? "white_king" : "black_king"
-        let spinner = UIImageView()
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        spinner.contentMode = .scaleAspectFit
-        spinner.image = UIImage(named: "figuresThemes/defaultTheme/\(figureName)")
-        spinner.rotate360Degrees(duration: constants.speedForSpinner)
-        loadingSpinner.addSubview(spinner)
+        loadingSpinner = LoadingSpinner()
         scrollContentOfGame.addSubview(loadingSpinner)
-        let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: gameBoard.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: gameBoard.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: gameBoard.widthAnchor, multiplier: constants.sizeMultiplierForSpinnerView), loadingSpinner.heightAnchor.constraint(equalTo: gameBoard.heightAnchor, multiplier: constants.sizeMultiplierForSpinnerView), spinner.widthAnchor.constraint(equalTo: loadingSpinner.widthAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.heightAnchor.constraint(equalTo: loadingSpinner.heightAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.centerXAnchor.constraint(equalTo: loadingSpinner.centerXAnchor), spinner.centerYAnchor.constraint(equalTo: loadingSpinner.centerYAnchor)]
+        let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: gameBoard.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: gameBoard.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: gameBoard.widthAnchor, multiplier: constants.sizeMultiplierForSpinnerView), loadingSpinner.heightAnchor.constraint(equalTo: gameBoard.heightAnchor, multiplier: constants.sizeMultiplierForSpinnerView)]
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
@@ -2423,7 +2416,7 @@ private struct GameVC_Constants {
     static let intervalForPointsAnimation = 0.1
     static let muttiplierForIntervalForPointsAnimation = 1.8
     static let pointsAnimationStep = 1
-    static let dividerForCurrentPlayerAvatar = 3.0
+    static let dividerForPlayerAvatar = 3.0
     static let dividerForEndDataDistance = 2.0
     static let dividerForButton = 6.0
     static let distanceAfterWheel: CGFloat = 80
@@ -2437,9 +2430,7 @@ private struct GameVC_Constants {
     static let checkmateNotation = "#"
     static let checkNotation = "+"
     static let figureEatenNotation = "x"
-    static let sizeMultiplierForSpinner = 0.6
     static let sizeMultiplierForSpinnerView = 0.8
-    static let speedForSpinner = 1.0
     static let distanceToFitTurnsViewInLandscape = 100.0
     static let distanceForGameInfoInTurnsView = 2.0
     static let topDistanceForTurnsScrollView = 5.0

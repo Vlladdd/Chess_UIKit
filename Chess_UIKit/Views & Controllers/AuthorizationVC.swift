@@ -15,6 +15,7 @@ class AuthorizationVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         makeUI()
+        configureKeyboardToHideWhenTappedAround()
     }
     
     // MARK: - Properties
@@ -56,7 +57,10 @@ class AuthorizationVC: UIViewController {
             let mainMenuVC = MainMenuVC()
             mainMenuVC.currentUser = user
             mainMenuVC.modalPresentationStyle = .fullScreen
-            present(mainMenuVC, animated: false)
+            present(mainMenuVC, animated: false) {[weak self] in
+                self?.loadingSpinner.removeFromSuperview()
+                self?.dataFieldsStack.isHidden.toggle()
+            }
             return
         }
         else {
@@ -80,7 +84,7 @@ class AuthorizationVC: UIViewController {
     private let dataFieldsStack = UIStackView()
     private let emailField = UITextField()
     private let passwordField = UITextField()
-    private var loadingSpinner = UIImageView()
+    private var loadingSpinner = LoadingSpinner()
     
     // MARK: - UI Methods
     
@@ -110,8 +114,8 @@ class AuthorizationVC: UIViewController {
         dataFieldsStack.layoutMargins = UIEdgeInsets(top: constants.optimalDistanceFromEdgesInStack, left: constants.optimalDistanceFromEdgesInStack, bottom: constants.optimalDistanceFromEdgesInStack, right: constants.optimalDistanceFromEdgesInStack)
         dataFieldsStack.isLayoutMarginsRelativeArrangement = true
         dataFieldsStack.backgroundColor = dataFieldsStack.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let nicknameLabel = UILabel()
-        nicknameLabel.setup(text: "Email", alignment: .center, font: font)
+        let emailLabel = UILabel()
+        emailLabel.setup(text: "Email", alignment: .center, font: font)
         let passwordLabel = UILabel()
         passwordLabel.setup(text: "Password", alignment: .center, font: font)
         let createButton = UIButton(type: .system)
@@ -120,7 +124,7 @@ class AuthorizationVC: UIViewController {
         loginButton.buttonWith(text: "Login", font: font, and: #selector(login))
         emailField.setup(placeholder: "Enter email", font: font)
         passwordField.setup(placeholder: "Enter password", font: font)
-        dataFieldsStack.addArrangedSubview(makeDataLine(with: [nicknameLabel, emailField]))
+        dataFieldsStack.addArrangedSubview(makeDataLine(with: [emailLabel, emailField]))
         dataFieldsStack.addArrangedSubview(makeDataLine(with: [passwordLabel, passwordField]))
         dataFieldsStack.addArrangedSubview(makeDataLine(with: [createButton, loginButton]))
         view.addSubview(dataFieldsStack)
@@ -137,18 +141,9 @@ class AuthorizationVC: UIViewController {
     
     //makes spinner, while waiting for response
     private func makeLoadingSpinner() {
-        loadingSpinner = UIImageView()
-        loadingSpinner.defaultSettings()
-        loadingSpinner.backgroundColor = loadingSpinner.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let figureName = traitCollection.userInterfaceStyle == .dark ? "white_king" : "black_king"
-        let spinner = UIImageView()
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        spinner.contentMode = .scaleAspectFit
-        spinner.image = UIImage(named: "figuresThemes/defaultTheme/\(figureName)")
-        spinner.rotate360Degrees(duration: constants.speedForSpinner)
-        loadingSpinner.addSubview(spinner)
+        loadingSpinner = LoadingSpinner()
         view.addSubview(loadingSpinner)
-        let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: dataFieldsStack.widthAnchor), loadingSpinner.heightAnchor.constraint(equalTo: dataFieldsStack.heightAnchor), spinner.widthAnchor.constraint(equalTo: loadingSpinner.widthAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.heightAnchor.constraint(equalTo: loadingSpinner.heightAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.centerXAnchor.constraint(equalTo: loadingSpinner.centerXAnchor), spinner.centerYAnchor.constraint(equalTo: loadingSpinner.centerYAnchor)]
+        let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: dataFieldsStack.widthAnchor), loadingSpinner.heightAnchor.constraint(equalTo: dataFieldsStack.heightAnchor)]
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
@@ -163,6 +158,4 @@ private struct AuthorizationVC_Constants {
     static let optimalAlpha = 0.5
     static let darkModeBackgroundColor = UIColor.black.withAlphaComponent(optimalAlpha)
     static let lightModeBackgroundColor = UIColor.white.withAlphaComponent(optimalAlpha)
-    static let speedForSpinner = 1.0
-    static let sizeMultiplierForSpinner = 0.6
 }

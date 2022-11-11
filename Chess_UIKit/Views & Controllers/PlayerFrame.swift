@@ -20,6 +20,8 @@ class PlayerFrame: UIView {
     //second background for actual frame
     private let frameBorder = UIImageView()
     private let dataBackgroundView = UIView()
+    private let borderForFrame = CAShapeLayer()
+    private let borderForData = CAShapeLayer()
     
     private var data: UIView!
     private var background: Backgrounds!
@@ -57,6 +59,8 @@ class PlayerFrame: UIView {
     }
     
     private func setup() {
+        configureBorderLayer(borderForFrame)
+        configureBorderLayer(borderForData)
         if let data = data as? UILabel {
             //for proper animation, when label and his font changing size
             data.contentMode = .scaleAspectFit
@@ -76,7 +80,15 @@ class PlayerFrame: UIView {
         NSLayoutConstraint.activate(constraints)
         frameBackground.layer.mask = backgroundLayer
         frameBorder.layer.mask = frameLayer
+        frameBorder.layer.addSublayer(borderForFrame)
         dataBackgroundView.layer.mask = dataBackgroundLayer
+        dataBackgroundView.layer.addSublayer(borderForData)
+    }
+    
+    private func configureBorderLayer(_ layer: CAShapeLayer) {
+        layer.fillColor = UIColor.clear.cgColor
+        layer.strokeColor = traitCollection.userInterfaceStyle == .dark ? constants.defaultLightModeColorForDataBackground.cgColor : constants.defaultDarkModeColorForDataBackground.cgColor
+        layer.lineWidth = constants.borderWidth
     }
     
     //when switching current player
@@ -96,6 +108,8 @@ class PlayerFrame: UIView {
         backgroundLayer.updatePath(with: dataPath, animated: true, duration: constants.animationDuration)
         dataBackgroundLayer.updatePath(with: dataPath, animated: true, duration: constants.animationDuration)
         frameLayer.updatePath(with: framePath, animated: true, duration: constants.animationDuration)
+        borderForFrame.updatePath(with: framePath, animated: true, duration: constants.animationDuration)
+        borderForData.updatePath(with: dataPath, animated: true, duration: constants.animationDuration)
     }
     
 }
@@ -103,6 +117,7 @@ class PlayerFrame: UIView {
 // MARK: - Constants
 
 private struct PlayerFrame_Constants {
+    static let borderWidth: CGFloat = 3
     static let startXInFrame: CGFloat = 0
     static let startYInFrame: CGFloat = 0
     static let dividerForHeightInShape: CGFloat = 2

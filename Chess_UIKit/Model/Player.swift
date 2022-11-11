@@ -30,7 +30,7 @@ struct Player: Equatable, Codable {
     }
     
     enum UserKeys: String, CodingKey {
-        case name, email, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, title
+        case nickname, email, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, title
     }
     
     // MARK: - Inits
@@ -95,7 +95,7 @@ struct Player: Equatable, Codable {
         try container.encode(timeLeft, forKey: .timeLeft)
         try container.encode(destroyedFigures, forKey: .destroyedFigures)
         var additionalInfo = container.nestedContainer(keyedBy: UserKeys.self, forKey: .user)
-        try additionalInfo.encode(user.name, forKey: .name)
+        try additionalInfo.encode(user.nickname, forKey: .nickname)
         try additionalInfo.encode(user.email, forKey: .email)
         try additionalInfo.encode(user.points, forKey: .points)
         try additionalInfo.encode(user.squaresTheme, forKey: .squaresTheme)

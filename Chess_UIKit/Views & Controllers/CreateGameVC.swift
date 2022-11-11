@@ -19,15 +19,6 @@ class CreateGameVC: UIViewController {
     
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        //turns on buttons from main menu on exit
-        for subview in buttonsStack.arrangedSubviews {
-            if let subview = subview.subviews.first as? UIButton {
-                UIView.transition(with: subview, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {
-                    subview.isHighlighted = true
-                    subview.isEnabled = true
-                })
-            }
-        }
         //we are making retain cycle, when attaching our functions to picker, so need to break it
         modePicker.breakRetainCycle()
         timerPicker.breakRetainCycle()
@@ -73,7 +64,7 @@ class CreateGameVC: UIViewController {
         if condition1 && condition2 && colorPicker.pickedData != nil {
             switch modePicker.pickedData! {
             case .oneScreen:
-                let secondUser = User(email: "Player2")
+                let secondUser = User(email: "Player2", nickname: "Player2")
                 var totalTime = 0
                 var additionalTime = 0
                 if timerPicker.pickedData == .yes {
@@ -85,8 +76,9 @@ class CreateGameVC: UIViewController {
                 gameVC.gameLogic = gameLogic
                 gameVC.currentUser = currentUser
                 gameVC.modalPresentationStyle = .fullScreen
-                dismiss(animated: true, completion: nil)
-                presentingViewController?.present(gameVC, animated: true)
+                dismiss(animated: true) {
+                    UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
+                }
             //TODO: -
             case .multiplayer:
                 print(1)
@@ -100,7 +92,7 @@ class CreateGameVC: UIViewController {
     }
     
     @objc private func close(_ sender: UIBarButtonItem? = nil) {
-        dismiss(animated: true, completion: nil)
+        dismiss(animated: true)
     }
     
     // MARK: - Local Methods
@@ -148,8 +140,6 @@ class CreateGameVC: UIViewController {
     // MARK: - UI
     
     // MARK: - UI Properties
-    
-    var buttonsStack: UIStackView!
     
     private lazy var font = UIFont.systemFont(ofSize: min(view.frame.width, view.frame.height) / constants.dividerForFont)
     private lazy var modePicker = Picker(placeholder: "Pick mode", font: font, data: GameModes.allCases, doneAction: doneModePicker)

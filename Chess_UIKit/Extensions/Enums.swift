@@ -97,6 +97,8 @@ enum Colors: String, Codable {
 enum SquaresThemes: String, Codable, CaseIterable, Item {
     case defaultTheme
     
+    static let purchasable: [Self] = SquaresThemes.allCases
+    
     var cost: Int {
         switch self {
         case .defaultTheme:
@@ -127,6 +129,8 @@ enum SquaresThemes: String, Codable, CaseIterable, Item {
 enum FiguresThemes: String, Codable, CaseIterable, Item {
     case defaultTheme
     
+    static let purchasable: [Self] = FiguresThemes.allCases
+    
     var cost: Int {
         switch self {
         case .defaultTheme:
@@ -149,6 +153,8 @@ enum FiguresThemes: String, Codable, CaseIterable, Item {
 
 enum BoardThemes: String, CaseIterable, Codable, Item {
     case defaultTheme
+    
+    static let purchasable: [Self] = BoardThemes.allCases
     
     var cost: Int {
         switch self {
@@ -173,6 +179,8 @@ enum BoardThemes: String, CaseIterable, Codable, Item {
 enum Frames: String, Codable, CaseIterable, Item {
     case defaultFrame
     case ukraineFlag
+    
+    static let purchasable: [Self] = Frames.allCases
     
     var cost: Int {
         switch self {
@@ -201,6 +209,8 @@ enum Frames: String, Codable, CaseIterable, Item {
 enum Backgrounds: String, Codable, CaseIterable, Item {
     case defaultBackground
     
+    static let purchasable: [Self] = Backgrounds.allCases
+    
     var cost: Int {
         switch self {
         case .defaultBackground:
@@ -223,11 +233,16 @@ enum Backgrounds: String, Codable, CaseIterable, Item {
 
 enum Avatars: String, Codable, CaseIterable, Item {
     case defaultAvatar
+    case ukraineFlag
+    
+    static let purchasable: [Self] = Avatars.allCases
     
     var cost: Int {
         switch self {
         case .defaultAvatar:
             return 0
+        case .ukraineFlag:
+            return 300
         }
     }
     
@@ -239,6 +254,8 @@ enum Avatars: String, Codable, CaseIterable, Item {
         switch self {
         case .defaultAvatar:
             return "Just a default avatar, nothing special"
+        case .ukraineFlag:
+            return "Show support to Ukraine with this avatar"
         }
     }
     
@@ -335,7 +352,7 @@ enum Titles: String, Codable, CaseIterable, Item {
     case the_Chosen_One
     case waster
     
-    static let purchachableTitles: [Self] = [.waster]
+    static let purchasable: [Self] = [.waster]
     
     var cost: Int {
         switch self {
@@ -391,6 +408,8 @@ protocol Item {
     var name: String { get }
     var cost: Int { get }
     var description: String { get }
+    
+    static var purchasable: [Self] { get }
 }
 
 extension Item where Self: RawRepresentable, Self.RawValue == String {

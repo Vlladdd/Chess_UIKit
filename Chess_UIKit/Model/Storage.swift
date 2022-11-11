@@ -66,6 +66,38 @@ struct Storage {
         }
     }
     
+    func exitFromAccount() {
+        do {
+            try Auth.auth().signOut()
+        }
+        catch {
+            print(error.localizedDescription)
+        }
+    }
+    
+    func updateUserAccount(with email: String, and password: String, callback:  @escaping (Error?) -> Void) {
+        Auth.auth().currentUser?.updateEmail(to: email, completion: { error in
+            guard error == nil else {
+                print(error!.localizedDescription)
+                callback(error)
+                return
+            }
+            if !password.isEmpty {
+                Auth.auth().currentUser?.updatePassword(to: password, completion: { error in
+                    guard error == nil else {
+                        print(error!.localizedDescription)
+                        callback(error)
+                        return
+                    }
+                    callback(nil)
+                })
+            }
+            else {
+                callback(nil)
+            }
+        })
+    }
+    
     //we are using uid of the user as child name in users node
     func saveUser(_ user: User) {
         do {

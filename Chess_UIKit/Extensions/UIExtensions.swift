@@ -9,6 +9,37 @@ import UIKit
 
 // MARK: - Some usefull UI Extensions
 
+extension UIViewController {
+    
+    func configureKeyboardToHideWhenTappedAround() {
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
+    }
+    
+    @objc func dismissKeyboard() {
+        view.endEditing(true)
+    }
+    
+}
+
+extension UIApplication {
+
+    class func getTopMostViewController() -> UIViewController? {
+        let keyWindow = UIApplication.shared.windows.filter {$0.isKeyWindow}.first
+        if var topController = keyWindow?.rootViewController {
+            while let presentedViewController = topController.presentedViewController {
+                topController = presentedViewController
+            }
+            return topController
+        }
+        else {
+            return nil
+        }
+    }
+    
+}
+
 extension UIView {
     
     func rotate360Degrees(duration: CFTimeInterval = 3) {
