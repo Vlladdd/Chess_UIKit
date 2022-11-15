@@ -7,7 +7,7 @@
 
 import Foundation
 
-// MARK: - Some usefull extensions
+// MARK: - Some useful extensions
 
 extension Array {
     
@@ -69,4 +69,8 @@ extension Int {
         self * 60
     }
     
+}
+
+extension Item where Self: RawRepresentable, Self.RawValue == String {
+    var name: String { rawValue }
 }

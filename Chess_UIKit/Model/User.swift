@@ -330,4 +330,8 @@ struct User: Codable {
         nickname = newValue
     }
     
+    mutating func updateEmail(newValue: String) {
+        email = newValue
+    }
+    
 }

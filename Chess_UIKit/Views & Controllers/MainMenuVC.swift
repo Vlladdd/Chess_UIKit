@@ -60,16 +60,23 @@ class MainMenuVC: UIViewController {
     
     // MARK: - Buttons Methods
     
-    @objc private func exitFromAccount(_ sender: UIButton? = nil) {
+    @objc private func signOut(_ sender: UIButton? = nil) {
         let exitAlert = UIAlertController(title: "Exit", message: "Are you sure?", preferredStyle: .alert)
         exitAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
             if let self = self {
-                self.storage.exitFromAccount()
-                self.dismiss(animated: true)
+                self.storage.signOut()
+                if self.presentedViewController != nil {
+                    self.dismiss(animated: true) {
+                        self.dismiss(animated: true)
+                    }
+                }
+                else {
+                    self.dismiss(animated: true)
+                }
             }
         }))
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
-        present(exitAlert, animated: true)
+        UIApplication.getTopMostViewController()?.present(exitAlert, animated: true)
     }
     
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
@@ -1079,10 +1086,10 @@ class MainMenuVC: UIViewController {
         userName.setup(text: currentUser.nickname, alignment: .center, font: defaultFont)
         let exitButton = UIButton()
         if #available(iOS 15.0, *) {
-            exitButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right"), and: #selector(exitFromAccount))
+            exitButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right"), and: #selector(signOut))
         }
         else {
-            exitButton.buttonWith(image: UIImage(systemName: "arrow.left.square"), and: #selector(exitFromAccount))
+            exitButton.buttonWith(image: UIImage(systemName: "arrow.left.square"), and: #selector(signOut))
         }
         userData.addArrangedSubviews([userAvatar, userName, exitButton])
         var userDataConstraints = [NSLayoutConstraint]()

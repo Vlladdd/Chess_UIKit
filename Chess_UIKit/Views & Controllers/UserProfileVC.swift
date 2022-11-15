@@ -32,50 +32,36 @@ class UserProfileVC: UIViewController {
         dismiss(animated: true)
     }
     
-    @objc private func saveUser(_ sender: UIBarButtonItem? = nil) {
-        let alert = UIAlertController(title: "Action completed", message: "Data updated!", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Ok", style: .cancel))
+    @objc private func updateUser(_ sender: UIBarButtonItem? = nil) {
         toggleViews()
         makeLoadingSpinner()
         let nicknameView = nicknameLine.arrangedSubviews.second?.subviews.first as? UITextField ?? nicknameLine.arrangedSubviews.second as? UITextField
-        let email = (emailLine.arrangedSubviews.second as? UITextField)?.text
-        let password = (passwordLine.arrangedSubviews.second as? UITextField)?.text
-        if let nickname = nicknameView?.text, let email = email, let password = password, nickname.count >= constants.minimumSymbolsInData && nickname.count <= constants.maximumSymbolsInData  {
-            storage.updateUserAccount(with: email, and: password, callback: { [weak self] error in
-                if let self = self {
-                    self.toggleViews()
-                    self.loadingSpinner.removeFromSuperview()
-                    guard error == nil else {
-                        alert.title = "Error"
-                        alert.message = error!.localizedDescription
-                        UIApplication.getTopMostViewController()?.present(alert, animated: true)
-                        return
+        if !storage.checkIfGoogleSignIn() {
+            let email = (emailLine.arrangedSubviews.second as? UITextField)?.text
+            let password = (passwordLine.arrangedSubviews.second as? UITextField)?.text
+            if let nickname = nicknameView?.text, let email = email, let password = password, nickname.count >= constants.minimumSymbolsInData && nickname.count <= constants.maximumSymbolsInData  {
+                storage.updateUserAccount(with: email, and: password, callback: { [weak self] error in
+                    if let self = self {
+                        guard error == nil else {
+                            self.updateUserResultAlert(with: "Error", and: error!.localizedDescription)
+                            return
+                        }
+                        self.currentUser.updateEmail(newValue: email)
+                        self.updateNickname(newValue: nickname, nicknameView: nicknameView!)
                     }
-                    self.currentUser.updateNickname(newValue: nickname)
-                    self.storage.saveUser(self.currentUser)
-                    if let mainMenuVC = self.presentingViewController as? MainMenuVC {
-                        mainMenuVC.currentUser = self.currentUser
-                        mainMenuVC.updateUserData()
-                        mainMenuVC.removeNotificationIconsIfNeeded()
-                    }
-                    if let viewWithNotif = nicknameView?.superview as? ViewWithNotifIcon {
-                        viewWithNotif.removeNotificationIcon()
-                    }
-                    UIApplication.getTopMostViewController()?.present(alert, animated: true)
-                }
-            })
+                })
+            }
+            else {
+                updateUserResultAlert(with: "Error", and: "Nickname must be longer than \(constants.minimumSymbolsInData - 1) and less than \(constants.maximumSymbolsInData + 1)")
+            }
         }
-        else {
-            toggleViews()
-            loadingSpinner.removeFromSuperview()
-            alert.title = "Error"
-            alert.message = "Nickname must be longer than \(constants.minimumSymbolsInData - 1) and less than \(constants.maximumSymbolsInData + 1)"
-            present(alert, animated: true)
+        else if let nickname = nicknameView?.text {
+            updateNickname(newValue: nickname, nicknameView: nicknameView!)
         }
     }
     
     @objc private func toggleAvatars(_ sender: UITapGestureRecognizer? = nil) {
-        saveButton.isEnabled.toggle()
+        updateButton.isEnabled.toggle()
         if avatarsScrollView.alpha == 0 {
             userAvatar.layer.borderColor = constants.pickItemBorderColor
             switchCurrentViews(viewsToExit: [dataScrollView], viewsToEnter: [avatarsScrollView, avatarInfoScrollView], xForAnimation: view.frame.width)
@@ -122,6 +108,28 @@ class UserProfileVC: UIViewController {
     
     // MARK: - Local Methods
     
+    private func updateNickname(newValue: String, nicknameView: UIView) {
+        currentUser.updateNickname(newValue: newValue)
+        storage.saveUser(currentUser)
+        if let mainMenuVC = presentingViewController as? MainMenuVC {
+            mainMenuVC.currentUser = currentUser
+            mainMenuVC.updateUserData()
+            mainMenuVC.removeNotificationIconsIfNeeded()
+        }
+        if let viewWithNotif = nicknameView.superview as? ViewWithNotifIcon {
+            viewWithNotif.removeNotificationIcon()
+        }
+        updateUserResultAlert(with: "Action completed", and: "Data updated!")
+    }
+    
+    private func updateUserResultAlert(with title: String, and message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Ok", style: .default))
+        UIApplication.getTopMostViewController()?.present(alert, animated: true)
+        loadingSpinner.removeFromSuperview()
+        toggleViews()
+    }
+    
     //when we add/remove loading spinner
     private func toggleViews() {
         toolbar.isHidden.toggle()
@@ -133,13 +141,26 @@ class UserProfileVC: UIViewController {
         for avatarView in avatarsLine.arrangedSubviews {
             if let viewWithNotif = avatarView as? ViewWithNotifIcon {
                 viewWithNotif.mainView.layer.borderColor = defaultTextColor.cgColor
-                viewWithNotif.mainView.subviews.first?.backgroundColor = defaultBackgroundColor
+                viewWithNotif.mainView.subviews.first?.backgroundColor = getColorForAvatar(from: viewWithNotif.mainView)
             }
             else {
                 avatarView.layer.borderColor = defaultTextColor.cgColor
-                avatarView.subviews.first?.backgroundColor = defaultBackgroundColor
+                avatarView.subviews.first?.backgroundColor = getColorForAvatar(from: avatarView)
             }
         }
+    }
+    
+    private func getColorForAvatar(from avatarView: UIView) -> UIColor {
+        var color = defaultBackgroundColor
+        if let avatar = avatarView.layer.value(forKey: constants.keyForAvatar) as? Avatars {
+            if avatar == currentUser.playerAvatar {
+                color = constants.chosenItemColor
+            }
+            else if !currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
+                color = constants.notAvailableColor
+            }
+        }
+        return color
     }
     
     //toggles avatarsView/dataFieldsStack
@@ -189,7 +210,7 @@ class UserProfileVC: UIViewController {
     private var nicknameLine = UIStackView()
     private var emailLine = UIStackView()
     private var passwordLine = UIStackView()
-    private var saveButton = UIBarButtonItem()
+    private var updateButton = UIBarButtonItem()
     
     // MARK: - UI Methods
     
@@ -221,9 +242,15 @@ class UserProfileVC: UIViewController {
     private func makeDataFields() {
         dataFieldsStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         nicknameLine = makeLine(with: "Nickname", textFieldPlaceholder: "Enter new nickname", textFieldText: currentUser.nickname)
-        emailLine = makeLine(with: "Email", textFieldPlaceholder: "Enter new email", textFieldText: currentUser.email)
-        passwordLine = makeLine(with: "Password", textFieldPlaceholder: "Enter new password", textFieldText: nil)
-        dataFieldsStack.addArrangedSubviews([nicknameLine, emailLine, passwordLine])
+        if storage.checkIfGoogleSignIn() {
+            emailLine = makeLine(with: "Email", labelData: currentUser.email)
+            dataFieldsStack.addArrangedSubviews([nicknameLine, emailLine])
+        }
+        else {
+            emailLine = makeLine(with: "Email", textFieldPlaceholder: "Enter new email", textFieldText: currentUser.email)
+            passwordLine = makeLine(with: "Password", textFieldPlaceholder: "Enter new password", textFieldText: nil)
+            dataFieldsStack.addArrangedSubviews([nicknameLine, emailLine, passwordLine])
+        }
         if currentUser.nickname.isEmpty {
             let field = nicknameLine.arrangedSubviews.second!
             let nicknameView = ViewWithNotifIcon(mainView: field, cornerRadius: fontSize / constants.minimumDividerForCornerRadius)
@@ -266,15 +293,9 @@ class UserProfileVC: UIViewController {
             avatarView.layer.setValue(avatar, forKey: constants.keyForAvatar)
             avatarView.addGestureRecognizer(tapGesture)
             avatarView.addSubview(backgroundView)
-            if avatar == currentUser.playerAvatar {
+            backgroundView.backgroundColor = getColorForAvatar(from: avatarView)
+            if currentUser.playerAvatar == avatar {
                 avatarView.layer.borderColor = constants.pickItemBorderColor
-                backgroundView.backgroundColor = constants.chosenItemColor
-            }
-            else if !currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
-                backgroundView.backgroundColor = constants.notAvailableColor
-            }
-            else {
-                backgroundView.backgroundColor = defaultBackgroundColor
             }
             let avatarViewConstraints = [avatarView.heightAnchor.constraint(equalTo: avatarView.widthAnchor), backgroundView.heightAnchor.constraint(equalTo: avatarView.heightAnchor), backgroundView.widthAnchor.constraint(equalTo: avatarView.widthAnchor), backgroundView.centerXAnchor.constraint(equalTo: avatarView.centerXAnchor), backgroundView.centerYAnchor.constraint(equalTo: avatarView.centerYAnchor)]
             if currentUser.containsNewItemIn(items: [avatar]) {
@@ -327,6 +348,29 @@ class UserProfileVC: UIViewController {
         return line
     }
     
+    private func makeLine(with labelName: String, labelData: String) -> UIStackView {
+        let line = UIStackView()
+        line.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        let lineName = UILabel()
+        lineName.setup(text: labelName, alignment: .center, font: defaultFont)
+        let lineDataScrollView = UIScrollView()
+        lineDataScrollView.translatesAutoresizingMaskIntoConstraints = false
+        lineDataScrollView.delaysContentTouches = false
+        let lineData = UILabel()
+        lineData.setup(text: labelData, alignment: .center, font: defaultFont)
+        lineDataScrollView.addSubview(lineData)
+        let widthConstraintForLineData = lineData.widthAnchor.constraint(equalTo: lineDataScrollView.widthAnchor)
+        widthConstraintForLineData.priority = .defaultLow
+        let centerXConstraintForLineData = lineData.centerXAnchor.constraint(equalTo: lineDataScrollView.centerXAnchor)
+        centerXConstraintForLineData.priority = .defaultLow
+        let centerYConstraintForLineData = lineData.centerYAnchor.constraint(equalTo: lineDataScrollView.centerYAnchor)
+        centerYConstraintForLineData.priority = .defaultLow
+        let lineDataConstraints = [lineData.leadingAnchor.constraint(equalTo: lineDataScrollView.leadingAnchor), lineData.trailingAnchor.constraint(equalTo: lineDataScrollView.trailingAnchor), lineData.topAnchor.constraint(equalTo: lineDataScrollView.topAnchor), lineData.bottomAnchor.constraint(equalTo: lineDataScrollView.bottomAnchor), lineData.heightAnchor.constraint(equalTo: lineDataScrollView.heightAnchor), widthConstraintForLineData, centerXConstraintForLineData, centerYConstraintForLineData]
+        NSLayoutConstraint.activate(lineDataConstraints)
+        line.addArrangedSubviews([lineName, lineDataScrollView])
+        return line
+    }
+    
     private func makeToolBar() {
         let toolbarBackgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         let toolbarBackground = toolbarBackgroundColor.image()
@@ -338,8 +382,8 @@ class UserProfileVC: UIViewController {
         toolbar.sizeToFit()
         let closeButton = UIBarButtonItem(title: "Close", style: UIBarButtonItem.Style.plain, target: self, action: #selector(close))
         let spaceButton = UIBarButtonItem(barButtonSystemItem: UIBarButtonItem.SystemItem.flexibleSpace, target: nil, action: nil)
-        saveButton = UIBarButtonItem(title: "Update", style: UIBarButtonItem.Style.done, target: self, action: #selector(saveUser))
-        toolbar.setItems([closeButton, spaceButton, saveButton], animated: false)
+        updateButton = UIBarButtonItem(title: "Update", style: UIBarButtonItem.Style.done, target: self, action: #selector(updateUser))
+        toolbar.setItems([closeButton, spaceButton, updateButton], animated: false)
         toolbar.isUserInteractionEnabled = true
         view.addSubview(toolbar)
         let toolbarConstraints = [toolbar.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor), toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor), toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor)]

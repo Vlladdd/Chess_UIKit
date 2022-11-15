@@ -29,7 +29,7 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     
     // MARK: - Button Methods
     
-    @objc func donePicker(_ sender: UIBarButtonItem? = nil) {
+    @objc private func donePicker(_ sender: UIBarButtonItem? = nil) {
         resignFirstResponder()
         pickedData = pickedData == nil ? data.first : pickedData
         textView.text = pickedData?.rawValue
@@ -37,7 +37,7 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
         doneAction?()
     }
     
-    @objc func cancelPicker(_ sender: UIBarButtonItem? = nil) {
+    @objc private func cancelPicker(_ sender: UIBarButtonItem? = nil) {
         resignFirstResponder()
         cancelAction?()
     }

@@ -15,7 +15,7 @@ class GameInfoTable: UITableView, UITableViewDelegate, UITableViewDataSource {
     private var data: [Int: [String]] = [:]
     private var dataFont: UIFont!
     
-    typealias constants = GameInfoTable_Constants
+    private typealias constants = GameInfoTable_Constants
     
     // MARK: - Inits
     
@@ -83,7 +83,7 @@ class GameInfoTable: UITableView, UITableViewDelegate, UITableViewDataSource {
 
 // MARK: - Constants
 
-struct GameInfoTable_Constants {
+private struct GameInfoTable_Constants {
     static let optimalAlpha = 0.5
     static let multiplayerForHeaderLabelHeight = 0.8
     static let multiplayerForHeaderFont = 1.5

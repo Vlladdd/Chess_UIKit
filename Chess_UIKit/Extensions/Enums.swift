@@ -402,16 +402,3 @@ enum ItemTypes: String, CaseIterable {
     case title
     case avatar
 }
-
-protocol Item {
-    var type: ItemTypes { get }
-    var name: String { get }
-    var cost: Int { get }
-    var description: String { get }
-    
-    static var purchasable: [Self] { get }
-}
-
-extension Item where Self: RawRepresentable, Self.RawValue == String {
-    var name: String { rawValue }
-}

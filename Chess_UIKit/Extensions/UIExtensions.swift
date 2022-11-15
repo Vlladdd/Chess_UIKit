@@ -7,7 +7,7 @@
 
 import UIKit
 
-// MARK: - Some usefull UI Extensions
+// MARK: - Some useful UI extensions
 
 extension UIViewController {
     
@@ -17,8 +17,24 @@ extension UIViewController {
         view.addGestureRecognizer(tap)
     }
     
-    @objc func dismissKeyboard() {
+    @objc private func dismissKeyboard() {
         view.endEditing(true)
+    }
+    
+    func showTextInputPrompt(withMessage message: String, completionBlock: @escaping ((Bool, String?) -> Void)) {
+        let prompt = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            completionBlock(false, nil)
+        }
+        weak var weakPrompt = prompt
+        let okAction = UIAlertAction(title: "OK", style: .default) { _ in
+            guard let text = weakPrompt?.textFields?.first?.text else { return }
+            completionBlock(true, text)
+        }
+        prompt.addTextField(configurationHandler: nil)
+        prompt.addAction(cancelAction)
+        prompt.addAction(okAction)
+        present(prompt, animated: true, completion: nil)
     }
     
 }
@@ -28,7 +44,7 @@ extension UIApplication {
     class func getTopMostViewController() -> UIViewController? {
         let keyWindow = UIApplication.shared.windows.filter {$0.isKeyWindow}.first
         if var topController = keyWindow?.rootViewController {
-            while let presentedViewController = topController.presentedViewController {
+            while let presentedViewController = topController.presentedViewController, !presentedViewController.isBeingDismissed {
                 topController = presentedViewController
             }
             return topController

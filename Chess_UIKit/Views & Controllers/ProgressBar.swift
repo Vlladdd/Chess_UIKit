@@ -71,7 +71,7 @@ class ProgressBar: UIView {
 
 // MARK: - Constants
 
-struct ProgressBar_Constants {
+private struct ProgressBar_Constants {
     static let defaultProgressColor = UIColor.gray
     static let defaultProgressValue = 0.0
     static let multiplierForCornerRadius = 0.25
