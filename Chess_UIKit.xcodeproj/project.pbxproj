@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		74027DD3285B92CA00806401 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74027DD2285B92CA00806401 /* Player.swift */; };
+		740B00A6292A479200D488B4 /* Starscream in Frameworks */ = {isa = PBXBuildFile; productRef = 740B00A5292A479200D488B4 /* Starscream */; };
 		741394892856555900159033 /* GameLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 741394882856555900159033 /* GameLogic.swift */; };
 		7413948B2856563300159033 /* Square.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948A2856563300159033 /* Square.swift */; };
 		7413948D2856566500159033 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413948C2856566500159033 /* Enums.swift */; };
@@ -45,6 +46,7 @@
 		7475D29328CA643100F9C97B /* AuthorizationVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7475D29228CA643100F9C97B /* AuthorizationVC.swift */; };
 		7483B516285754B100BF3447 /* UIExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7483B515285754B100BF3447 /* UIExtensions.swift */; };
 		7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7489B0CB28D205B8002311BF /* MainMenuButton.swift */; };
+		749B6309292C11F20045B718 /* PlayerMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 749B6308292C11F20045B718 /* PlayerMessage.swift */; };
 		74B2CED328CD14510002D075 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B2CED228CD14510002D075 /* User.swift */; };
 		74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */; };
 		74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F5102C291D5A40000689F2 /* LoadingSpinner.swift */; };
@@ -85,6 +87,7 @@
 		7475D29228CA643100F9C97B /* AuthorizationVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationVC.swift; sourceTree = "<group>"; };
 		7483B515285754B100BF3447 /* UIExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIExtensions.swift; sourceTree = "<group>"; };
 		7489B0CB28D205B8002311BF /* MainMenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuButton.swift; sourceTree = "<group>"; };
+		749B6308292C11F20045B718 /* PlayerMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerMessage.swift; sourceTree = "<group>"; };
 		74B2CED228CD14510002D075 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		74F5102C291D5A40000689F2 /* LoadingSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingSpinner.swift; sourceTree = "<group>"; };
@@ -95,6 +98,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				740B00A6292A479200D488B4 /* Starscream in Frameworks */,
 				74289912291EA571001523EF /* GoogleSignIn in Frameworks */,
 				745D1C7528CB5C52001E25D3 /* FirebaseDatabase in Frameworks */,
 				745D1C7128CB5C52001E25D3 /* FirebaseAnalytics in Frameworks */,
@@ -174,6 +178,7 @@
 			isa = PBXGroup;
 			children = (
 				741394882856555900159033 /* GameLogic.swift */,
+				749B6308292C11F20045B718 /* PlayerMessage.swift */,
 				74700157285B49CB00CB7692 /* Turn.swift */,
 				7413948E28565EEB00159033 /* GameBoard.swift */,
 				74610B7C286B27510081EDF9 /* SquaresTheme.swift */,
@@ -221,6 +226,7 @@
 				745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */,
 				74289911291EA571001523EF /* GoogleSignIn */,
 				74289913291EA571001523EF /* GoogleSignInSwift */,
+				740B00A5292A479200D488B4 /* Starscream */,
 			);
 			productName = Chess_UIKit;
 			productReference = 74613E6C285649BB00FF1EF2 /* Chess_UIKit.app */;
@@ -253,6 +259,7 @@
 			packageReferences = (
 				745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				74289910291EA571001523EF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				740B00A4292A479200D488B4 /* XCRemoteSwiftPackageReference "Starscream" */,
 			);
 			productRefGroup = 74613E6D285649BB00FF1EF2 /* Products */;
 			projectDirPath = "";
@@ -288,6 +295,7 @@
 				74027DD3285B92CA00806401 /* Player.swift in Sources */,
 				7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */,
 				7467A6912874553F00B7504A /* SegmentData.swift in Sources */,
+				749B6309292C11F20045B718 /* PlayerMessage.swift in Sources */,
 				74613E74285649BB00FF1EF2 /* GameViewController.swift in Sources */,
 				7483B516285754B100BF3447 /* UIExtensions.swift in Sources */,
 				745CC22D29231CDF00CDFA10 /* ProtocolsExtensions.swift in Sources */,
@@ -524,6 +532,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		740B00A4292A479200D488B4 /* XCRemoteSwiftPackageReference "Starscream" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/daltoniam/Starscream.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.0;
+			};
+		};
 		74289910291EA571001523EF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
@@ -543,6 +559,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		740B00A5292A479200D488B4 /* Starscream */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 740B00A4292A479200D488B4 /* XCRemoteSwiftPackageReference "Starscream" */;
+			productName = Starscream;
+		};
 		74289911291EA571001523EF /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 74289910291EA571001523EF /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;

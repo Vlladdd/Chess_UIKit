@@ -42,7 +42,7 @@ extension UIViewController {
 extension UIApplication {
 
     class func getTopMostViewController() -> UIViewController? {
-        let keyWindow = UIApplication.shared.windows.filter {$0.isKeyWindow}.first
+        let keyWindow = UIApplication.shared.windows.filter{$0.isKeyWindow}.first
         if var topController = keyWindow?.rootViewController {
             while let presentedViewController = topController.presentedViewController, !presentedViewController.isBeingDismissed {
                 topController = presentedViewController

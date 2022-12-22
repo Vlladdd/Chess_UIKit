@@ -24,6 +24,9 @@ struct User: Codable {
     private(set) var coins: Int = 0
     private(set) var points: Int = 0 {
         didSet {
+            if points < 0 {
+                points = 0
+            }
             rank = getRank(from: points)
         }
     }
@@ -332,6 +335,10 @@ struct User: Codable {
     
     mutating func updateEmail(newValue: String) {
         email = newValue
+    }
+    
+    mutating func updatePoints(newValue: Int) {
+        points = newValue
     }
     
 }

@@ -53,6 +53,7 @@ class ProgressBar: UIView {
     // MARK: - Methods
 
     private func setup() {
+        translatesAutoresizingMaskIntoConstraints = false
         layer.addSublayer(progressLayer)
         layer.mask = backgroundMask
     }
@@ -61,7 +62,7 @@ class ProgressBar: UIView {
 
     override func draw(_ rect: CGRect) {
         let newPath = UIBezierPath(roundedRect: rect, cornerRadius: rect.height * constants.multiplierForCornerRadius).cgPath
-        backgroundMask.updatePath(with: newPath, animated: true)
+        backgroundMask.updatePath(with: newPath, animated: true, duration: constants.animationDuration)
         let progressRect = CGRect(origin: .zero, size: CGSize(width: rect.width * progress, height: rect.height))
         progressLayer.frame = progressRect
         progressLayer.backgroundColor = progressColor.cgColor
@@ -75,4 +76,5 @@ private struct ProgressBar_Constants {
     static let defaultProgressColor = UIColor.gray
     static let defaultProgressValue = 0.0
     static let multiplierForCornerRadius = 0.25
+    static let animationDuration = 0.5
 }

@@ -6,15 +6,86 @@
 //
 
 import UIKit
+import Starscream
 
 //VC that represents main menu view
-class MainMenuVC: UIViewController {
+class MainMenuVC: UIViewController, WebSocketDelegate {
+    
+    // MARK: - WebSocketDelegate
+    
+    var socket: Starscream.WebSocket!
+    
+    var isConnected = false {
+        didSet {
+            if !isConnected {
+                pingTimer?.invalidate()
+            }
+        }
+    }
+    
+    private func connectToWebSocketServer() {
+        var request = URLRequest(url: URL(string: constants.websocketAddress)!)
+        request.timeoutInterval = constants.requestTimeout
+        socket = WebSocket(request: request)
+        socket.delegate = self
+        socket.connect()
+    }
+    
+    func didReceive(event: WebSocketEvent, client: WebSocket) {
+        switch event {
+        case .connected(let headers):
+            isConnected = true
+            print("websocket is connected: \(headers)")
+            socket.write(string: currentUser.email + Date().toStringDateHMS + "MainMenuVC")
+            if !(pingTimer?.isValid ?? false) {
+                pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
+                    if let jsonData = try? JSONEncoder().encode("Hello") {
+                        self?.socket.write(ping: jsonData)
+                    }
+                })
+            }
+        case .disconnected(let reason, let code):
+            isConnected = false
+            print("websocket is disconnected: \(reason) with code: \(code)")
+        case .text(let string):
+            print("Received text: \(string)")
+        case .binary(let data):
+            print("Received data: \(data.count)")
+        case .ping(_):
+            break
+        case .pong(_):
+            break
+        case .viabilityChanged(_):
+            break
+        case .reconnectSuggested(_):
+            break
+        case .cancelled:
+            isConnected = false
+            break
+        case .error(let error):
+            isConnected = false
+            handleWebSocketError(error)
+        }
+    }
+    
+    private func handleWebSocketError(_ error: Error?) {
+        if let error = error as? WSError {
+            makeErrorAlert(with: "websocket encountered an error: \(error.message)")
+        }
+        else if let error = error {
+            makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)")
+        }
+        else {
+            makeErrorAlert(with: "websocket encountered an error")
+        }
+    }
     
     // MARK: - View Functions
     
     override func viewDidLoad() {
         super.viewDidLoad()
         makeUI()
+        connectToWebSocketServer()
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -31,22 +102,41 @@ class MainMenuVC: UIViewController {
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         if presentedViewController == nil {
-            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                if let self = self {
-                    for button in self.buttonsStack.arrangedSubviews {
-                        if let viewWithNotif = button as? ViewWithNotifIcon {
-                            if let frame = viewWithNotif.mainView.subviews.first(where: {$0 as? PlayerFrame != nil}) {
-                                frame.setNeedsDisplay()
-                            }
-                        }
-                        else {
-                            if let frame = button.subviews.first(where: {$0 as? PlayerFrame != nil}) {
-                                frame.setNeedsDisplay()
-                            }
-                        }
+            for button in buttonsStack.arrangedSubviews {
+                if let viewWithNotif = button as? ViewWithNotifIcon {
+                    if let frame = viewWithNotif.mainView.subviews.first(where: {$0 as? PlayerFrame != nil}) {
+                        frame.setNeedsDisplay()
                     }
                 }
-            })
+                else {
+                    if let frame = button.subviews.first(where: {$0 as? PlayerFrame != nil}) {
+                        frame.setNeedsDisplay()
+                    }
+                }
+            }
+        }
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        socket.delegate = self
+        //if user disconnected from last game, we need to take into account points from that game
+        if let lastGame = currentUser.games.last {
+            if lastGame.winner == nil && !lastGame.gameEnded && lastGame.gameMode == .multiplayer {
+                if lastGame.players.first?.user.points == currentUser.points {
+                    lastGame.surrender(for: .player1)
+                    currentUser.addPoints(lastGame.players.first!.pointsForGame)
+                    storage.saveUser(currentUser)
+                    makeErrorAlert(with: "You lost last game")
+                }
+            }
+        }
+    }
+    
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if UIApplication.getTopMostViewController() as? AuthorizationVC != nil {
+            pingTimer?.invalidate()
         }
     }
     
@@ -57,6 +147,9 @@ class MainMenuVC: UIViewController {
     private let storage = Storage()
     
     var currentUser: User!
+    
+    //checks connection to the server
+    private var pingTimer: Timer?
     
     // MARK: - Buttons Methods
     
@@ -80,6 +173,7 @@ class MainMenuVC: UIViewController {
     }
     
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
+        storage.removeMultiplayerGamesObservers()
         let createButton = makeMainMenuButtonView(with: UIImage(named: "misc/createButtonBG"), buttonImage: nil, buttontext: "Create", and: #selector(showCreateGameVC))
         let joinButton = makeMainMenuButtonView(with: UIImage(named: "misc/joinButtonBG"), buttonImage: nil, buttontext: "Join", and: #selector(makeMultiplayerGamesList))
         let loadButton = makeMainMenuButtonView(with: UIImage(named: "misc/loadButtonBG"), buttonImage: nil, buttontext: "Load", and: #selector(makeUserGamesList))
@@ -316,19 +410,36 @@ class MainMenuVC: UIViewController {
     
     //creates games for load, if they ended or in oneScreen mode
     @objc private func makeUserGamesList(_ sender: UIButton? = nil) {
-        let backButton = makeMainMenuButtonView(with: UIImage(systemName: "arrow.left"), buttonImage: nil, buttontext: "Back", and: #selector(makeGameMenu))
-        makeAdditionalButtons(with: [backButton])
-        updateButtonsStack(with: currentUser.games.sorted(by: {$0.startDate > $1.startDate}).map({makeInfoView(of: $0)}), addBackButton: false, distribution: .fill)
-        animateButtonsStack(reversed: Bool.random(), addAdditionalButtons: true)
+        makeGamesList(with: currentUser.games)
     }
-    
-    //TODO: -
     
     @objc private func makeMultiplayerGamesList(_ sender: UIButton? = nil) {
-        
+        var firstTime = true
+        sender?.isEnabled = false
+        storage.getMultiplayerGames(callback: { [weak self] error, games in
+            if let self = self {
+                sender?.isEnabled = true
+                guard error == nil else {
+                    self.makeErrorAlert(with: error!.localizedDescription)
+                    self.makeGameMenu()
+                    return
+                }
+                if let games = games {
+                    if firstTime {
+                        firstTime = false
+                        self.makeGamesList(with: games)
+                    }
+                    else {
+                        self.updateMultiplayerGamesList(with: games)
+                    }
+                }
+                else {
+                    self.makeErrorAlert(with: "No games available")
+                    self.makeGameMenu()
+                }
+            }
+        })
     }
-    
-    //
     
     //shows/hides additional info about game with animation
     @objc private func toggleGameInfo(_ sender: UIButton? = nil) {
@@ -381,6 +492,31 @@ class MainMenuVC: UIViewController {
     @objc private func loadGame(_ sender: UIButton? = nil) {
         if let sender = sender {
             if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
+                if game.gameMode == .multiplayer {
+                    if isConnected && presentedViewController == nil {
+                        game.addSecondPlayer(user: currentUser)
+                        if let gameJson = try? JSONEncoder().encode(game) {
+                            socket.write(data: gameJson)
+                        }
+                        //opponent on top
+                        game.switchPlayers()
+                        currentUser.addGame(game)
+                        //we are saving game at the start for the case, where game will not be ended and
+                        //to be able to take into account points from that game
+                        //for example, if player will disconnect
+                        storage.saveUser(currentUser)
+                    }
+                    else if !isConnected {
+                        makeErrorAlert(with: "You are not connected to the server, will try to reconnect")
+                        socket.connect()
+                        return
+                    }
+                    else {
+                        makeErrorAlert(with: "Close the pop-up window")
+                        return
+                    }
+                    makeGameMenu()
+                }
                 if let presentedViewController = presentedViewController {
                     presentedViewController.dismiss(animated: true) {[weak self] in
                         self?.makeGameVC(with: game)
@@ -389,6 +525,7 @@ class MainMenuVC: UIViewController {
                 else {
                     makeGameVC(with: game)
                 }
+                storage.removeMultiplayerGamesObservers()
             }
         }
     }
@@ -419,6 +556,42 @@ class MainMenuVC: UIViewController {
     
     // MARK: - Local Methods
     
+    private func makeGamesList(with games: [GameLogic]) {
+        let backButton = makeMainMenuButtonView(with: UIImage(systemName: "arrow.left"), buttonImage: nil, buttontext: "Back", and: #selector(makeGameMenu))
+        makeAdditionalButtons(with: [backButton])
+        updateButtonsStack(with: games.sorted(by: {$0.startDate > $1.startDate}).map({makeInfoView(of: $0)}), addBackButton: false, distribution: .fill)
+        animateButtonsStack(reversed: Bool.random(), addAdditionalButtons: true)
+    }
+    
+    private func updateMultiplayerGamesList(with games: [GameLogic]) {
+        for button in buttonsStack.arrangedSubviews {
+            let loadButton = button.subviews[3].subviews.last!.subviews.last!
+            if let game = loadButton.layer.value(forKey: constants.keyForGame) as? GameLogic {
+                if !games.contains(where: {$0.gameID == game.gameID}) {
+                    UIView.animate(withDuration: constants.animationDuration, animations: {
+                        button.isHidden = true
+                    }) { _ in
+                        button.removeFromSuperview()
+                    }
+                }
+            }
+        }
+        for game in games {
+            if !buttonsStack.arrangedSubviews.contains(where: {
+                let loadButton = $0.subviews[3].subviews.last!.subviews.last!
+                if let gameToCompare = loadButton.layer.value(forKey: constants.keyForGame) as? GameLogic {
+                    return gameToCompare.gameID == game.gameID
+                }
+                return false
+            }) {
+                buttonsStack.addArrangedSubview(makeInfoView(of: game))
+                UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                    self?.view.layoutIfNeeded()
+                })
+            }
+        }
+    }
+    
     //random transition from left or right for view
     private func randomAnimationFor(view: UIView) {
         let sumOperation: (CGFloat, CGFloat) -> CGFloat = {$0 + $1}
@@ -446,6 +619,8 @@ class MainMenuVC: UIViewController {
     //makes view for game creation
     private func makeCreateGameVC() {
         let createGameVC = CreateGameVC()
+        createGameVC.socket = socket
+        createGameVC.isConnected = isConnected
         createGameVC.currentUser = currentUser
         configureSheetController(of: createGameVC)
         present(createGameVC, animated: true)
@@ -454,6 +629,8 @@ class MainMenuVC: UIViewController {
     //makes game view with chosen game
     private func makeGameVC(with game: GameLogic) {
         let gameVC = GameViewController()
+        gameVC.socket = socket
+        gameVC.isConnected = isConnected
         gameVC.currentUser = currentUser
         gameVC.gameLogic = game
         gameVC.modalPresentationStyle = .fullScreen
@@ -469,6 +646,14 @@ class MainMenuVC: UIViewController {
                 sheet.prefersEdgeAttachedInCompactHeight = true
                 sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
             }
+        }
+    }
+    
+    private func makeErrorAlert(with message: String) {
+        let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Ok", style: .default))
+        if let topVC = UIApplication.getTopMostViewController(), topVC as? GameViewController == nil && topVC as? UIAlertController == nil {
+            topVC.present(alert, animated: true)
         }
     }
     
@@ -656,9 +841,14 @@ class MainMenuVC: UIViewController {
     
     private func makeInfoLabel(of game: GameLogic) -> UILabel {
         let gameInfoLabel = UILabel()
-        var gameInfoText = game.players.first!.user.nickname + " " + String(game.players.first!.user.points) + "(" + String(game.players.first!.pointsForGame)
-        gameInfoText += ")" + " " + "vs " + game.players.second!.user.nickname + " " + String(game.players.second!.user.points)
-        gameInfoText += "(" + String(game.players.second!.pointsForGame) + ")"
+        let firstPlayerPointsSign = game.players.first?.pointsForGame ?? -1 > 0 ? "+" : ""
+        let secondPlayerPointsSign = game.players.second?.pointsForGame ?? -1 > 0 ? "+" : ""
+        var gameInfoText = game.players.first!.user.nickname + " " + String(game.players.first!.user.points) + "(" + firstPlayerPointsSign
+        gameInfoText += String(game.players.first!.pointsForGame) + ")" + " " + "vs "
+        if let secondPlayer = game.players.second {
+            gameInfoText += secondPlayer.user.nickname + " " + String(secondPlayer.user.points)
+            gameInfoText += "(" + secondPlayerPointsSign + String(secondPlayer.pointsForGame) + ")"
+        }
         gameInfoLabel.setup(text: gameInfoText, alignment: .center, font: defaultFont)
         return gameInfoLabel
     }
@@ -673,6 +863,7 @@ class MainMenuVC: UIViewController {
         helperButtonsStack.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.spacingForHelperButtons)
         let deleteButton = UIButton()
         deleteButton.buttonWith(image: UIImage(systemName: "trash"), and: #selector(deleteGame))
+        deleteButton.isEnabled = game.gameMode == .oneScreen || game.gameEnded
         let expandButton = UIButton()
         expandButton.buttonWith(image: UIImage(systemName: "menubar.arrow.down.rectangle"), and: #selector(toggleGameInfo))
         let enterButton = UIButton()
@@ -1189,6 +1380,8 @@ private struct MainMenuVC_Constants {
     static let distanceForContentInHorizontalShowcase = 20.0
     static let multiplierForSpecialSquareViewSize = 0.6
     static let pickItemBorderColor = UIColor.yellow.cgColor
+    static let websocketAddress = "http://localhost:1337"
+    static let requestTimeout = 5.0
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

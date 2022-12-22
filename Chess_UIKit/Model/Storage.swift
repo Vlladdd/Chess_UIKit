@@ -158,12 +158,50 @@ struct Storage {
     }
     
     func saveGameForMultiplayer(_ game: GameLogic) {
-        do {
-            try firebaseDatabase.child(constants.keyForMultiplayerGames).child(game.startDate.toStringDateHMS).setValue(from: game)
+        if let gameID = game.gameID {
+            do {
+                try firebaseDatabase.child(constants.keyForMultiplayerGames).child(gameID).setValue(from: game)
+            }
+            catch {
+                print(error.localizedDescription)
+            }
         }
-        catch {
-            print(error.localizedDescription)
-        }
+    }
+    
+    func deleteMultiplayerGame(with gameID: String) {
+        firebaseDatabase.child(constants.keyForMultiplayerGames).child(gameID).removeValue()
+    }
+    
+    //observer, which is looking for available multiplayer games
+    func getMultiplayerGames(callback: @escaping (Error?, [GameLogic]?) -> ()) {
+        let game = firebaseDatabase.child(constants.keyForMultiplayerGames)
+        game.observe(.value, with: { snapshot in
+            if snapshot.exists() {
+                if let games = snapshot.children.allObjects as? [DataSnapshot] {
+                    var findedGames = [GameLogic]()
+                    for game in games {
+                        do {
+                            let findedGame = try game.data(as: GameLogic.self)
+                            findedGames.append(findedGame)
+                        }
+                        catch {
+                            print(error.localizedDescription)
+                            callback(error, nil)
+                            return
+                        }
+                    }
+                    callback(nil, findedGames)
+                    return
+                }
+            }
+            else {
+                callback(nil, nil)
+            }
+        })
+    }
+    
+    func removeMultiplayerGamesObservers() {
+        firebaseDatabase.child(constants.keyForMultiplayerGames).removeAllObservers()
     }
     
     func multifactorAuth(with resolver: MultiFactorResolver, and displayName: String, callback:  @escaping (Error?, String?, PhoneMultiFactorInfo?) -> Void) {

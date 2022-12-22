@@ -16,6 +16,10 @@ struct Square: Equatable, Codable {
     let row: Int
     let color: GameColors
     
+    //useful for multiplayer games
+    private(set) var gameID: String? = nil
+    private(set) var timeLeft: Int? = nil
+    private(set) var time: Date? = nil
     private(set) var figure: Figure?
     
     // MARK: - Methods
@@ -26,6 +30,14 @@ struct Square: Equatable, Codable {
     
     mutating func updateFigure(newValue: Figure? = nil) {
         figure = newValue
+    }
+    
+    mutating func updateTimeLeft(newValue: Int) {
+        timeLeft = newValue
+    }
+    
+    mutating func updateTime(newValue: Date) {
+        time = newValue
     }
     
 }

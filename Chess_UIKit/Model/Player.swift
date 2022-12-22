@@ -16,17 +16,13 @@ struct Player: Equatable, Codable {
     private(set) var pointsForGame = 0
     private(set) var timeLeft: Int
     private(set) var destroyedFigures = [Figure]()
-            
-    let type: GamePlayers
+    private(set) var type: GamePlayers
+    
+    let multiplayerType: MultiplayerPlayerType?
     let figuresColor: GameColors
     
     enum CodingKeys: String, CodingKey {
-        case user
-        case pointsForGame
-        case type
-        case figuresColor
-        case timeLeft
-        case destroyedFigures
+        case user, pointsForGame, type, figuresColor, timeLeft, destroyedFigures, multiplayerType
     }
     
     enum UserKeys: String, CodingKey {
@@ -35,11 +31,12 @@ struct Player: Equatable, Codable {
     
     // MARK: - Inits
     
-    init(user: User, type: GamePlayers, figuresColor: GameColors, timeLeft: Int) {
+    init(user: User, type: GamePlayers, figuresColor: GameColors, timeLeft: Int, multiplayerType: MultiplayerPlayerType? = nil) {
         self.user = user
         self.type = type
         self.figuresColor = figuresColor
         self.timeLeft = timeLeft
+        self.multiplayerType = multiplayerType
     }
     
     //Firebase don`t store empty arrays, that`s why we need custom decoder
@@ -51,6 +48,7 @@ struct Player: Equatable, Codable {
         timeLeft = try values.decode(Int.self, forKey: .timeLeft)
         user = try values.decode(User.self, forKey: .user)
         destroyedFigures = (try? values.decode([Figure].self, forKey: .destroyedFigures)) ?? []
+        multiplayerType = try? values.decode(MultiplayerPlayerType.self, forKey: .multiplayerType)
     }
     
     // MARK: - Methods
@@ -60,12 +58,12 @@ struct Player: Equatable, Codable {
         user.addPoints(pointsForGame)
     }
     
-    mutating func addCoinsToUser(_ coins: Int) {
-        user.addCoins(coins)
-    }
-    
     mutating func updateTimeLeft(newValue: Int) {
         timeLeft = newValue
+    }
+    
+    mutating func updateType(newValue: GamePlayers) {
+        type = newValue
     }
     
     mutating func increaseTimeLeft(with value: Int) {
@@ -94,6 +92,7 @@ struct Player: Equatable, Codable {
         try container.encode(figuresColor, forKey: .figuresColor)
         try container.encode(timeLeft, forKey: .timeLeft)
         try container.encode(destroyedFigures, forKey: .destroyedFigures)
+        try container.encode(multiplayerType, forKey: .multiplayerType)
         var additionalInfo = container.nestedContainer(keyedBy: UserKeys.self, forKey: .user)
         try additionalInfo.encode(user.nickname, forKey: .nickname)
         try additionalInfo.encode(user.email, forKey: .email)

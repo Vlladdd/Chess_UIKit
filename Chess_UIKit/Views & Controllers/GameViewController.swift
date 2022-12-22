@@ -6,9 +6,217 @@
 //
 
 import UIKit
+import Starscream
+import Network
 
 //VC that represents game view
-class GameViewController: UIViewController {
+class GameViewController: UIViewController, WebSocketDelegate {
+    
+    // MARK: - WebSocketDelegate
+    
+    var socket: Starscream.WebSocket!
+    var isConnected = false
+    
+    func didReceive(event: WebSocketEvent, client: WebSocket) {
+        switch event {
+        case .connected(let headers):
+            print("websocket is connected: \(headers)")
+            socket.write(string: currentUser.email + Date().toStringDateHMS + "GameVC")
+            if !finalError {
+                websocketDidConnect()
+            }
+        case .disconnected(let reason, let code):
+            isConnected = false
+            print("websocket is disconnected: \(reason) with code: \(code)")
+            makeErrorAlert(with: "websocket is disconnected: \(reason) with code: \(code)")
+        case .text(let string):
+            print("Received text: \(string)")
+        case .binary(let data):
+            print("Received data: \(data.count)")
+            if let playerMessage = try? JSONDecoder().decode(PlayerMessage.self, from: data) {
+                if playerMessage.gameID == gameLogic.gameID {
+                    websocketDidReceive(playerMessage: playerMessage)
+                }
+            }
+            if let turn = try? JSONDecoder().decode(Turn.self, from: data) {
+                if turn.gameID == gameLogic.gameID {
+                    websocketDidReceive(turn: turn)
+                }
+            }
+            if let square = try? JSONDecoder().decode(Square.self, from: data) {
+                if square.gameID == gameLogic.gameID {
+                    websocketDidReceive(square: square)
+                }
+            }
+        case .ping(_):
+            break
+        case .pong(_):
+            break
+        case .viabilityChanged(_):
+            break
+        case .reconnectSuggested(_):
+            break
+        case .cancelled:
+            isConnected = false
+            break
+        case .error(let error):
+            if !suspendedState {
+                serverError = true
+                needToRequestLastAction = true
+                afkTimer?.invalidate()
+                afkTimer = makeAfkTimer(for: .player1)
+                enemyAfkTimer?.invalidate()
+            }
+            isConnected = false
+            handleWebSocketError(error)
+        }
+    }
+    
+    private func websocketDidConnect() {
+        if serverError {
+            afkTimer?.invalidate()
+            serverError = false
+        }
+        if gameLogic.players.first!.figuresColor == .white {
+            if !(afkTimer?.isValid ?? false) || afkTimer == nil {
+                afkTimer = makeAfkTimer(for: .player1)
+            }
+        }
+        else {
+            if !(enemyAfkTimer?.isValid ?? false) || enemyAfkTimer == nil {
+                enemyAfkTimer = makeAfkTimer(for: .player2)
+            }
+        }
+        if !gameLogic.timerIsValid() && !gameLogic.turns.isEmpty {
+            activatePlayerTime(continueTimer: true)
+        }
+        currentUser.addGame(gameLogic)
+        storage.saveUser(currentUser)
+        isConnected = true
+        reconnectTimer?.fire()
+        //to be sure, that both players are connected
+        //first player is always current user
+        if !needToRequestLastAction && gameLogic.players.first?.multiplayerType == .creator {
+            if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: .creator, player1Ready: true, player2Ready: true)) {
+                socket.write(data: playerMessage)
+            }
+        }
+        //if app was in suspended state for too long, we need to request last turn from opponent
+        else if needToRequestLastAction {
+            if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true)) {
+                socket.write(data: playerMessage)
+            }
+        }
+    }
+    
+    private func websocketDidReceive(playerMessage: PlayerMessage) {
+        if playerMessage.gameEnded && !gameLogic.gameEnded && view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
+            if playerMessage.gameDraw {
+                gameLogic.forceDraw()
+            }
+            else {
+                gameLogic.surrender(for: playerMessage.playerToSurrender)
+            }
+            makeEndOfTheGameView()
+        }
+        else if playerMessage.player1Ready && playerMessage.player2Ready {
+            cancelGameTimer?.invalidate()
+            loadingSpinner.removeFromSuperview()
+            if gameLogic.currentPlayer.multiplayerType == gameLogic.players.first?.multiplayerType {
+                toggleTurnButtons(disable: false)
+            }
+        }
+        else if playerMessage.opponentWantsDraw {
+            let interval = ceil(Date().timeIntervalSince(playerMessage.date))
+            if interval > 0 {
+                opponentWantsDraw = true
+                UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                    self?.surrenderButton.backgroundColor = constants.surrenderButtonHighlightColor
+                })
+                Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw - interval, repeats: false, block: { [weak self] _ in
+                    self?.opponentWantsDraw = false
+                    UIView.animate(withDuration: constants.animationDuration, animations: {
+                        self?.surrenderButton.backgroundColor = constants.surrenderButtonBGColor
+                    })
+                })
+            }
+        }
+    }
+    
+    private func websocketDidReceive(turn: Turn) {
+        //second condition is for pawnTransform, if opponent sent turn, but didn`t pick new figure yet,
+        //cuz when he gonna pick figure and send turn again, that will be 2 different turns, while it shouldn`t
+        if !gameLogic.turns.contains(turn) && (gameLogic.turns.last?.squares != turn.squares || gameLogic.turns.isEmpty) {
+            for square in turn.squares {
+                gameLogic.makeTurn(square: square, turn: turn)
+                updateBoard()
+                toggleTurnButtons(disable: false)
+            }
+            if !gameLogic.pawnWizard {
+                enemyAfkTimer?.invalidate()
+                afkTimer = makeAfkTimer(for: .player1, timeElapsed: Date().timeIntervalSince(turn.time))
+                //to update our chess timer as well
+                if needToRequestLastAction {
+                    restoreFromSuspendedState()
+                }
+            }
+            else if turn.pawnTransform == nil {
+                needToRequestLastAction = false
+            }
+        }
+        else {
+            needToRequestLastAction = false
+        }
+    }
+    
+    //when pawn reached last row
+    private func websocketDidReceive(square: Square) {
+        if let figure = square.figure, figure.color == gameLogic.currentPlayer.figuresColor {
+            if gameLogic.gameBoard[square.column, square.row]?.figure != square.figure && gameLogic.pawnWizard && gameLogic.turns.last!.squares.last!.row == square.row && gameLogic.turns.last!.squares.last!.column == square.column {
+                enemyAfkTimer?.invalidate()
+                gameLogic.makeTurn(square: square)
+                afkTimer = makeAfkTimer(for: .player1, timeElapsed: Date().timeIntervalSince(gameLogic.turns.last!.time))
+                finishAnimations()
+                if let turn = gameLogic.currentTurn, let square = turn.squares.last {
+                    updateSquare(square, figure: figure)
+                }
+                if gameLogic.gameEnded && view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
+                    makeEndOfTheGameView()
+                }
+                activatePlayerTime()
+                addTurnToUI(gameLogic.turns.last!)
+                updateUI(animateSquares: true)
+                toggleTurnButtons(disable: false)
+                rotateScrollContent(reverse: !(gameBoardAutoRotate && gameLogic.currentPlayer.type == .player2))
+                if needToRequestLastAction {
+                    restoreFromSuspendedState()
+                }
+            }
+        }
+    }
+    
+    private func handleWebSocketError(_ error: Error?) {
+        if let error = error as? WSError {
+            if !gameLogic.gameEnded && connectedToTheInternet {
+                currentUser.removeGame(gameLogic)
+                storage.saveUser(currentUser)
+            }
+            makeErrorAlert(with: "websocket encountered an error: \(error.message)", addReconnectButton: true)
+        }
+        else if let error = error {
+            if let error = error as? NWError {
+                //if server encountered a problem, user shouldn`t lose points
+                if error._code == 0 && !gameLogic.gameEnded && connectedToTheInternet {
+                    currentUser.removeGame(gameLogic)
+                    storage.saveUser(currentUser)
+                }
+            }
+            makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)", addReconnectButton: true)
+        }
+        else {
+            makeErrorAlert(with: "websocket encountered an error", addReconnectButton: true)
+        }
+    }
     
     // MARK: - View Functions
 
@@ -21,6 +229,9 @@ class GameViewController: UIViewController {
         updateUIIfLoad()
         updateUI()
         activateStartConstraints()
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
+            configureForMultiplayer()
+        }
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -52,11 +263,37 @@ class GameViewController: UIViewController {
         })
     }
     
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        deactivateMultiplayerTImers()
+        if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
+            mainMenuVC.socket.delegate = mainMenuVC
+            mainMenuVC.isConnected = isConnected
+        }
+    }
+    
     // MARK: - Properties
     
     var gameLogic: GameLogic!
     var currentUser: User!
     
+    //if we connect to the server, after afkTimer for that is expired, and we already have final alert on screen
+    private var finalError = false
+    private var serverError = false
+    //when game will end and we will send last turn, this will become false
+    private var shouldSendTurn = true
+    private var connectedToTheInternet = true
+    //when user left the app, but it is still in apps list
+    private var suspendedState = false
+    private var needToRequestLastAction = false
+    private var currentUserWantsDraw = false
+    private var opponentWantsDraw = false
+    private var afkTimer: Timer?
+    private var enemyAfkTimer: Timer?
+    private var pingTimer: Timer?
+    //if second player didn`t connect in time at the start of the game
+    private var cancelGameTimer: Timer?
+    private var reconnectTimer: Timer?
     //used in playback of the turns and also to have ability to stop it
     private var turnsActionTimers: [Timer] = []
     private var backwardRewind = false
@@ -79,6 +316,8 @@ class GameViewController: UIViewController {
     //to rotate gameBoard after currentPlayer changed
     private var gameBoardAutoRotate = false
     
+    //to check internet connection
+    private let monitor = NWPathMonitor()
     private let storage = Storage()
     
     private typealias constants = GameVC_Constants
@@ -151,7 +390,8 @@ class GameViewController: UIViewController {
     
     //when pawn reached last row
     @objc private func replacePawn(_ sender: UITapGestureRecognizer? = nil) {
-        if let square = sender?.view?.layer.value(forKey: constants.keyNameForSquare) as? Square, let figure = square.figure {
+        if var square = sender?.view?.layer.value(forKey: constants.keyNameForSquare) as? Square, let figure = square.figure {
+            square.updateTime(newValue: Date())
             gameLogic.makeTurn(square: square)
             finishAnimations()
             if let turn = gameLogic.currentTurn, let square = turn.squares.last {
@@ -163,7 +403,23 @@ class GameViewController: UIViewController {
             activatePlayerTime()
             addTurnToUI(gameLogic.turns.last!)
             updateUI(animateSquares: true)
-            toggleTurnButtons(disable: false)
+            if gameLogic.gameMode != .multiplayer {
+                toggleTurnButtons(disable: false)
+            }
+            else if shouldSendTurn {
+                if gameLogic.gameEnded {
+                    shouldSendTurn = false
+                }
+                square.updateTimeLeft(newValue: gameLogic.timeLeft)
+                if let turnJson = try? JSONEncoder().encode(gameLogic.turns.last!) {
+                    socket.write(data: turnJson)
+                }
+                if let squareJson = try? JSONEncoder().encode(square) {
+                    socket.write(data: squareJson)
+                }
+                afkTimer?.invalidate()
+                enemyAfkTimer = makeAfkTimer(for: .player2)
+            }
             rotateScrollContent(reverse: !(gameBoardAutoRotate && gameLogic.currentPlayer.type == .player2))
         }
     }
@@ -271,22 +527,28 @@ class GameViewController: UIViewController {
         }
     }
     
-    //TODO: - Draw for multiplayer
-    
-    //lets player surender
-    @objc private func surender(_ sender: UIButton? = nil) {
+    //lets player surrender
+    @objc private func surrender(_ sender: UIButton? = nil) {
         if !animatingTurns && !gameLogic.gameEnded {
-            let surenderAlert = UIAlertController(title: "Surender/Draw", message: "Do you want to surender or draw?", preferredStyle: .alert)
-            surenderAlert.addAction(UIAlertAction(title: "Surender", style: .default, handler: { [weak self] _ in
+            let surrenderAlert = UIAlertController(title: "Surrender/Draw", message: "Do you want to surrender or draw?", preferredStyle: .alert)
+            surrenderAlert.addAction(UIAlertAction(title: "Surrender", style: .default, handler: { [weak self] _ in
                 if let self = self {
                     sender?.isEnabled = false
-                    self.gameLogic.surender()
+                    if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
+                        self.gameLogic.surrender(for: .player1)
+                        if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true)) {
+                            self.socket.write(data: gameStatusJson)
+                        }
+                    }
+                    else {
+                        self.gameLogic.surrender()
+                    }
                     if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
                         self.makeEndOfTheGameView()
                     }
                 }
             }))
-            surenderAlert.addAction(UIAlertAction(title: "Draw", style: .default, handler: { [weak self] _ in
+            surrenderAlert.addAction(UIAlertAction(title: "Draw", style: .default, handler: { [weak self] _ in
                 if let self = self {
                     sender?.isEnabled = false
                     if self.gameLogic.gameMode == .oneScreen {
@@ -295,14 +557,36 @@ class GameViewController: UIViewController {
                             self.makeEndOfTheGameView()
                         }
                     }
+                    else if !self.gameLogic.gameEnded {
+                        self.currentUserWantsDraw = true
+                        UIView.animate(withDuration: constants.animationDuration, animations: {
+                            self.surrenderButton.backgroundColor = constants.surrenderButtonHighlightColor
+                        })
+                        if self.opponentWantsDraw {
+                            self.gameLogic.forceDraw()
+                            if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
+                                self.makeEndOfTheGameView()
+                            }
+                        }
+                        else {
+                            Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
+                                self.currentUserWantsDraw = false
+                                self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
+                                UIView.animate(withDuration: constants.animationDuration, animations: {
+                                    self.surrenderButton.backgroundColor = UIColor.clear
+                                })
+                            })
+                        }
+                        if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true)) {
+                            self.socket.write(data: gameStatusJson)
+                        }
+                    }
                 }
             }))
-            surenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
-            present(surenderAlert, animated: true)
+            surrenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
+            present(surrenderAlert, animated: true)
         }
     }
-    
-    //
     
     //shows/hides turnsView
     @objc private func transitTurnsView(_ sender: UIButton? = nil) {
@@ -314,8 +598,6 @@ class GameViewController: UIViewController {
         }
     }
     
-    //TODO: - Multiplayer
-    
     //exits from game
     @objc private func exit(_ sender: UIButton? = nil) {
         let exitAlert = UIAlertController(title: "Exit", message: "Are you sure?", preferredStyle: .alert)
@@ -323,6 +605,13 @@ class GameViewController: UIViewController {
             if let self = self {
                 self.stopTurnsPlayback()
                 self.finishAnimations()
+                if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
+                    self.gameLogic.surrender(for: .player1)
+                    self.storage.saveUser(self.currentUser)
+                    if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true)) {
+                        self.socket.write(data: gameStatusJson)
+                    }
+                }
                 if let mainMenuVC = self.presentingViewController as? MainMenuVC {
                     mainMenuVC.currentUser = self.currentUser
                 }
@@ -332,8 +621,6 @@ class GameViewController: UIViewController {
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
         present(exitAlert, animated: true)
     }
-    
-    //
     
     //saves game in oneScreen mode
     @objc private func saveGame(_ sender: UIButton? = nil) {
@@ -403,6 +690,224 @@ class GameViewController: UIViewController {
     }
 
     // MARK: - Local Methods
+    
+    private func makeReconnectTimer() {
+        pawnPicker.isUserInteractionEnabled = false
+        toggleTurnButtons(disable: true)
+        reconnectTimer?.invalidate()
+        makeLoadingSpinner()
+        reconnectTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
+            if let self = self {
+                if self.gameLogic.currentPlayer.type == .player1 {
+                    self.toggleTurnButtons(disable: false)
+                    self.pawnPicker.isUserInteractionEnabled = true
+                }
+                else {
+                    self.surrenderButton.isEnabled = true
+                    self.exitButton.isEnabled = true
+                }
+                self.loadingSpinner.removeFromSuperview()
+                if (!self.isConnected || !self.connectedToTheInternet) && !self.finalError {
+                    self.makeErrorAlert(with: "You are not connected to the server", addReconnectButton: true)
+                }
+            }
+        })
+        socket.connect()
+    }
+    
+    private func deactivateMultiplayerTImers() {
+        afkTimer?.invalidate()
+        enemyAfkTimer?.invalidate()
+        pingTimer?.invalidate()
+        cancelGameTimer?.invalidate()
+        reconnectTimer?.invalidate()
+        monitor.pathUpdateHandler = nil
+    }
+    
+    private func configureForMultiplayer() {
+        configureNWPathMonitor()
+        let queue = DispatchQueue(label: "Monitor")
+        monitor.start(queue: queue)
+        toggleTurnButtons(disable: true)
+        makeLoadingSpinner()
+        socket.delegate = self
+        websocketDidConnect()
+        pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
+            if let jsonData = try? JSONEncoder().encode("Hello") {
+                self?.socket.write(ping: jsonData)
+            }
+        })
+        cancelGameTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
+            if let self = self {
+                self.makeErrorAlert(with: "Game was cancelled")
+                self.currentUser.removeGame(self.gameLogic)
+                self.storage.saveUser(self.currentUser)
+            }
+        })
+    }
+    
+    //TODO: - Need to be tested on real devices with real server
+    //not working properly on simulators
+    private func configureNWPathMonitor() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            if let self = self {
+                DispatchQueue.main.sync {
+                    if path.status == .satisfied {
+                        self.connectedToTheInternet = true
+                        if self.gameLogic.currentPlayer.type == .player2 {
+                            if let enemyAfkTimer = self.enemyAfkTimer, !enemyAfkTimer.isValid {
+                                var timeElapsed = Date().timeIntervalSince(self.gameLogic.turns.last?.time ?? self.gameLogic.startDate)
+                                if timeElapsed > constants.maxTimeForAFK {
+                                    timeElapsed = constants.maxTimeForAFK
+                                }
+                                self.enemyAfkTimer? = self.makeAfkTimer(for: .player2, timeElapsed: timeElapsed)
+                            }
+                        }
+                    }
+                    else {
+                        if self.gameLogic.currentPlayer.type == .player2 {
+                            self.enemyAfkTimer?.invalidate()
+                        }
+                        self.isConnected = false
+                        self.connectedToTheInternet = false
+                        self.makeReconnectTimer()
+                        self.needToRequestLastAction = true
+                    }
+                }
+            }
+        }
+    }
+    //
+    
+    func switchToSuspendedState() {
+        if !gameLogic.gameEnded {
+            suspendedState = true
+        }
+    }
+    
+    func restoreFromSuspendedState() {
+        suspendedState = false
+        if !gameLogic.gameEnded {
+            let currentDate = Date()
+            var lastTurn: Turn?
+            if gameLogic.turns.count > 1 {
+                if gameLogic.pawnWizard || gameLogic.turns.last!.shortCastle || gameLogic.turns.last!.longCastle {
+                    lastTurn = gameLogic.turns.beforeLast
+                }
+                else {
+                    lastTurn = gameLogic.turns.last
+                }
+            }
+            else if !gameLogic.turns.isEmpty {
+                lastTurn = gameLogic.turns.last
+            }
+            var interval = currentDate.timeIntervalSince(lastTurn?.time ?? gameLogic.startDate)
+            if interval < constants.maxTimeForAFK {
+                if gameLogic.currentPlayer.type == .player1 {
+                    interval = ceil(interval) + constants.chessTimerStep
+                    afkTimer?.invalidate()
+                    afkTimer = makeAfkTimer(for: .player1, timeElapsed: interval)
+                }
+                else {
+                    interval = floor(interval) - constants.chessTimerStep
+                    enemyAfkTimer?.invalidate()
+                    enemyAfkTimer = makeAfkTimer(for: .player2, timeElapsed: interval)
+                }
+                let newTimeLeft = gameLogic.currentPlayer.timeLeft - Int(interval)
+                var extraTime = 0.0
+                if gameLogic.gameMode == .multiplayer {
+                    if gameLogic.currentPlayer == gameLogic.players.second && newTimeLeft < Int(constants.requestTimeout) {
+                        extraTime = constants.extraTimeForEnemyAFKTimer
+                    }
+                }
+                if !gameLogic.turns.isEmpty && gameLogic.timerEnabled {
+                    gameLogic.updateTimeLeft(with: newTimeLeft + Int(extraTime), countAdditionalTime: false)
+                }
+                if isConnected || gameLogic.gameMode != .multiplayer {
+                    needToRequestLastAction = false
+                }
+                else {
+                    needToRequestLastAction = true
+                    makeReconnectTimer()
+                }
+            }
+            else {
+                surrenderAction()
+                makeErrorAlert(with: "You lost the game, because you was afk for more than 5 minutes")
+            }
+        }
+    }
+    
+    private func surrenderAction(for player: GamePlayers = .player1) {
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded && isConnected {
+            gameLogic.surrender(for: player)
+            if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, gameEnded: true, playerToSurrender: player == .player1 ? .player2: .player1)) {
+                socket.write(data: gameStatusJson)
+            }
+        }
+        else if !gameLogic.gameEnded {
+            gameLogic.surrender()
+        }
+        if view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
+            makeEndOfTheGameView()
+        }
+    }
+
+    //timeElapsed is used, when app was in suspended state and during that time
+    //enemy made a turn
+    private func makeAfkTimer(for player: GamePlayers, timeElapsed: Double = 0) -> Timer {
+        //in case, if problems with server, we will wait a little longer for enemy turn
+        let extraTime: Double = player == .player2 ? constants.extraTimeForEnemyAFKTimer : 0
+        return Timer.scheduledTimer(withTimeInterval: constants.maxTimeForAFK + extraTime - timeElapsed, repeats: false, block: { [weak self] _ in
+            if let self = self {
+                if !self.serverError {
+                    if player == .player1 && !self.gameLogic.gameEnded {
+                        self.makeErrorAlert(with: "You lost the game, because you was afk for more than 5 minutes", afkError: true)
+                    }
+                    self.surrenderAction(for: player)
+                }
+                else if !self.gameLogic.gameEnded {
+                    self.finalError = true
+                    self.makeErrorAlert(with: "Server is not working")
+                }
+            }
+        })
+    }
+    
+    private func makeErrorAlert(with message: String, addReconnectButton: Bool = false, afkError: Bool = false) {
+        if !suspendedState || afkError {
+            let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Ok", style: .default) { [weak self] _ in
+                if let self = self {
+                    self.stopTurnsPlayback()
+                    self.finishAnimations()
+                    if let mainMenuVC = self.presentingViewController as? MainMenuVC {
+                        mainMenuVC.currentUser = self.currentUser
+                    }
+                    self.dismiss(animated: true)
+                }
+            })
+            if addReconnectButton {
+                alert.addAction(UIAlertAction(title: "Reconnect", style: .default) { [weak self] _ in
+                    if let self = self {
+                        if !self.isConnected || !self.connectedToTheInternet {
+                            self.makeReconnectTimer()
+                        }
+                    }
+                })
+            }
+            if let topVC = UIApplication.getTopMostViewController(), topVC as? UIAlertController != nil {
+                topVC.dismiss(animated: true, completion: {
+                    if let topVC = UIApplication.getTopMostViewController() {
+                        topVC.present(alert, animated: true)
+                    }
+                })
+            }
+            else if let topVC = UIApplication.getTopMostViewController() {
+                topVC.present(alert, animated: true)
+            }
+        }
+    }
     
     private func rotateScrollContent(reverse: Bool = false) {
         let transform = reverse ? CGAffineTransform.identity : CGAffineTransform(rotationAngle: .pi)
@@ -568,14 +1073,16 @@ class GameViewController: UIViewController {
         turns.isUserInteractionEnabled = condition ? !disable : false
         turnBackward.isEnabled = disable ? !disable : condition && !gameLogic.firstTurn
         turnForward.isEnabled = disable ? !disable : condition && !gameLogic.lastTurn
-        let turnActionImage = disable ? UIImage(systemName: "stop") : UIImage(systemName: "play")
-        turnAction.setImage(turnActionImage, for: .normal)
+        if gameLogic.gameMode == .oneScreen || gameLogic.gameEnded {
+            let turnActionImage = disable ? UIImage(systemName: "stop") : UIImage(systemName: "play")
+            turnAction.setImage(turnActionImage, for: .normal)
+        }
         turnAction.isEnabled = disable ? !disable : condition && !gameLogic.lastTurn
         fastAnimationsButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
         saveButton.isEnabled = disable ? !disable : !gameLogic.gameEnded && !gameLogic.turns.isEmpty
-        surenderButton.isEnabled = disable ? !disable : !gameLogic.gameEnded
-        animatingTurns = disable
-        exitButton.isEnabled = !disable ? !disable : !fastAnimations && !restoringTurns
+        surrenderButton.isEnabled = disable ? gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded && isConnected && connectedToTheInternet : !gameLogic.gameEnded
+        animatingTurns = disable ? gameLogic.gameMode == .oneScreen || gameLogic.gameEnded : disable
+        exitButton.isEnabled = !disable ? !disable : !fastAnimations && !restoringTurns && ((isConnected && connectedToTheInternet) || gameLogic.gameMode == .oneScreen)
         player1RotateFiguresButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
         player2RotateFiguresButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
         stopTurnsPlayback()
@@ -642,41 +1149,60 @@ class GameViewController: UIViewController {
         animations = []
     }
     
-    private func activatePlayerTime() {
-        if gameLogic.timerEnabled && !gameLogic.gameEnded && !gameLogic.pawnWizard {
-            updatePlayersTime()
-            Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
-                if let self = self {
-                    self.gameLogic.activateTime(callback: {time in
-                        if time == 0 && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
-                            self.makeEndOfTheGameView()
-                        }
-                        if self.gameLogic.currentPlayer.type == .player1 {
-                            self.player1Timer.text = time.timeAsString
-                            self.player1TimerForTurns.text = time.timeAsString
-                            if self.gameLogic.timeLeft < constants.dangerTimeleft {
-                                let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
-                                    self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                                    self.player1TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                                })
-                                self.animations.append(animation)
-                            }
-                        }
-                        else {
-                            self.player2Timer.text = time.timeAsString
-                            self.player2TimerForTurns.text = time.timeAsString
-                            if self.gameLogic.timeLeft < constants.dangerTimeleft {
-                                let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
-                                    self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                                    self.player2TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                                })
-                                self.animations.append(animation)
-                            }
-                        }
-                    })
-                }
-            })
+    private func activatePlayerTime(continueTimer: Bool = false) {
+        if gameLogic.timerEnabled && !gameLogic.gameEnded && (!gameLogic.pawnWizard || continueTimer) {
+            if !continueTimer {
+                updatePlayersTime()
+                Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
+                    if let self = self {
+                        self.startPlayerTime(continueTimer: continueTimer)
+                    }
+                })
+            }
+            else {
+                startPlayerTime(continueTimer: continueTimer)
+            }
         }
+    }
+    
+    private func startPlayerTime(continueTimer: Bool) {
+        gameLogic.activateTime(continueTimer: continueTimer, callback: {[weak self] time in
+            if let self = self {
+                if !self.isConnected && self.gameLogic.gameMode == .multiplayer && self.connectedToTheInternet {
+                    self.gameLogic.stopTime()
+                }
+                if !self.connectedToTheInternet && self.gameLogic.gameMode == .multiplayer && self.gameLogic.currentPlayer.type == .player2 {
+                    if self.gameLogic.timeLeft <= Int(constants.extraTimeForEnemyAFKTimer) {
+                        self.gameLogic.stopTime()
+                    }
+                }
+                if time == 0 && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
+                    self.makeEndOfTheGameView()
+                }
+                if self.gameLogic.currentPlayer.type == .player1 {
+                    self.player1Timer.text = time.timeAsString
+                    self.player1TimerForTurns.text = time.timeAsString
+                    if self.gameLogic.timeLeft < constants.dangerTimeleft {
+                        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                            self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                            self.player1TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                        })
+                        self.animations.append(animation)
+                    }
+                }
+                else {
+                    self.player2Timer.text = time.timeAsString
+                    self.player2TimerForTurns.text = time.timeAsString
+                    if self.gameLogic.timeLeft < constants.dangerTimeleft {
+                        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                            self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                            self.player2TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                        })
+                        self.animations.append(animation)
+                    }
+                }
+            }
+        })
     }
     
     //moves turns backward or forward with animation and activates turnsView buttons, if it`s last turn to animate
@@ -877,6 +1403,17 @@ class GameViewController: UIViewController {
             toggleTurnButtons(disable: false)
             updateUI(animateSquares: true)
             rotateScrollContent(reverse: !(gameBoardAutoRotate && gameLogic.currentPlayer.type == .player2))
+            if gameLogic.gameMode == .multiplayer && gameLogic.currentPlayer.multiplayerType != gameLogic.players.first?.multiplayerType && shouldSendTurn {
+                if gameLogic.gameEnded {
+                    shouldSendTurn = false
+                }
+                if let turnJson = try? JSONEncoder().encode(gameLogic.turns.beforeLast!) {
+                    socket.write(data: turnJson)
+                }
+                toggleTurnButtons(disable: true)
+                afkTimer?.invalidate()
+                enemyAfkTimer = makeAfkTimer(for: .player2)
+            }
         }
         else if gameLogic.pickedSquares.count > 1 {
             activatePlayerTime()
@@ -894,6 +1431,22 @@ class GameViewController: UIViewController {
                 toggleTurnButtons(disable: false)
                 updateUI(animateSquares: true)
                 rotateScrollContent(reverse: !(gameBoardAutoRotate && gameLogic.currentPlayer.type == .player2))
+                //second condition is different than above for pawnWizard case
+                //when pawnWizard gameLogic.currentPlayer.multiplayerType != gameLogic.players.first?.multiplayerType, but we don`t
+                //need to send that turn 2 times
+                if gameLogic.gameMode == .multiplayer && turn.squares.first?.figure?.color == gameLogic.players.first?.figuresColor && shouldSendTurn {
+                    if gameLogic.gameEnded {
+                        shouldSendTurn = false
+                    }
+                    if let turnJson = try? JSONEncoder().encode(turn) {
+                        socket.write(data: turnJson)
+                    }
+                    toggleTurnButtons(disable: true)
+                    if !gameLogic.pawnWizard {
+                        afkTimer?.invalidate()
+                        enemyAfkTimer = makeAfkTimer(for: .player2)
+                    }
+                }
             }
         }
         else {
@@ -1490,7 +2043,7 @@ class GameViewController: UIViewController {
     private let player2FrameForDF = UIImageView()
     private let player1FrameForDF = UIImageView()
     private let playerProgress = ProgressBar()
-    private let surenderButton = UIButton()
+    private let surrenderButton = UIButton()
     private let saveButton = UIButton()
     private let exitButton = UIButton()
     private let fastAnimationsButton = UIButton()
@@ -1559,7 +2112,7 @@ class GameViewController: UIViewController {
     }
     
     private func makeAdditionalButtons() {
-        surenderButton.buttonWith(image: UIImage(systemName: "flag.fill"), and: #selector(surender))
+        surrenderButton.buttonWith(image: UIImage(systemName: "flag.fill"), and: #selector(surrender))
         let lockScrolling = UIButton()
         lockScrolling.buttonWith(image: UIImage(systemName: "lock.open"), and: #selector(lockGameView))
         let turnsViewButton = UIButton()
@@ -1573,7 +2126,7 @@ class GameViewController: UIViewController {
         showEndOfTheGameView.buttonWith(image: UIImage(systemName: "doc.text.magnifyingglass"), and: #selector(transitEndOfTheGameView))
         var buttonViews = [showEndOfTheGameView, lockScrolling, turnsViewButton, exitButton]
         if !gameLogic.gameEnded {
-            buttonViews.insert(surenderButton, at: 2)
+            buttonViews.insert(surrenderButton, at: 2)
         }
         additionalButtons.addArrangedSubviews(buttonViews)
         if gameLogic.gameMode == .oneScreen && !gameLogic.gameEnded {
@@ -2052,8 +2605,7 @@ class GameViewController: UIViewController {
         let figuresNames: [Figures] = [.rook, .queen, .bishop, .knight]
         for figureName in figuresNames {
             let pawnPickerFigure = Figure(name: figureName, color: figure.color, startColumn: figure.startColumn, startRow: figure.startRow)
-            //just random square, it doesnt matter
-            let square = Square(column: .A, row: 1, color: .white, figure: pawnPickerFigure)
+            let square = Square(column: gameLogic.turns.last!.squares.last!.column, row: gameLogic.turns.last!.squares.last!.row, color: gameLogic.turns.last!.squares.last!.color, gameID: gameLogic.gameID, figure: pawnPickerFigure)
             let figuresThemeName = gameLogic.currentPlayer.user.figuresTheme.rawValue
             let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(pawnPickerFigure.color.rawValue)_\(figureName.rawValue)")
             let squareView = getSquareView(image: figureImage, figure: pawnPickerFigure)
@@ -2062,6 +2614,14 @@ class GameViewController: UIViewController {
             squareView.addGestureRecognizer(tap)
             squareView.subviews.first!.layer.borderColor = squareColor == .black ? UIColor.white.cgColor : UIColor.black.cgColor
             pawnPicker.addArrangedSubview(squareView)
+        }
+        if gameLogic.gameMode == .multiplayer {
+            if gameLogic.currentPlayer.multiplayerType != gameLogic.players.first?.multiplayerType {
+                pawnPicker.isUserInteractionEnabled = false
+            }
+            else {
+                pawnPicker.isUserInteractionEnabled = true
+            }
         }
     }
 
@@ -2099,9 +2659,11 @@ class GameViewController: UIViewController {
     }
     
     private func makeEndOfTheGameView() {
+        //updatePlayersTime()
+        deactivateMultiplayerTImers()
         saveButton.isEnabled = false
         showEndOfTheGameView.isEnabled = true
-        surenderButton.isEnabled = false
+        surrenderButton.isEnabled = false
         //if there is no winner, it means, that it is a draw and we will choose data of current user
         let winner = gameLogic.winner ?? gameLogic.players.first!
         frameForEndOfTheGameView.image = UIImage(named: "frames/\(winner.user.frame.rawValue)")
@@ -2115,6 +2677,7 @@ class GameViewController: UIViewController {
         endOfTheGameScrollView.alpha = 0
         if !loadedEndedGame {
             if !gameLogic.turns.isEmpty {
+                currentUser.updatePoints(newValue: gameLogic.players.first!.user.points)
                 currentUser.addGame(gameLogic)
                 storage.saveUser(currentUser)
                 gameLogic.saveGameDataForRestore()
@@ -2223,7 +2786,6 @@ class GameViewController: UIViewController {
         playerProgress.backgroundColor = constants.backgroundColorForProgressBar
         //how much percentage is filled
         playerProgress.progress = CGFloat(startPoints * 100 / gameLogic.players.first!.user.rank.maximumPoints) / 100.0
-        playerProgress.translatesAutoresizingMaskIntoConstraints = false
         if endPoints < 0 {
             endPoints = 0
         }
@@ -2279,10 +2841,10 @@ class GameViewController: UIViewController {
         playerAvatar.image = playerAvatarImage
         var hideButtonConstraints = [NSLayoutConstraint]()
         var wheelConstraints = [NSLayoutConstraint]()
-        if !loadedEndedGame && gameLogic.gameMode != .oneScreen {
+        if !loadedEndedGame && gameLogic.gameMode != .oneScreen && !gameLogic.turns.isEmpty {
             let wheel = WheelOfFortune(figuresTheme: gameLogic.players.first!.user.figuresTheme, maximumCoins: gameLogic.maximumCoinsForWheel)
             wheel.translatesAutoresizingMaskIntoConstraints = false
-            gameLogic.addCoinsToPlayer(coins: wheel.winCoins)
+            currentUser.addCoins(wheel.winCoins)
             data.addSubview(wheel)
             wheelConstraints = [wheel.topAnchor.constraint(equalTo: playerAvatar.bottomAnchor, constant: constants.optimalDistance), wheel.centerXAnchor.constraint(equalTo: data.centerXAnchor), wheel.heightAnchor.constraint(equalTo: wheel.widthAnchor), wheel.leadingAnchor.constraint(equalTo: data.layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), wheel.trailingAnchor.constraint(equalTo: data.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance)]
             hideButtonConstraints.append(hideButton.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: constants.optimalDistance))
@@ -2334,9 +2896,8 @@ class GameViewController: UIViewController {
         restoreButton.isEnabled = false
         fastAnimationsButton.buttonWith(image: UIImage(systemName: "timer"), and: #selector(toggleFastAnimations))
         fastAnimationsButton.backgroundColor = constants.dangerPlayerDataColor
-        var buttons = [turnBackward, turnAction, turnForward, hideButton, fastAnimationsButton]
+        let buttons = [turnBackward, turnAction, turnForward, hideButton, restoreButton, fastAnimationsButton]
         if gameLogic.gameEnded || gameLogic.gameMode == .oneScreen {
-            buttons.insert(restoreButton, at: 4)
             if currentUser.games.contains(where: {$0.startDate == gameLogic.startDate}) {
                 restoreButton.isEnabled = gameLogic.rewindEnabled
             }
@@ -2368,11 +2929,16 @@ class GameViewController: UIViewController {
     }
     
     private func makeLoadingSpinner() {
+        loadingSpinner.removeFromSuperview()
         loadingSpinner = LoadingSpinner()
         scrollContentOfGame.addSubview(loadingSpinner)
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: gameBoard.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: gameBoard.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: gameBoard.widthAnchor, multiplier: constants.sizeMultiplierForSpinnerView), loadingSpinner.heightAnchor.constraint(equalTo: gameBoard.heightAnchor, multiplier: constants.sizeMultiplierForSpinnerView)]
         NSLayoutConstraint.activate(spinnerConstraints)
     }
+    
+    //TODO: -
+    
+    //add chat
     
 }
 
@@ -2434,6 +3000,13 @@ private struct GameVC_Constants {
     static let distanceToFitTurnsViewInLandscape = 100.0
     static let distanceForGameInfoInTurnsView = 2.0
     static let topDistanceForTurnsScrollView = 5.0
+    static let surrenderButtonHighlightColor = UIColor.yellow.withAlphaComponent(optimalAlpha)
+    static let requestTimeout = 5.0
+    static let timeToAcceptDraw = 30.0
+    static let surrenderButtonBGColor = UIColor.clear
+    static let extraTimeForEnemyAFKTimer = 10.0
+    static let maxTimeForAFK = 300.0
+    static let chessTimerStep = 1.0
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

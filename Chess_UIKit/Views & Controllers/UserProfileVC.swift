@@ -18,6 +18,11 @@ class UserProfileVC: UIViewController {
         configureKeyboardToHideWhenTappedAround()
     }
     
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        userProgress.setNeedsDisplay()
+    }
+    
     // MARK: - Properties
     
     private typealias constants = UserProfileVC_Constants
@@ -205,6 +210,7 @@ class UserProfileVC: UIViewController {
     private let userAvatar = UIImageView()
     private let avatarsView = UIStackView()
     private let avatarsLastLine = UIStackView()
+    private let userProgress = ProgressBar()
     
     private var loadingSpinner = LoadingSpinner()
     private var nicknameLine = UIStackView()
@@ -218,6 +224,7 @@ class UserProfileVC: UIViewController {
         view.backgroundColor = defaultBackgroundColor
         makeToolBar()
         makeAvatar()
+        makeUserInfo()
         makeAvatarInfoView()
         setupScrollView(dataScrollView, content: dataScrollViewContent, forAvatars: false)
         setupScrollView(avatarsScrollView, content: avatarsScrollViewContent, forAvatars: true)
@@ -235,8 +242,24 @@ class UserProfileVC: UIViewController {
         userAvatar.image = UIImage(named: "avatars/\(currentUser.playerAvatar.rawValue)")
         userAvatar.addGestureRecognizer(tapGesture)
         view.addSubview(userAvatar)
-        let avatarConstraints = [userAvatar.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), userAvatar.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor)]
+        let avatarConstraints = [userAvatar.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), userAvatar.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor)]
         NSLayoutConstraint.activate(avatarConstraints)
+    }
+    
+    private func makeUserInfo() {
+        let userInfo = UIStackView()
+        userInfo.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        let userRank = UILabel()
+        userRank.setup(text: currentUser.rank.rawValue, alignment: .center, font: defaultFont)
+        userProgress.backgroundColor = constants.backgroundColorForProgressBar
+        //how much percentage is filled
+        userProgress.progress = CGFloat(currentUser.points * 100 / currentUser.rank.maximumPoints) / 100.0
+        let userPoints = UILabel()
+        userPoints.setup(text: String(currentUser.points) + "/" + String(currentUser.rank.maximumPoints), alignment: .center, font: defaultFont)
+        userInfo.addArrangedSubviews([userRank, userProgress, userPoints])
+        view.addSubview(userInfo)
+        let userInfoConstraints = [userInfo.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), userInfo.leadingAnchor.constraint(equalTo: userAvatar.trailingAnchor, constant: constants.optimalDistance), userInfo.bottomAnchor.constraint(equalTo: userAvatar.bottomAnchor), userInfo.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor)]
+        NSLayoutConstraint.activate(userInfoConstraints)
     }
     
     private func makeDataFields() {
@@ -458,4 +481,5 @@ private struct UserProfileVC_Constants {
     static let sizeMultiplayerForAvatarInfo = 0.2
     static let keyForAvatar = "Avatar"
     static let avatarsInLine = 3
+    static let backgroundColorForProgressBar = UIColor.white
 }

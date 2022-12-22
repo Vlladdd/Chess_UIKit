@@ -6,15 +6,80 @@
 //
 
 import UIKit
+import Starscream
 
 //VC that represents view to create game
-class CreateGameVC: UIViewController {
+class CreateGameVC: UIViewController, WebSocketDelegate {
+    
+    // MARK: - WebSocketDelegate
+    
+    var socket: Starscream.WebSocket!
+    var isConnected = false
+    
+    func didReceive(event: WebSocketEvent, client: WebSocket) {
+        switch event {
+        case .connected(let headers):
+            isConnected = true
+            print("websocket is connected: \(headers)")
+            socket.write(string: currentUser.email + Date().toStringDateHMS + "CreateGameVC")
+        case .disconnected(let reason, let code):
+            isConnected = false
+            print("websocket is disconnected: \(reason) with code: \(code)")
+        case .text(let string):
+            print("Received text: \(string)")
+        case .binary(let data):
+            print("Received data: \(data.count)")
+            if let game = try? JSONDecoder().decode(GameLogic.self, from: data), game.gameID == gameID {
+                currentUser.addGame(game)
+                //we are saving game at the start for the case, where game will not be ended and
+                //to be able to take into account points from that game
+                //for example, if player will disconnect
+                storage.saveUser(currentUser)
+                let gameVC = GameViewController()
+                gameVC.socket = socket
+                gameVC.isConnected = isConnected
+                gameVC.gameLogic = game
+                gameVC.currentUser = currentUser
+                gameVC.modalPresentationStyle = .fullScreen
+                dismiss(animated: true) {
+                    UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
+                }
+            }
+        case .ping(_):
+            break
+        case .pong(_):
+            break
+        case .viabilityChanged(_):
+            break
+        case .reconnectSuggested(_):
+            break
+        case .cancelled:
+            isConnected = false
+            break
+        case .error(let error):
+            isConnected = false
+            handleWebSocketError(error)
+        }
+    }
+    
+    private func handleWebSocketError(_ error: Error?) {
+        if let error = error as? WSError {
+            makeErrorAlert(with: "websocket encountered an error: \(error.message)")
+        }
+        else if let error = error {
+            makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)")
+        }
+        else {
+            makeErrorAlert(with: "websocket encountered an error")
+        }
+    }
     
     // MARK: - View Functions
     
     override func viewDidLoad() {
         super.viewDidLoad()
         makeUI()
+        socket.delegate = self
     }
     
     override func viewDidDisappear(_ animated: Bool) {
@@ -22,6 +87,14 @@ class CreateGameVC: UIViewController {
         //we are making retain cycle, when attaching our functions to picker, so need to break it
         modePicker.breakRetainCycle()
         timerPicker.breakRetainCycle()
+        if let gameID = gameID {
+            storage.deleteMultiplayerGame(with: gameID)
+        }
+        pingTimer?.invalidate()
+        if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
+            mainMenuVC.socket.delegate = mainMenuVC
+            mainMenuVC.isConnected = isConnected
+        }
     }
     
     // MARK: - Properties
@@ -29,6 +102,13 @@ class CreateGameVC: UIViewController {
     private typealias constants = CreateGameVC_Constants
     
     var currentUser: User!
+    
+    private let storage = Storage()
+    
+    //checks connection to the server
+    private var pingTimer: Timer?
+    //useful for multiplayer game
+    private var gameID: String? = nil
     
     // MARK: - Buttons Methods
     
@@ -62,15 +142,15 @@ class CreateGameVC: UIViewController {
         let condition1 = timerPicker.pickedData != nil && modePicker.pickedData != nil
         let condition2 = rewindPicker.pickedData != nil || modePicker.pickedData == .multiplayer
         if condition1 && condition2 && colorPicker.pickedData != nil {
+            var totalTime = 0
+            var additionalTime = 0
+            if timerPicker.pickedData == .yes {
+                totalTime = (Int(totalTimeMinutesValue.text!) ?? 0).seconds + (Int(totalTimeSecondsValue.text!) ?? 0)
+                additionalTime = (Int(additionalTimeMinutesValue.text!) ?? 0).seconds + (Int(additionalTimeSecondsValue.text!) ?? 0)
+            }
             switch modePicker.pickedData! {
             case .oneScreen:
                 let secondUser = User(email: "Player2", nickname: "Player2")
-                var totalTime = 0
-                var additionalTime = 0
-                if timerPicker.pickedData == .yes {
-                    totalTime = (Int(totalTimeMinutesValue.text!) ?? 0).seconds + (Int(totalTimeSecondsValue.text!) ?? 0)
-                    additionalTime = (Int(additionalTimeMinutesValue.text!) ?? 0).seconds + (Int(additionalTimeSecondsValue.text!) ?? 0)
-                }
                 let gameLogic = GameLogic(firstUser: currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindPicker.pickedData! == .yes ? true : false, totalTime: totalTime, additionalTime: additionalTime)
                 let gameVC = GameViewController()
                 gameVC.gameLogic = gameLogic
@@ -79,11 +159,33 @@ class CreateGameVC: UIViewController {
                 dismiss(animated: true) {
                     UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
                 }
-            //TODO: -
             case .multiplayer:
-                print(1)
+                if isConnected {
+                    sender?.isEnabled = false
+                    dataFieldsStack.isHidden.toggle()
+                    makeLoadingSpinner()
+                    let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? ""
+                    //we are using device uuid as gameID
+                    //this way gameID will always be unique, cuz user can`t create multiple games from one device
+                    //in some cases gameID is not enough to identify game
+                    //for example, if user will disconect by force exiting app and then connect again
+                    //and create new game. In this case, opponent won`t know, that game was ended and
+                    //gameId of both of this games will be equal, cuz gameId == device uuid of game creator, so we adding date to it,
+                    //cuz obv it is not possible to create 2 games with same date on same device
+                    let gameLogic = GameLogic(firstUser: currentUser, secondUser: nil, gameMode: .multiplayer, firstPlayerColor: colorPicker.pickedData!, totalTime: totalTime, additionalTime: additionalTime, gameID: deviceID + Date().toStringDateHMS)
+                    storage.saveGameForMultiplayer(gameLogic)
+                    pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
+                        if let jsonData = try? JSONEncoder().encode("Hello") {
+                            self?.socket.write(ping: jsonData)
+                        }
+                    })
+                    gameID = gameLogic.gameID
+                }
+                else {
+                    makeErrorAlert(with: "You are not connected to the server, will try to reconnect")
+                    socket.connect()
+                }
             }
-            //
         }
         else {
             alert.message = "Pick data for all fields!"
@@ -137,6 +239,19 @@ class CreateGameVC: UIViewController {
         }
     }
     
+    private func makeErrorAlert(with message: String) {
+        pingTimer?.invalidate()
+        createGameButton.isEnabled = true
+        dataFieldsStack.isHidden = false
+        loadingSpinner.removeFromSuperview()
+        let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Ok", style: .default))
+        UIApplication.getTopMostViewController()?.present(alert, animated: true)
+        if let gameID = gameID {
+            storage.deleteMultiplayerGame(with: gameID)
+        }
+    }
+    
     // MARK: - UI
     
     // MARK: - UI Properties
@@ -154,6 +269,8 @@ class CreateGameVC: UIViewController {
     private var additionalTimeLine = UIStackView()
     private var additionalTimeMinutesLine = UIStackView()
     private var additionalTimeSecondsLine = UIStackView()
+    private var loadingSpinner = LoadingSpinner()
+    private var createGameButton: UIBarButtonItem!
     
     private let scrollView = UIScrollView()
     private let scrollViewContent = UIView()
@@ -286,7 +403,7 @@ class CreateGameVC: UIViewController {
         toolbar.sizeToFit()
         let closeButton = UIBarButtonItem(title: "Close", style: UIBarButtonItem.Style.plain, target: self, action: #selector(close))
         let spaceButton = UIBarButtonItem(barButtonSystemItem: UIBarButtonItem.SystemItem.flexibleSpace, target: nil, action: nil)
-        let createGameButton = UIBarButtonItem(title: "Create", style: UIBarButtonItem.Style.done, target: self, action: #selector(createGame))
+        createGameButton = UIBarButtonItem(title: "Create", style: UIBarButtonItem.Style.done, target: self, action: #selector(createGame))
         toolbar.setItems([closeButton, spaceButton, createGameButton], animated: false)
         toolbar.isUserInteractionEnabled = true
         view.addSubview(toolbar)
@@ -305,6 +422,14 @@ class CreateGameVC: UIViewController {
         let scrollViewConstraints = [scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor), scrollView.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), scrollView.bottomAnchor.constraint(equalTo: view.layoutMarginsGuide.bottomAnchor)]
         let contentConstraints = [scrollViewContent.topAnchor.constraint(equalTo: scrollView.topAnchor), scrollViewContent.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor), scrollViewContent.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor), scrollViewContent.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor), scrollViewContent.widthAnchor.constraint(equalTo: scrollView.widthAnchor), contentHeight]
         NSLayoutConstraint.activate(scrollViewConstraints + contentConstraints)
+    }
+    
+    //makes spinner, while waiting for second player to join multiplayer game
+    private func makeLoadingSpinner() {
+        loadingSpinner = LoadingSpinner()
+        scrollViewContent.addSubview(loadingSpinner)
+        let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: scrollViewContent.widthAnchor), loadingSpinner.heightAnchor.constraint(equalTo: scrollViewContent.heightAnchor)]
+        NSLayoutConstraint.activate(spinnerConstraints)
     }
     
     
@@ -331,4 +456,5 @@ private struct CreateGameVC_Constants {
     static let minSecondsForTimer = 0.0
     static let maxSecondsForTimer = 59.0
     static let stepValueForTimer = 1.0
+    static let requestTimeout = 5.0
 }

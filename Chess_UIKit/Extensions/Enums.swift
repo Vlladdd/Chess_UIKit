@@ -62,6 +62,11 @@ enum GamePlayers: String, Codable {
     case player2
 }
 
+enum MultiplayerPlayerType: String, Codable {
+    case creator
+    case joiner
+}
+
 enum GameColors: String, CaseIterable, Codable {
     case white
     case black

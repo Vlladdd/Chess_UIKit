@@ -114,6 +114,10 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
+    //TODO: -
+    
+    //add guest mode(no-internet mode)
+    
 }
 
 // MARK: - Constants
