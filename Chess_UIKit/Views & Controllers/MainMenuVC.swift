@@ -177,6 +177,9 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         let createButton = makeMainMenuButtonView(with: UIImage(named: "misc/createButtonBG"), buttonImage: nil, buttontext: "Create", and: #selector(showCreateGameVC))
         let joinButton = makeMainMenuButtonView(with: UIImage(named: "misc/joinButtonBG"), buttonImage: nil, buttontext: "Join", and: #selector(makeMultiplayerGamesList))
         let loadButton = makeMainMenuButtonView(with: UIImage(named: "misc/loadButtonBG"), buttonImage: nil, buttontext: "Load", and: #selector(makeUserGamesList))
+        if currentUser.guestMode {
+            (joinButton.subviews.first as! UIButton).isEnabled = false
+        }
         updateButtonsStack(with: [createButton, joinButton, loadButton], addBackButton: true, distribution: .fillEqually)
         animateButtonsStack()
     }
@@ -339,32 +342,34 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     @objc private func makeMainMenu(_ sender: UIButton? = nil) {
         var haveNewInventoryItem = false
         var haveNewShopItem = false
-        //right now only titles can be different in shop and inventory, but it might change in future
-        for itemType in ItemTypes.allCases {
-            switch itemType {
-            case .squaresTheme:
-                haveNewInventoryItem = currentUser.haveNewSquaresThemesInInventory()
-                haveNewShopItem = currentUser.haveNewSquaresThemesInShop()
-            case .figuresTheme:
-                haveNewInventoryItem = currentUser.haveNewFiguresThemesInInventory()
-                haveNewShopItem = currentUser.haveNewFiguresThemesInShop()
-            case .boardTheme:
-                haveNewInventoryItem = currentUser.haveNewBoardThemesInInventory()
-                haveNewShopItem = currentUser.haveNewBoardThemesInShop()
-            case .frame:
-                haveNewInventoryItem = currentUser.haveNewFramesInInventory()
-                haveNewShopItem = currentUser.haveNewFramesInShop()
-            case .background:
-                haveNewInventoryItem = currentUser.haveNewBackgroundsInInventory()
-                haveNewShopItem = currentUser.haveNewBackgroundsInShop()
-            case .title:
-                haveNewInventoryItem = currentUser.haveNewTitlesInInventory()
-                haveNewShopItem = currentUser.haveNewTitlesInShop()
-            case .avatar:
-                haveNewShopItem = currentUser.haveNewAvatarsInShop()
-            }
-            if haveNewInventoryItem && haveNewShopItem {
-                break
+        if !currentUser.guestMode {
+            //right now only titles can be different in shop and inventory, but it might change in future
+            for itemType in ItemTypes.allCases {
+                switch itemType {
+                case .squaresTheme:
+                    haveNewInventoryItem = currentUser.haveNewSquaresThemesInInventory()
+                    haveNewShopItem = currentUser.haveNewSquaresThemesInShop()
+                case .figuresTheme:
+                    haveNewInventoryItem = currentUser.haveNewFiguresThemesInInventory()
+                    haveNewShopItem = currentUser.haveNewFiguresThemesInShop()
+                case .boardTheme:
+                    haveNewInventoryItem = currentUser.haveNewBoardThemesInInventory()
+                    haveNewShopItem = currentUser.haveNewBoardThemesInShop()
+                case .frame:
+                    haveNewInventoryItem = currentUser.haveNewFramesInInventory()
+                    haveNewShopItem = currentUser.haveNewFramesInShop()
+                case .background:
+                    haveNewInventoryItem = currentUser.haveNewBackgroundsInInventory()
+                    haveNewShopItem = currentUser.haveNewBackgroundsInShop()
+                case .title:
+                    haveNewInventoryItem = currentUser.haveNewTitlesInInventory()
+                    haveNewShopItem = currentUser.haveNewTitlesInShop()
+                case .avatar:
+                    haveNewShopItem = currentUser.haveNewAvatarsInShop()
+                }
+                if haveNewInventoryItem && haveNewShopItem {
+                    break
+                }
             }
         }
         let gameButton = makeMainMenuButtonView(with: UIImage(named: "misc/gameButtonBG"), buttonImage: nil, buttontext: "Game", and: #selector(makeGameMenu))
@@ -1284,7 +1289,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         }
         userData.addArrangedSubviews([userAvatar, userName, exitButton])
         var userDataConstraints = [NSLayoutConstraint]()
-        if currentUser.haveNewAvatarsInInventory() || currentUser.nickname.isEmpty {
+        if (currentUser.haveNewAvatarsInInventory() || currentUser.nickname.isEmpty) && !currentUser.guestMode {
             userDataView = ViewWithNotifIcon(mainView: userData, cornerRadius: widthForAvatar / constants.optimalDividerForCornerRadius)
         }
         else {

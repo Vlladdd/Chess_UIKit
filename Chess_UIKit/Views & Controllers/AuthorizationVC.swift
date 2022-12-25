@@ -34,7 +34,7 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
             mainMenuVC.modalPresentationStyle = .fullScreen
             present(mainMenuVC, animated: false) {[weak self] in
                 self?.loadingSpinner.removeFromSuperview()
-                self?.authorizationView.isHidden.toggle()
+                self?.authorizationView.isHidden = false
             }
             return
         }
@@ -113,10 +113,6 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: authorizationView.widthAnchor), loadingSpinner.heightAnchor.constraint(equalTo: authorizationView.heightAnchor)]
         NSLayoutConstraint.activate(spinnerConstraints)
     }
-    
-    //TODO: -
-    
-    //add guest mode(no-internet mode)
     
 }
 

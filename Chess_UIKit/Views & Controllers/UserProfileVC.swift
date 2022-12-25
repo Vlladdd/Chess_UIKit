@@ -41,27 +41,29 @@ class UserProfileVC: UIViewController {
         toggleViews()
         makeLoadingSpinner()
         let nicknameView = nicknameLine.arrangedSubviews.second?.subviews.first as? UITextField ?? nicknameLine.arrangedSubviews.second as? UITextField
-        if !storage.checkIfGoogleSignIn() {
-            let email = (emailLine.arrangedSubviews.second as? UITextField)?.text
-            let password = (passwordLine.arrangedSubviews.second as? UITextField)?.text
-            if let nickname = nicknameView?.text, let email = email, let password = password, nickname.count >= constants.minimumSymbolsInData && nickname.count <= constants.maximumSymbolsInData  {
-                storage.updateUserAccount(with: email, and: password, callback: { [weak self] error in
-                    if let self = self {
-                        guard error == nil else {
-                            self.updateUserResultAlert(with: "Error", and: error!.localizedDescription)
-                            return
+        if let nickname = nicknameView?.text, nickname.count >= constants.minimumSymbolsInData && nickname.count <= constants.maximumSymbolsInData {
+            if !storage.checkIfGoogleSignIn() && !currentUser.guestMode {
+                let email = (emailLine.arrangedSubviews.second as? UITextField)?.text
+                let password = (passwordLine.arrangedSubviews.second as? UITextField)?.text
+                if let email = email, let password = password {
+                    storage.updateUserAccount(with: email, and: password, callback: { [weak self] error in
+                        if let self = self {
+                            guard error == nil else {
+                                self.updateUserResultAlert(with: "Error", and: error!.localizedDescription)
+                                return
+                            }
+                            self.currentUser.updateEmail(newValue: email)
+                            self.updateNickname(newValue: nickname, nicknameView: nicknameView!)
                         }
-                        self.currentUser.updateEmail(newValue: email)
-                        self.updateNickname(newValue: nickname, nicknameView: nicknameView!)
-                    }
-                })
+                    })
+                }
             }
             else {
-                updateUserResultAlert(with: "Error", and: "Nickname must be longer than \(constants.minimumSymbolsInData - 1) and less than \(constants.maximumSymbolsInData + 1)")
+                updateNickname(newValue: nickname, nicknameView: nicknameView!)
             }
         }
-        else if let nickname = nicknameView?.text {
-            updateNickname(newValue: nickname, nicknameView: nicknameView!)
+        else {
+            updateUserResultAlert(with: "Error", and: "Nickname must be longer than \(constants.minimumSymbolsInData - 1) and less than \(constants.maximumSymbolsInData + 1)")
         }
     }
     
@@ -265,7 +267,10 @@ class UserProfileVC: UIViewController {
     private func makeDataFields() {
         dataFieldsStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         nicknameLine = makeLine(with: "Nickname", textFieldPlaceholder: "Enter new nickname", textFieldText: currentUser.nickname)
-        if storage.checkIfGoogleSignIn() {
+        if currentUser.guestMode {
+            dataFieldsStack.addArrangedSubviews([nicknameLine])
+        }
+        else if storage.checkIfGoogleSignIn() {
             emailLine = makeLine(with: "Email", labelData: currentUser.email)
             dataFieldsStack.addArrangedSubviews([nicknameLine, emailLine])
         }

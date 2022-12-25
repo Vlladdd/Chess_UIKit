@@ -68,6 +68,15 @@ class AuthorizationView: UIStackView {
         }
     }
     
+    @objc private func signInViaGuestMode(_ sender: UIButton? = nil) {
+        if let delegate = delegate {
+            delegate.successCallbackForAuthorization(user: User(email: "", nickname: "Player1", guestMode: true))
+        }
+        else {
+            fatalError("delegate is nil")
+        }
+    }
+    
     // MARK: - Local Methods
     
     private func setup() {
@@ -76,6 +85,8 @@ class AuthorizationView: UIStackView {
         layoutMargins = UIEdgeInsets(top: constants.optimalDistanceFromEdgesInStack, left: constants.optimalDistanceFromEdgesInStack, bottom: constants.optimalDistanceFromEdgesInStack, right: constants.optimalDistanceFromEdgesInStack)
         isLayoutMarginsRelativeArrangement = true
         backgroundColor = backgroundColor?.withAlphaComponent(constants.optimalAlpha)
+        let guestModeButton = UIButton()
+        guestModeButton.buttonWith(image: UIImage(systemName: "wifi.slash"), and: #selector(signInViaGuestMode))
         let goggleSignInView = UIView()
         goggleSignInView.translatesAutoresizingMaskIntoConstraints = false
         goggleSignInView.addSubview(goggleSignInButton)
@@ -91,7 +102,7 @@ class AuthorizationView: UIStackView {
         passwordField.setup(placeholder: "Enter password", font: font)
         addArrangedSubview(makeDataLine(with: [emailLabel, emailField]))
         addArrangedSubview(makeDataLine(with: [passwordLabel, passwordField]))
-        addArrangedSubview(makeDataLine(with: [createButton, loginButton]))
+        addArrangedSubview(makeDataLine(with: [createButton, loginButton, guestModeButton]))
         addArrangedSubview(makeDataLine(with: [goggleSignInView]))
         let goggleSignInButtonConstraints = [goggleSignInButton.centerXAnchor.constraint(equalTo: goggleSignInView.centerXAnchor), goggleSignInButton.centerYAnchor.constraint(equalTo: goggleSignInView.centerYAnchor)]
         NSLayoutConstraint.activate(goggleSignInButtonConstraints)

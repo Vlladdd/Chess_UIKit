@@ -96,6 +96,12 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
         inputAccessoryView = toolbar
         let textViewConstraints = [textView.centerXAnchor.constraint(equalTo: centerXAnchor), textView.centerYAnchor.constraint(equalTo: centerYAnchor), placeHolderView.centerXAnchor.constraint(equalTo: centerXAnchor), placeHolderView.centerYAnchor.constraint(equalTo: centerYAnchor), textView.heightAnchor.constraint(equalTo: heightAnchor), textView.widthAnchor.constraint(equalTo: widthAnchor), placeHolderView.heightAnchor.constraint(equalTo: heightAnchor), placeHolderView.widthAnchor.constraint(equalTo: widthAnchor)]
         NSLayoutConstraint.activate(textViewConstraints)
+        if data.count == 1 {
+            pickedData = data.first
+            textView.text = pickedData?.rawValue
+            placeHolderView.text = ""
+            isEnabled = false
+        }
     }
     
     func numberOfComponents(in pickerView: UIPickerView) -> Int {

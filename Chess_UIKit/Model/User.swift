@@ -12,6 +12,8 @@ struct User: Codable {
     
     // MARK: - Properties
     
+    //no-internet mode
+    private(set) var guestMode: Bool = false
     private(set) var nickname: String
     private(set) var email: String
     private(set) var squaresTheme: SquaresThemes = .defaultTheme
@@ -60,9 +62,10 @@ struct User: Codable {
     
     // MARK: - Inits
     
-    init(email: String, nickname: String = "") {
+    init(email: String, nickname: String = "", guestMode: Bool = false) {
         self.email = email
         self.nickname = nickname
+        self.guestMode = guestMode
     }
     
     //Firebase don`t store empty arrays, that`s why we need custom decoder
@@ -205,7 +208,7 @@ struct User: Codable {
     }
     
     func containsNewItemIn(items: [Item]) -> Bool {
-        if items.count > 0 {
+        if items.count > 0 && !guestMode {
             switch items.first!.type {
             case .squaresTheme:
                 if let squaresThemes = items as? [SquaresThemes] {

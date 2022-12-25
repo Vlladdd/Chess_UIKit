@@ -257,7 +257,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     // MARK: - UI Properties
     
     private lazy var font = UIFont.systemFont(ofSize: min(view.frame.width, view.frame.height) / constants.dividerForFont)
-    private lazy var modePicker = Picker(placeholder: "Pick mode", font: font, data: GameModes.allCases, doneAction: doneModePicker)
+    private lazy var modePicker = Picker(placeholder: "Pick mode", font: font, data: currentUser.guestMode ? [GameModes.oneScreen] : GameModes.allCases, doneAction: doneModePicker)
     private lazy var colorPicker = Picker(placeholder: "Pick color", font: font, data: GameColors.allCases)
     private lazy var timerPicker = Picker(placeholder: "Pick answer", font: font, data: Answers.allCases, doneAction: doneTimerPicker)
     private lazy var rewindPicker = Picker(placeholder: "Pick answer", font: font, data: Answers.allCases)
@@ -315,7 +315,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     private func makeRewindLine() {
         let rewindLabel = UILabel()
         rewindLabel.setup(text: "Enable rewind", alignment: .center, font: font)
-        rewindLine = makeDataLine(with: [rewindLabel, rewindPicker], isHidden: true)
+        rewindLine = makeDataLine(with: [rewindLabel, rewindPicker], isHidden: ((modePicker.pickedData ?? .multiplayer) as GameModes) != .oneScreen)
     }
     
     private func makeColorLine() -> UIStackView {
