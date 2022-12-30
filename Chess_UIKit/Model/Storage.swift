@@ -18,6 +18,7 @@ struct Storage {
     // MARK: - Properties
     
     private var firebaseDatabase = Database.database().reference()
+    private var chatHistory = [ChatMessage]()
     
     private typealias constants = Storage_Constants
     
@@ -26,6 +27,16 @@ struct Storage {
     }
     
     // MARK: - Methods
+    
+    mutating func addChatMessageToHistory(_ chatMessage: ChatMessage) {
+        if !chatHistory.contains(chatMessage) {
+            chatHistory.append(chatMessage)
+        }
+    }
+    
+    func checkIfChatMessageInHistory(_ chatMessage: ChatMessage) -> Bool {
+        chatHistory.contains(chatMessage)
+    }
     
     //signs ins user with google account and gets his data from database
     func signInWith(idToken: String, and accessToken: String, callback:  @escaping (Error?, User?, MultiFactorResolver?, String?) -> Void) {

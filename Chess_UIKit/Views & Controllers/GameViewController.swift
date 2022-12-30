@@ -48,6 +48,22 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     websocketDidReceive(square: square)
                 }
             }
+            if let chatMessage = try? JSONDecoder().decode(ChatMessage.self, from: data) {
+                if chatMessage.gameID == gameLogic.gameID && chatMessage.playerType != gameLogic.players.first!.multiplayerType {
+                    addMessageToChat(chatMessage)
+                }
+            }
+            if let chatHistory = try? JSONDecoder().decode([ChatMessage].self, from: data) {
+                if !chatHistory.isEmpty {
+                    if chatHistory.first!.gameID == gameLogic.gameID {
+                        for chatMessage in chatHistory.filter({$0.playerType != gameLogic.players.first!.multiplayerType}) {
+                            if !storage.checkIfChatMessageInHistory(chatMessage) {
+                                addMessageToChat(chatMessage)
+                            }
+                        }
+                    }
+                }
+            }
         case .ping(_):
             break
         case .pong(_):
@@ -126,20 +142,26 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 toggleTurnButtons(disable: false)
             }
         }
-        else if playerMessage.opponentWantsDraw {
-            let interval = ceil(Date().timeIntervalSince(playerMessage.date))
-            if interval > 0 {
-                opponentWantsDraw = true
-                UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-                    self?.surrenderButton.backgroundColor = constants.surrenderButtonHighlightColor
+        else if playerMessage.opponentWantsDraw && playerMessage.playerType != gameLogic.players.first!.multiplayerType {
+            //interval should be lower, so timer interval will be a little longer, so second user will have a little more time
+            //to accept draw. Otherwise, if he would accept draw, the player`s timer who offered draw could have been ended already,
+            //but draw would have still be awarded to second player and first player would have an ability to just wait for his oponnent
+            //afk timer to run out and win the game, because of that
+            let interval = floor(Date().timeIntervalSince(playerMessage.date))
+            opponentWantsDraw = true
+            //a little notification
+            UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                self?.additionalButton.backgroundColor = constants.notificationColor
+                self?.surrenderButton.backgroundColor = constants.notificationColor
+            })
+            Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw - interval, repeats: false, block: { [weak self] _ in
+                self?.opponentWantsDraw = false
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    self?.surrenderButton.backgroundColor = constants.defaultButtonBGColor
+                    self?.additionalButton.backgroundColor = constants.defaultButtonBGColor
                 })
-                Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw - interval, repeats: false, block: { [weak self] _ in
-                    self?.opponentWantsDraw = false
-                    UIView.animate(withDuration: constants.animationDuration, animations: {
-                        self?.surrenderButton.backgroundColor = constants.surrenderButtonBGColor
-                    })
-                })
-            }
+            })
+            addMessageToChat(ChatMessage(date: playerMessage.date, gameID: playerMessage.gameID, userNickname: gameLogic.players.second!.user.nickname, playerType: gameLogic.players.second!.multiplayerType!, userAvatar: gameLogic.players.second!.user.playerAvatar, userFrame: gameLogic.players.second!.user.frame, message: "Wanna draw?"))
         }
     }
     
@@ -236,6 +258,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+            self?.checkForSpecialConstraints()
+        })
         scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
     }
     
@@ -277,6 +302,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
     var gameLogic: GameLogic!
     var currentUser: User!
     
+    //to mute pop-ups with new messages
+    private var muteChat = false
     //if we connect to the server, after afkTimer for that is expired, and we already have final alert on screen
     private var finalError = false
     private var serverError = false
@@ -294,6 +321,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //if second player didn`t connect in time at the start of the game
     private var cancelGameTimer: Timer?
     private var reconnectTimer: Timer?
+    //to control pop-ups appearance
+    private var currentUserMessageTimer: Timer?
+    private var oponnentMessageTimer: Timer?
     //used in playback of the turns and also to have ability to stop it
     private var turnsActionTimers: [Timer] = []
     private var backwardRewind = false
@@ -315,14 +345,37 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private var animatingTurns = false
     //to rotate gameBoard after currentPlayer changed
     private var gameBoardAutoRotate = false
+    private var storage = Storage()
     
     //to check internet connection
     private let monitor = NWPathMonitor()
-    private let storage = Storage()
     
     private typealias constants = GameVC_Constants
     
     // MARK: - User Initiated Methods
+    
+    @objc private func sendMessageToChat(_ sender: UIButton? = nil) {
+        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, userNickname: currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: currentUser.playerAvatar, userFrame: currentUser.frame, message: chatMessageField.text!)
+        addMessageToChat(chatMessage)
+        if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
+            socket.write(data: chatMessageJson)
+        }
+        chatMessageField.text?.removeAll()
+        //we can`t send empty messages
+        sender?.isEnabled = false
+    }
+    
+    //shows/hides chat
+    @objc private func toggleChat(_ sender: UIButton? = nil) {
+        //removes notification about new messages
+        if chatView.alpha == 0 {
+            UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                self?.showChatButton.backgroundColor = constants.defaultButtonBGColor
+                self?.additionalButton.backgroundColor = constants.defaultButtonBGColor
+            })
+        }
+        animateView(chatView, with: view.frame.height)
+    }
     
     //restores game from last saved state
     //at first, we rewinding game to the start and then we rewinding it to last turn in stored turns
@@ -559,8 +612,10 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     }
                     else if !self.gameLogic.gameEnded {
                         self.currentUserWantsDraw = true
+                        //a little notification
                         UIView.animate(withDuration: constants.animationDuration, animations: {
-                            self.surrenderButton.backgroundColor = constants.surrenderButtonHighlightColor
+                            self.surrenderButton.backgroundColor = constants.notificationColor
+                            self.additionalButton.backgroundColor = constants.notificationColor
                         })
                         if self.opponentWantsDraw {
                             self.gameLogic.forceDraw()
@@ -569,11 +624,13 @@ class GameViewController: UIViewController, WebSocketDelegate {
                             }
                         }
                         else {
+                            self.addMessageToChat(ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, userNickname: self.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.currentUser.playerAvatar, userFrame: self.currentUser.frame, message: "Wanna draw?"))
                             Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
                                 self.currentUserWantsDraw = false
                                 self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
                                 UIView.animate(withDuration: constants.animationDuration, animations: {
-                                    self.surrenderButton.backgroundColor = UIColor.clear
+                                    self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
+                                    self.additionalButton.backgroundColor = constants.defaultButtonBGColor
                                 })
                             })
                         }
@@ -590,7 +647,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     //shows/hides turnsView
     @objc private func transitTurnsView(_ sender: UIButton? = nil) {
-        animateTurnsView()
+        animateView(turnsView, with: gameBoard.center.y - turnsView.center.y)
         //hides/shows timers, when shows/hides turnsView
         if gameLogic.timerEnabled {
             animateTransition(of: player1Timer, startAlpha: player1Timer.alpha)
@@ -691,19 +748,130 @@ class GameViewController: UIViewController, WebSocketDelegate {
 
     // MARK: - Local Methods
     
+    private func addMessageToChat(_ chatMessage: ChatMessage) {
+        storage.addChatMessageToHistory(chatMessage)
+        //messageView for chat
+        let messageView = makeMessageView(from: chatMessage, needSpecialConstraint: true)
+        //messageView for pop-up
+        let messageViewCopy = makeMessageView(from: chatMessage, needSpecialConstraint: false)
+        messageView.alpha = 0
+        chatMessages.addArrangedSubview(messageView)
+        animateTransition(of: messageView)
+        chatScrollView.layoutIfNeeded()
+        //scrolls chat to the last message
+        if chatScrollView.contentSize.height > chatScrollView.bounds.height + chatScrollView.contentInset.bottom {
+            let bottomOffset = CGPoint(x: 0, y: chatScrollView.contentSize.height - chatScrollView.bounds.height + chatScrollView.contentInset.bottom)
+            chatScrollView.setContentOffset(bottomOffset, animated: true)
+        }
+        //shows pop-up with the new message
+        if !muteChat {
+            //a little notification, that we got a new message, if chat is not visible or message pop-up
+            //is not visible, which sometimes is the case, for example, on some iPad screens
+            if chatView.alpha == 0 {
+                UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                    self?.showChatButton.backgroundColor = constants.notificationColor
+                    self?.additionalButton.backgroundColor = constants.notificationColor
+                })
+            }
+            if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
+                configureChatWindow(currentUserChatWindow, messageView: messageViewCopy, messageTimer: currentUserMessageTimer)
+            }
+            else {
+                configureChatWindow(oponnentChatWindow, messageView: messageViewCopy, messageTimer: oponnentMessageTimer)
+            }
+        }
+    }
+    
+    private func configureChatWindow(_ chatWindow: UIView, messageView: UIImageView, messageTimer: Timer?) {
+        for subview in chatWindow.subviews {
+            subview.removeFromSuperview()
+        }
+        chatWindow.addSubview(messageView)
+        let messageViewConstraints = [messageView.leadingAnchor.constraint(equalTo: chatWindow.leadingAnchor), messageView.trailingAnchor.constraint(equalTo: chatWindow.trailingAnchor), messageView.topAnchor.constraint(equalTo: chatWindow.topAnchor), messageView.bottomAnchor.constraint(equalTo: chatWindow.bottomAnchor)]
+        NSLayoutConstraint.activate(messageViewConstraints)
+        if !(messageTimer?.isValid ?? false) {
+            animateTransition(of: chatWindow, startAlpha: chatWindow.alpha)
+        }
+        messageTimer?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: constants.timeToChatMessagePopUp, repeats: false, block: { [weak self] _ in
+            self?.animateTransition(of: chatWindow, startAlpha: chatWindow.alpha)
+        })
+        if messageTimer == currentUserMessageTimer {
+            currentUserMessageTimer = timer
+        }
+        else if messageTimer == oponnentMessageTimer {
+            oponnentMessageTimer = timer
+        }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+    
+    private func makeMessageView(from chatMessage: ChatMessage, needSpecialConstraint: Bool) -> UIImageView {
+        let fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
+        let messageView = SmartImageView()
+        messageView.defaultSettings()
+        messageView.image = UIImage(named: "frames/\(chatMessage.userFrame.rawValue)")
+        let messageStack = UIStackView()
+        messageStack.setup(axis: .vertical, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+        messageStack.defaultSettings()
+        messageStack.layer.masksToBounds = true
+        let messageInfo = UIStackView()
+        messageInfo.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+        messageInfo.defaultSettings()
+        let userAvatar = UIImageView()
+        userAvatar.defaultSettings()
+        userAvatar.image = UIImage(named: "avatars/\(chatMessage.userAvatar.rawValue)")
+        let userName = UILabel()
+        userName.setup(text: chatMessage.userNickname, alignment: .center, font: UIFont.systemFont(ofSize: fontSize))
+        let messageDate = UILabel()
+        messageDate.setup(text: chatMessage.date.toStringDateHMS, alignment: .center, font: UIFont.systemFont(ofSize: fontSize))
+        let userMessage = UILabel()
+        userMessage.setup(text: chatMessage.message, alignment: .left, font: UIFont.systemFont(ofSize: fontSize))
+        userMessage.numberOfLines = 0
+        userMessage.adjustsFontSizeToFitWidth = false
+        messageInfo.addArrangedSubviews([userAvatar, userName, messageDate])
+        messageStack.addArrangedSubviews([messageInfo, userMessage])
+        messageView.addSubview(messageStack)
+        var messageStackConstraints = [userName.widthAnchor.constraint(equalTo: messageDate.widthAnchor)]
+        if !needSpecialConstraint {
+            messageStackConstraints += [messageStack.leadingAnchor.constraint(equalTo: messageView.leadingAnchor, constant: constants.optimalDistance), messageStack.trailingAnchor.constraint(equalTo: messageView.trailingAnchor, constant: -constants.optimalDistance)]
+            if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
+                messageStackConstraints += [messageStack.topAnchor.constraint(equalTo: messageView.topAnchor), messageStack.bottomAnchor.constraint(equalTo: messageView.bottomAnchor, constant: -constants.optimalDistance)]
+            }
+        }
+        else if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
+            messageStackConstraints += [messageStack.leadingAnchor.constraint(equalTo: messageView.leadingAnchor), messageStack.trailingAnchor.constraint(equalTo: messageView.trailingAnchor, constant: -constants.optimalDistance)]
+        }
+        else {
+            messageStackConstraints += [messageStack.leadingAnchor.constraint(equalTo: messageView.leadingAnchor, constant: constants.optimalDistance), messageStack.trailingAnchor.constraint(equalTo: messageView.trailingAnchor)]
+        }
+        if needSpecialConstraint || chatMessage.playerType != gameLogic.players.first!.multiplayerType {
+            messageStackConstraints += [messageStack.topAnchor.constraint(equalTo: messageView.topAnchor, constant: constants.optimalDistance), messageStack.bottomAnchor.constraint(equalTo: messageView.bottomAnchor)]
+        }
+        messageStack.backgroundColor = chatMessage.playerType == gameLogic.players.first!.multiplayerType ? currentPlayerDataColor : constants.dangerPlayerDataColor
+        let userAvatarConstraints = [userAvatar.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForAvatarInChatMessage), userAvatar.widthAnchor.constraint(equalTo: userAvatar.heightAnchor)]
+        NSLayoutConstraint.activate(messageStackConstraints + userAvatarConstraints)
+        return messageView
+    }
+    
     private func makeReconnectTimer() {
+        chatMessageField.isConnectedToTheServer = isConnected
+        sendMessageToChatButton.isEnabled = false
         pawnPicker.isUserInteractionEnabled = false
         toggleTurnButtons(disable: true)
         reconnectTimer?.invalidate()
         makeLoadingSpinner()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
             if let self = self {
+                self.chatMessageField.isConnectedToTheServer = self.isConnected
+                if !self.chatMessageField.text!.isEmpty {
+                    self.sendMessageToChatButton.isEnabled = true
+                }
                 if self.gameLogic.currentPlayer.type == .player1 {
                     self.toggleTurnButtons(disable: false)
                     self.pawnPicker.isUserInteractionEnabled = true
                 }
                 else {
-                    self.surrenderButton.isEnabled = true
+                    self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
                     self.exitButton.isEnabled = true
                 }
                 self.loadingSpinner.removeFromSuperview()
@@ -1101,10 +1269,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     private func activateStartConstraints() {
         let screenSize: CGSize = UIScreen.main.bounds.size
-        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
-        //checks if we have enough space to put player data left and right from gameBoard,
-        //otherwise we will use special constraints for landscape mode
-        specialLayout = gameBoard.frame.size.width + widthForFrame > max(scrollContentOfGame.layoutMarginsGuide.layoutFrame.width, scrollContentOfGame.layoutMarginsGuide.layoutFrame.height)
         if screenSize.width / screenSize.height < 1 {
             NSLayoutConstraint.activate(portraitConstraints)
         }
@@ -1112,10 +1276,20 @@ class GameViewController: UIViewController, WebSocketDelegate {
             arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
             additionalButton.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
             currentTransformOfArrow = CGAffineTransform(rotationAngle: .pi * 1.5)
-            if !specialLayout {
-                NSLayoutConstraint.activate(landscapeConstraints)
-            }
-            else {
+            NSLayoutConstraint.activate(landscapeConstraints)
+        }
+        updateLayout()
+    }
+    
+    private func checkForSpecialConstraints() {
+        let screenSize: CGSize = UIScreen.main.bounds.size
+        let widthForFrame = min(view.frame.width, view.frame.height)  / constants.widthDividerForTrash
+        //checks if we have enough space to put player data left and right from gameBoard,
+        //otherwise we will use special constraints for landscape mode
+        specialLayout = gameBoard.bounds.width + widthForFrame > max(view.layoutMarginsGuide.layoutFrame.width, view.layoutMarginsGuide.layoutFrame.height)
+        if screenSize.width / screenSize.height > 1 {
+            if specialLayout {
+                NSLayoutConstraint.deactivate(landscapeConstraints)
                 NSLayoutConstraint.activate(portraitConstraints)
                 NSLayoutConstraint.deactivate(timerConstraints)
                 NSLayoutConstraint.deactivate(additionalButtonConstraints)
@@ -2049,6 +2223,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private let fastAnimationsButton = UIButton()
     private let player1RotateFiguresButton = UIButton()
     private let player2RotateFiguresButton = UIButton()
+    private let chatView = UIImageView()
+    private let chatScrollView = UIScrollView()
+    //pop-ups with new chat messages
+    private let currentUserChatWindow = UIView()
+    private let oponnentChatWindow = UIView()
+    private let chatMessages = UIStackView()
+    private let sendMessageToChatButton = UIButton()
+    private let showChatButton = UIButton()
     
     private lazy var defaultPlayerDataColor = traitCollection.userInterfaceStyle == .dark ? constants.defaultDarkModeColorForDataBackground : constants.defaultLightModeColorForDataBackground
     private lazy var currentPlayerDataColor = traitCollection.userInterfaceStyle == .dark ? constants.currentPlayerDataColorDarkMode : constants.currentPlayerDataColorLightMode
@@ -2083,6 +2265,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private var figureToTrash: UIView?
     private var figureFromTrash: UIView?
     private var figuresInMotion = [UIView]()
+    private var chatMessageField: SmartTextField!
     
     //letters line on top and bottom of the board
     private var lettersLine: UIStackView {
@@ -2129,12 +2312,34 @@ class GameViewController: UIViewController, WebSocketDelegate {
             buttonViews.insert(surrenderButton, at: 2)
         }
         additionalButtons.addArrangedSubviews(buttonViews)
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
+            showChatButton.buttonWith(image: UIImage(systemName: "text.bubble"), and: #selector(toggleChat))
+            //context menu on long press
+            addToggleChatMuteAction(with: "Mute chat", and: UIImage(systemName: "eye.slash"), to: showChatButton)
+            additionalButtons.addArrangedSubview(showChatButton)
+        }
         if gameLogic.gameMode == .oneScreen && !gameLogic.gameEnded {
             saveButton.buttonWith(image: UIImage(systemName: "square.and.arrow.down"), and: #selector(saveGame))
             saveButton.isEnabled = false
             additionalButtons.addArrangedSubview(saveButton)
         }
         scrollContentOfGame.addSubview(additionalButtons)
+    }
+    
+    //we can`t change title of children in UIMenu, so we have to recreate a UIMenu
+    private func addToggleChatMuteAction(with title: String, and image: UIImage?, to parent: UIButton) {
+        let toggleChatMute = UIAction(title: title, image: image) { [weak self] _ in
+            if let self = self {
+                if self.muteChat {
+                    self.addToggleChatMuteAction(with: "Mute chat", and: UIImage(systemName: "eye.slash"), to: parent)
+                }
+                else {
+                    self.addToggleChatMuteAction(with: "Unmute chat", and: UIImage(systemName: "eye"), to: parent)
+                }
+                self.muteChat.toggle()
+            }
+        }
+        parent.menu = UIMenu(title: "", children: [toggleChatMute])
     }
     
     private func makeAdditionalButtonsForFigures() {
@@ -2175,6 +2380,10 @@ class GameViewController: UIViewController, WebSocketDelegate {
             makeTimers()
         }
         makeTurnsView()
+        //right now we don`t store chat history
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
+            makeChatView()
+        }
         viewsOnTop()
         makeSpecialConstraints()
         makePortraitConstraints()
@@ -2303,11 +2512,17 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let destroyedFigures2Constraints = [destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), destroyedFigures2.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
         var player1TimerConstraints = [NSLayoutConstraint]()
         var player2TimerConstraints = [NSLayoutConstraint]()
+        var currentUserChatWindowConstraints = [NSLayoutConstraint]()
+        var oponnentChatWindowConstraints = [NSLayoutConstraint]()
         if gameLogic.timerEnabled {
             player1TimerConstraints = [player1Timer.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), player1Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
             player2TimerConstraints = [player2Timer.bottomAnchor.constraint(equalTo: gameBoard.topAnchor, constant: -constants.optimalDistance), player2Timer.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
         }
-        portraitConstraints += additionalButtonsConstraints + additionalButtonsForFiguresConstraints + player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + player1TimerConstraints + player2TimerConstraints
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
+            currentUserChatWindowConstraints = [currentUserChatWindow.topAnchor.constraint(equalTo: gameBoard.bottomAnchor), currentUserChatWindow.bottomAnchor.constraint(equalTo: player1FrameView.topAnchor), currentUserChatWindow.leadingAnchor.constraint(equalTo: gameBoard.leadingAnchor), currentUserChatWindow.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
+            oponnentChatWindowConstraints = [oponnentChatWindow.topAnchor.constraint(equalTo: player2FrameView.bottomAnchor), oponnentChatWindow.bottomAnchor.constraint(equalTo: gameBoard.topAnchor), oponnentChatWindow.leadingAnchor.constraint(equalTo: gameBoard.leadingAnchor), oponnentChatWindow.trailingAnchor.constraint(equalTo: gameBoard.trailingAnchor)]
+        }
+        portraitConstraints += additionalButtonsConstraints + additionalButtonsForFiguresConstraints + player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + player1TimerConstraints + player2TimerConstraints + currentUserChatWindowConstraints + oponnentChatWindowConstraints
         timerConstraints += player1TimerConstraints + player2TimerConstraints
         additionalButtonConstraints += additionalButtonsConstraints + additionalButtonsForFiguresConstraints
     }
@@ -2322,7 +2537,13 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let destroyedFigures1Constraints = [destroyedFigures1.topAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.topAnchor, constant: constants.optimalDistance), destroyedFigures1.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor)]
         let player1FrameConstraintsDF = [player1FrameForDF.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.distanceForFrame), player1FrameForDF.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), player1FrameForDF.widthAnchor.constraint(equalTo: destroyedFigures2.widthAnchor, constant: constants.optimalDistance), player1FrameForDF.heightAnchor.constraint(equalTo: destroyedFigures2.heightAnchor, constant: constants.optimalDistance)]
         let destroyedFigures2Constraints = [destroyedFigures2.topAnchor.constraint(equalTo: gameBoard.bottomAnchor, constant: constants.optimalDistance), destroyedFigures2.centerXAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.centerXAnchor), destroyedFigures2.bottomAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.bottomAnchor, constant: -constants.distanceToFitTurnsViewInLandscape)]
-        landscapeConstraints += player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + specialConstraints
+        var currentUserChatWindowConstraints = [NSLayoutConstraint]()
+        var oponnentChatWindowConstraints = [NSLayoutConstraint]()
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
+            currentUserChatWindowConstraints = [currentUserChatWindow.topAnchor.constraint(equalTo: gameBoard.topAnchor), currentUserChatWindow.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), currentUserChatWindow.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor), currentUserChatWindow.trailingAnchor.constraint(equalTo: gameBoard.leadingAnchor)]
+            oponnentChatWindowConstraints = [oponnentChatWindow.topAnchor.constraint(equalTo: gameBoard.topAnchor), oponnentChatWindow.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), oponnentChatWindow.leadingAnchor.constraint(equalTo: gameBoard.trailingAnchor), oponnentChatWindow.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor)]
+        }
+        landscapeConstraints += player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + currentUserChatWindowConstraints + oponnentChatWindowConstraints + specialConstraints
     }
     
     //moves some views to top
@@ -2337,12 +2558,18 @@ class GameViewController: UIViewController, WebSocketDelegate {
         scrollContentOfGame.bringSubviewToFront(additionalButtonsForFigures)
         scrollContentOfGame.bringSubviewToFront(pawnPicker)
         scrollContentOfGame.bringSubviewToFront(loadingSpinner)
+        scrollContentOfGame.bringSubviewToFront(currentUserChatWindow)
+        scrollContentOfGame.bringSubviewToFront(oponnentChatWindow)
     }
     
     private func setupViews() {
+        currentUserChatWindow.translatesAutoresizingMaskIntoConstraints = false
+        oponnentChatWindow.translatesAutoresizingMaskIntoConstraints = false
         turnsView.translatesAutoresizingMaskIntoConstraints = false
         scrollViewOfGame.translatesAutoresizingMaskIntoConstraints = false
         scrollViewOfGame.setValue(constants.animationDuration, forKey: "contentOffsetAnimationDuration")
+        chatScrollView.setValue(constants.animationDuration, forKey: "contentOffsetAnimationDuration")
+        chatScrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollContentOfGame.translatesAutoresizingMaskIntoConstraints = false
         endOfTheGameScrollView.translatesAutoresizingMaskIntoConstraints = false
         turnsScrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -2353,11 +2580,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
         additionalButtons.alpha = 0
         additionalButtonsForFigures.alpha = 0
         arrowToAdditionalButtons.alpha = 0
+        chatView.alpha = 0
+        currentUserChatWindow.alpha = 0
+        oponnentChatWindow.alpha = 0
         showEndOfTheGameView.isEnabled = false
         turnBackward.isEnabled = gameLogic.rewindEnabled && !gameLogic.turns.isEmpty ? !gameLogic.firstTurn : false
         turnForward.isEnabled = gameLogic.rewindEnabled && !gameLogic.turns.isEmpty ? !gameLogic.lastTurn : false
         turnAction.isEnabled = gameLogic.rewindEnabled && !gameLogic.turns.isEmpty ? !gameLogic.lastTurn : false
         turns.isUserInteractionEnabled = gameLogic.rewindEnabled
+        chatView.isUserInteractionEnabled = true
         pawnPicker.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
         gameBoard.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: 0)
         player1DestroyedFigures1.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
@@ -2369,6 +2600,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         turns.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         turnData.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         turnsButtons.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        chatMessages.setup(axis: .vertical, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
         turnsButtons.layer.masksToBounds = true
         additionalButtonsForFigures.layer.masksToBounds = true
         endOfTheGameView.defaultSettings()
@@ -2379,6 +2611,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         arrowToAdditionalButtons.defaultSettings()
         player2FrameForDF.defaultSettings()
         player1FrameForDF.defaultSettings()
+        chatView.defaultSettings()
         turnsButtons.backgroundColor = turnsButtons.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
         arrowToAdditionalButtons.backgroundColor = constants.backgroundForArrow
         turnsScrollView.backgroundColor = .clear
@@ -2659,7 +2892,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeEndOfTheGameView() {
-        //updatePlayersTime()
+        updatePlayersTime()
         deactivateMultiplayerTImers()
         saveButton.isEnabled = false
         showEndOfTheGameView.isEnabled = true
@@ -2704,23 +2937,21 @@ class GameViewController: UIViewController, WebSocketDelegate {
         })
     }
     
-    //shows/hides turns view from/to middle of the game board
-    private func animateTurnsView() {
-        let turnsCenterY = turnsView.center.y
-        let gameBoardCenterY = gameBoard.center.y
-        if turnsView.alpha == 0 {
-            turnsView.transform = CGAffineTransform(translationX: 0, y: gameBoardCenterY - turnsCenterY)
-            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                self?.turnsView.transform = .identity
-                self?.turnsView.alpha = 1
+    //shows/hides view from/to y position
+    private func animateView(_ view: UIView, with yForAnimation: CGFloat) {
+        if view.alpha == 0 {
+            view.transform = CGAffineTransform(translationX: 0, y: yForAnimation)
+            UIView.animate(withDuration: constants.animationDuration, animations: {
+                view.transform = .identity
+                view.alpha = 1
             })
         }
         else {
-            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                self?.turnsView.transform = CGAffineTransform(translationX: 0, y: gameBoardCenterY - turnsCenterY)
-                self?.turnsView.alpha = 0
-            }) {[weak self] _ in
-                self?.turnsView.transform = .identity
+            UIView.animate(withDuration: constants.animationDuration, animations: {
+                view.transform = CGAffineTransform(translationX: 0, y: yForAnimation)
+                view.alpha = 0
+            }) { _ in
+                view.transform = .identity
             }
         }
     }
@@ -2936,9 +3167,32 @@ class GameViewController: UIViewController, WebSocketDelegate {
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
-    //TODO: -
-    
-    //add chat
+    private func makeChatView() {
+        let fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
+        chatView.image = UIImage(named: "backgrounds/\(currentUser.playerBackground.rawValue)")?.alpha(constants.optimalAlpha)
+        chatScrollView.addSubview(chatMessages)
+        let contentHeight = chatMessages.heightAnchor.constraint(equalTo: chatScrollView.heightAnchor)
+        contentHeight.priority = .defaultLow
+        sendMessageToChatButton.buttonWith(image: UIImage(systemName: "paperplane"), and: #selector(sendMessageToChat))
+        sendMessageToChatButton.isEnabled = false
+        chatMessageField = SmartTextField(maxCharacters: constants.maxCharactersForChatMessage, sendButton: sendMessageToChatButton)
+        chatMessageField.setup(placeholder: "Enter message", font: UIFont.systemFont(ofSize: fontSize))
+        chatMessageField.adjustsFontSizeToFitWidth = false
+        chatMessageField.isConnectedToTheServer = isConnected
+        let hideButton = UIButton()
+        hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(toggleChat))
+        let downStack = UIStackView()
+        downStack.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+        downStack.addArrangedSubviews([chatMessageField, sendMessageToChatButton, hideButton])
+        chatView.addSubviews([chatScrollView, downStack])
+        view.addSubview(chatView)
+        scrollContentOfGame.addSubviews([currentUserChatWindow, oponnentChatWindow])
+        let chatViewConstraints = [chatView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor), chatView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor), chatView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor), chatView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)]
+        let chatScrollViewConstraints = [chatScrollView.leadingAnchor.constraint(equalTo: chatView.leadingAnchor, constant: constants.optimalDistance), chatScrollView.topAnchor.constraint(equalTo: chatView.topAnchor, constant: constants.optimalDistance), chatScrollView.bottomAnchor.constraint(lessThanOrEqualTo: downStack.topAnchor, constant: -constants.optimalDistance), chatScrollView.trailingAnchor.constraint(equalTo: chatView.trailingAnchor, constant: -constants.optimalDistance)]
+        let chatMessagesConstraints = [chatMessages.leadingAnchor.constraint(equalTo: chatScrollView.leadingAnchor), chatMessages.topAnchor.constraint(equalTo: chatScrollView.topAnchor), chatMessages.bottomAnchor.constraint(equalTo: chatScrollView.bottomAnchor), chatMessages.trailingAnchor.constraint(equalTo: chatScrollView.trailingAnchor), chatMessages.widthAnchor.constraint(equalTo: chatScrollView.widthAnchor), contentHeight]
+        let downStackConstraints = [downStack.leadingAnchor.constraint(equalTo: chatView.leadingAnchor, constant: constants.optimalDistance), downStack.bottomAnchor.constraint(equalTo: chatView.bottomAnchor, constant: -constants.optimalDistance), downStack.trailingAnchor.constraint(equalTo: chatView.trailingAnchor, constant: -constants.optimalDistance), downStack.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForDownStackInChatView), hideButton.widthAnchor.constraint(equalTo: hideButton.heightAnchor), sendMessageToChatButton.widthAnchor.constraint(equalTo: sendMessageToChatButton.heightAnchor)]
+        NSLayoutConstraint.activate(chatViewConstraints + chatScrollViewConstraints + chatMessagesConstraints + downStackConstraints)
+    }
     
 }
 
@@ -3000,13 +3254,17 @@ private struct GameVC_Constants {
     static let distanceToFitTurnsViewInLandscape = 100.0
     static let distanceForGameInfoInTurnsView = 2.0
     static let topDistanceForTurnsScrollView = 5.0
-    static let surrenderButtonHighlightColor = UIColor.yellow.withAlphaComponent(optimalAlpha)
+    static let notificationColor = UIColor.yellow.withAlphaComponent(optimalAlpha)
     static let requestTimeout = 5.0
     static let timeToAcceptDraw = 30.0
-    static let surrenderButtonBGColor = UIColor.clear
+    static let defaultButtonBGColor = UIColor.clear
     static let extraTimeForEnemyAFKTimer = 10.0
     static let maxTimeForAFK = 300.0
     static let chessTimerStep = 1.0
+    static let maxCharactersForChatMessage = 100
+    static let timeToChatMessagePopUp = 5.0
+    static let multiplierForAvatarInChatMessage = 2.0
+    static let multiplierForDownStackInChatView = 1.5
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

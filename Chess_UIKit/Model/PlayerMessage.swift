@@ -7,7 +7,7 @@
 
 import Foundation
 
-//struct that represents message of the player
+//struct that represents game message of the player
 struct PlayerMessage: Codable {
     
     let gameID: String
@@ -21,6 +21,5 @@ struct PlayerMessage: Codable {
     private(set) var opponentWantsDraw = false
     private(set) var requestLastAction = false
     private(set) var playerToSurrender: GamePlayers = .player2
-    private(set) var message: String? = nil
     
 }

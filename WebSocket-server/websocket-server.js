@@ -17,6 +17,7 @@ var http = require('http');
 // list of currently connected clients (users)
 var clients = {};
 var gamesInfo = {};
+const maximumMessagesInChatHistory = 10;
 
 /**
  * Helper function for escaping input strings
@@ -109,6 +110,21 @@ wsServer.on('request', function (request) {
                         gamesInfo[JSON.parse(message.binaryData).gameID] = {[playerType] : message.binaryData};
                     }
                 }
+                if(gameID != undefined && JSON.parse(message.binaryData).message != undefined) {
+                    var messageObject = JSON.parse(message.binaryData);
+                    if (gamesInfo[messageObject.gameID].chatHistory != undefined) {
+                        //we are not storing it as binary data, because array of multiple objects in binary data is not the same, as
+                        //array of all of this objects in binary data, so we have to store it as object and then encode in binary data
+                        //whole array of this objects
+                        gamesInfo[messageObject.gameID].chatHistory.push(messageObject);
+                        if (gamesInfo[messageObject.gameID].chatHistory.length > maximumMessagesInChatHistory) {
+                            gamesInfo[messageObject.gameID].chatHistory = gamesInfo[messageObject.gameID].chatHistory.slice(-maximumMessagesInChatHistory);
+                        }
+                    }
+                    else {
+                        gamesInfo[messageObject.gameID] = {chatHistory : [messageObject]};
+                    }
+                }
                 console.log((new Date()) + ' Received Message from '
                 + userName + ': ' + message['binaryData']);
             }
@@ -121,11 +137,15 @@ wsServer.on('request', function (request) {
                     var pawnTransform = gamesInfo[gameID].pawnTransform;
                     var creatorMessage = gamesInfo[gameID].creator;
                     var joinerMessage = gamesInfo[gameID].joiner;
+                    var chatHistory = gamesInfo[gameID].chatHistory;
                     if (lastTurn != undefined) {
                         value.connection.sendBytes(Buffer.from(lastTurn));
                     }
                     if (pawnTransform != undefined) {
                         value.connection.sendBytes(Buffer.from(pawnTransform));
+                    }
+                    if (chatHistory != undefined) {
+                        value.connection.sendBytes(Buffer.from(JSON.stringify(chatHistory)));
                     }
                     if (creatorMessage != undefined && creatorMessage != message.binaryData) {
                         value.connection.sendBytes(Buffer.from(creatorMessage));

@@ -39,7 +39,9 @@
 		746510E2292127CD003BD809 /* GoogleSignInButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 746510E1292127CD003BD809 /* GoogleSignInButton.swift */; };
 		74660A9428591E22006FBF70 /* Figure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74660A9328591E22006FBF70 /* Figure.swift */; };
 		7467A6912874553F00B7504A /* SegmentData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7467A6902874553F00B7504A /* SegmentData.swift */; };
+		74692EC4295E095200A462DD /* SmartImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74692EC3295E095200A462DD /* SmartImageView.swift */; };
 		746DB4CB28E1C73700DBA3E3 /* GameInfoTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 746DB4CA28E1C73700DBA3E3 /* GameInfoTable.swift */; };
+		746F30232959056700C53A5A /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 746F30222959056700C53A5A /* ChatMessage.swift */; };
 		74700158285B49CB00CB7692 /* Turn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74700157285B49CB00CB7692 /* Turn.swift */; };
 		7470975228D350270089B483 /* CreateGameVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7470975128D350260089B483 /* CreateGameVC.swift */; };
 		7470975428D36EB90089B483 /* Picker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7470975328D36EB90089B483 /* Picker.swift */; };
@@ -47,6 +49,7 @@
 		7483B516285754B100BF3447 /* UIExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7483B515285754B100BF3447 /* UIExtensions.swift */; };
 		7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7489B0CB28D205B8002311BF /* MainMenuButton.swift */; };
 		749B6309292C11F20045B718 /* PlayerMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 749B6308292C11F20045B718 /* PlayerMessage.swift */; };
+		74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AB20D2295A02FB0076084C /* SmartTextField.swift */; };
 		74B2CED328CD14510002D075 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B2CED228CD14510002D075 /* User.swift */; };
 		74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */; };
 		74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F5102C291D5A40000689F2 /* LoadingSpinner.swift */; };
@@ -80,7 +83,9 @@
 		746510E1292127CD003BD809 /* GoogleSignInButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInButton.swift; sourceTree = "<group>"; };
 		74660A9328591E22006FBF70 /* Figure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Figure.swift; sourceTree = "<group>"; };
 		7467A6902874553F00B7504A /* SegmentData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentData.swift; sourceTree = "<group>"; };
+		74692EC3295E095200A462DD /* SmartImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartImageView.swift; sourceTree = "<group>"; };
 		746DB4CA28E1C73700DBA3E3 /* GameInfoTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameInfoTable.swift; sourceTree = "<group>"; };
+		746F30222959056700C53A5A /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
 		74700157285B49CB00CB7692 /* Turn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Turn.swift; sourceTree = "<group>"; };
 		7470975128D350260089B483 /* CreateGameVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateGameVC.swift; sourceTree = "<group>"; };
 		7470975328D36EB90089B483 /* Picker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Picker.swift; sourceTree = "<group>"; };
@@ -88,6 +93,7 @@
 		7483B515285754B100BF3447 /* UIExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIExtensions.swift; sourceTree = "<group>"; };
 		7489B0CB28D205B8002311BF /* MainMenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuButton.swift; sourceTree = "<group>"; };
 		749B6308292C11F20045B718 /* PlayerMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerMessage.swift; sourceTree = "<group>"; };
+		74AB20D2295A02FB0076084C /* SmartTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTextField.swift; sourceTree = "<group>"; };
 		74B2CED228CD14510002D075 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		74F5102C291D5A40000689F2 /* LoadingSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingSpinner.swift; sourceTree = "<group>"; };
@@ -166,6 +172,8 @@
 				7470975328D36EB90089B483 /* Picker.swift */,
 				7489B0CB28D205B8002311BF /* MainMenuButton.swift */,
 				74613E73285649BB00FF1EF2 /* GameViewController.swift */,
+				74692EC3295E095200A462DD /* SmartImageView.swift */,
+				74AB20D2295A02FB0076084C /* SmartTextField.swift */,
 				7460A1D42871C2070037A481 /* ProgressBar.swift */,
 				7460A1D62871C92B0037A481 /* WheelOfFortune.swift */,
 				74482B69286C59A7004EC83C /* PlayerFrame.swift */,
@@ -179,6 +187,7 @@
 			children = (
 				741394882856555900159033 /* GameLogic.swift */,
 				749B6308292C11F20045B718 /* PlayerMessage.swift */,
+				746F30222959056700C53A5A /* ChatMessage.swift */,
 				74700157285B49CB00CB7692 /* Turn.swift */,
 				7413948E28565EEB00159033 /* GameBoard.swift */,
 				74610B7C286B27510081EDF9 /* SquaresTheme.swift */,
@@ -302,9 +311,11 @@
 				7418FB6D291D2B9000DA2BDC /* ViewWithNotifIcon.swift in Sources */,
 				7470975428D36EB90089B483 /* Picker.swift in Sources */,
 				7470975228D350270089B483 /* CreateGameVC.swift in Sources */,
+				74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */,
 				74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */,
 				74B2CED328CD14510002D075 /* User.swift in Sources */,
 				74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */,
+				746F30232959056700C53A5A /* ChatMessage.swift in Sources */,
 				7413948F28565EEB00159033 /* GameBoard.swift in Sources */,
 				7463DC8A2864EE9000619495 /* Extensions.swift in Sources */,
 				74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */,
@@ -318,6 +329,7 @@
 				744B4E04292293B70060527D /* AuthorizationView.swift in Sources */,
 				74613E72285649BB00FF1EF2 /* SceneDelegate.swift in Sources */,
 				74414E71291689C9008CBD1E /* UserProfileVC.swift in Sources */,
+				74692EC4295E095200A462DD /* SmartImageView.swift in Sources */,
 				745CC22929231B0600CDFA10 /* Protocols.swift in Sources */,
 				7460A1D52871C2070037A481 /* ProgressBar.swift in Sources */,
 				74610B7D286B27510081EDF9 /* SquaresTheme.swift in Sources */,
