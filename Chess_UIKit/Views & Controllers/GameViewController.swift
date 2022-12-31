@@ -155,11 +155,13 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 self?.surrenderButton.backgroundColor = constants.notificationColor
             })
             Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw - interval, repeats: false, block: { [weak self] _ in
-                self?.opponentWantsDraw = false
-                UIView.animate(withDuration: constants.animationDuration, animations: {
-                    self?.surrenderButton.backgroundColor = constants.defaultButtonBGColor
-                    self?.additionalButton.backgroundColor = constants.defaultButtonBGColor
-                })
+                if let self = self {
+                    self.opponentWantsDraw = false
+                    UIView.animate(withDuration: constants.animationDuration, animations: {
+                        self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
+                        self.additionalButton.backgroundColor = self.showChatButton.backgroundColor
+                    })
+                }
             })
             addMessageToChat(ChatMessage(date: playerMessage.date, gameID: playerMessage.gameID, userNickname: gameLogic.players.second!.user.nickname, playerType: gameLogic.players.second!.multiplayerType!, userAvatar: gameLogic.players.second!.user.playerAvatar, userFrame: gameLogic.players.second!.user.frame, message: "Wanna draw?"))
         }
@@ -370,8 +372,10 @@ class GameViewController: UIViewController, WebSocketDelegate {
         //removes notification about new messages
         if chatView.alpha == 0 {
             UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-                self?.showChatButton.backgroundColor = constants.defaultButtonBGColor
-                self?.additionalButton.backgroundColor = constants.defaultButtonBGColor
+                if let self = self {
+                    self.showChatButton.backgroundColor = constants.defaultButtonBGColor
+                    self.additionalButton.backgroundColor = self.surrenderButton.backgroundColor
+                }
             })
         }
         animateView(chatView, with: view.frame.height)
@@ -630,7 +634,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                                 self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
                                 UIView.animate(withDuration: constants.animationDuration, animations: {
                                     self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
-                                    self.additionalButton.backgroundColor = constants.defaultButtonBGColor
+                                    self.additionalButton.backgroundColor = self.showChatButton.backgroundColor
                                 })
                             })
                         }
@@ -823,19 +827,60 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let userName = UILabel()
         userName.setup(text: chatMessage.userNickname, alignment: .center, font: UIFont.systemFont(ofSize: fontSize))
         let messageDate = UILabel()
-        messageDate.setup(text: chatMessage.date.toStringDateHMS, alignment: .center, font: UIFont.systemFont(ofSize: fontSize))
+        messageDate.setup(text: chatMessage.date.toStringDateHMS, alignment: .left, font: UIFont.systemFont(ofSize: fontSize / constants.dividerForDateFont))
+        //to add a little padding to the text from edges
+        let messageDateView = UIView()
+        messageDateView.translatesAutoresizingMaskIntoConstraints = false
+        messageDateView.addSubview(messageDate)
         let userMessage = UILabel()
         userMessage.setup(text: chatMessage.message, alignment: .left, font: UIFont.systemFont(ofSize: fontSize))
         userMessage.numberOfLines = 0
         userMessage.adjustsFontSizeToFitWidth = false
-        messageInfo.addArrangedSubviews([userAvatar, userName, messageDate])
-        messageStack.addArrangedSubviews([messageInfo, userMessage])
+        let userMessageView = UIView()
+        userMessageView.translatesAutoresizingMaskIntoConstraints = false
+        userMessageView.addSubview(userMessage)
+        messageInfo.addArrangedSubviews([userAvatar, userName])
+        messageStack.addArrangedSubviews([messageInfo, messageDateView, userMessageView])
         messageView.addSubview(messageStack)
-        var messageStackConstraints = [userName.widthAnchor.constraint(equalTo: messageDate.widthAnchor)]
+        var messageStackConstraints = [messageDateView.heightAnchor.constraint(equalToConstant: fontSize / constants.dividerForDateFont)]
         if !needSpecialConstraint {
             messageStackConstraints += [messageStack.leadingAnchor.constraint(equalTo: messageView.leadingAnchor, constant: constants.optimalDistance), messageStack.trailingAnchor.constraint(equalTo: messageView.trailingAnchor, constant: -constants.optimalDistance)]
             if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
                 messageStackConstraints += [messageStack.topAnchor.constraint(equalTo: messageView.topAnchor), messageStack.bottomAnchor.constraint(equalTo: messageView.bottomAnchor, constant: -constants.optimalDistance)]
+            }
+            if gameLogic.timerEnabled {
+                let screenSize: CGSize = UIScreen.main.bounds.size
+                //we only add timer to the message pop-up in portrait mode
+                //in landscape mode it`s visible anyway
+                if screenSize.width / screenSize.height < 1 {
+                    var playerTimer = UILabel()
+                    var timeLeft = 0
+                    var playerType = GamePlayers.player1
+                    if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
+                        timeLeft = gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft
+                        player1TimerForMessagePopUp = makeTimer(with: timeLeft.timeAsString)
+                        playerTimer = player1TimerForMessagePopUp
+                    }
+                    else {
+                        playerType = GamePlayers.player2
+                        timeLeft = gameLogic.currentPlayer.type == .player2 ? gameLogic.timeLeft : gameLogic.players.second!.timeLeft
+                        player2TimerForMessagePopUp = makeTimer(with: timeLeft.timeAsString)
+                        playerTimer = player2TimerForMessagePopUp
+                    }
+                    if gameLogic.currentPlayer.type == playerType {
+                        if timeLeft > constants.dangerTimeleft {
+                            playerTimer.layer.backgroundColor = currentPlayerDataColor.cgColor
+                        }
+                        else {
+                            playerTimer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                        }
+                    }
+                    else {
+                        playerTimer.layer.backgroundColor = defaultPlayerDataColor.cgColor
+                    }
+                    messageInfo.addArrangedSubview(playerTimer)
+                    messageStackConstraints += [userName.widthAnchor.constraint(equalTo: playerTimer.widthAnchor)]
+                }
             }
         }
         else if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
@@ -847,9 +892,24 @@ class GameViewController: UIViewController, WebSocketDelegate {
         if needSpecialConstraint || chatMessage.playerType != gameLogic.players.first!.multiplayerType {
             messageStackConstraints += [messageStack.topAnchor.constraint(equalTo: messageView.topAnchor, constant: constants.optimalDistance), messageStack.bottomAnchor.constraint(equalTo: messageView.bottomAnchor)]
         }
+        if needSpecialConstraint && gameLogic.timerEnabled {
+            var playerTimer = UILabel()
+            if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
+                let timeLeft = gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft.timeAsString : gameLogic.players.first!.timeLeft.timeAsString
+                playerTimer = makeTimer(with: timeLeft)
+            }
+            else {
+                let timeLeft = gameLogic.currentPlayer.type == .player2 ? gameLogic.timeLeft.timeAsString : gameLogic.players.second!.timeLeft.timeAsString
+                playerTimer = makeTimer(with: timeLeft)
+            }
+            messageInfo.addArrangedSubview(playerTimer)
+            messageStackConstraints += [userName.widthAnchor.constraint(equalTo: playerTimer.widthAnchor)]
+        }
         messageStack.backgroundColor = chatMessage.playerType == gameLogic.players.first!.multiplayerType ? currentPlayerDataColor : constants.dangerPlayerDataColor
         let userAvatarConstraints = [userAvatar.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForAvatarInChatMessage), userAvatar.widthAnchor.constraint(equalTo: userAvatar.heightAnchor)]
-        NSLayoutConstraint.activate(messageStackConstraints + userAvatarConstraints)
+        let messageDateConstraints = [messageDate.leadingAnchor.constraint(equalTo: messageDateView.leadingAnchor, constant: constants.optimalPaddingForLabel), messageDate.trailingAnchor.constraint(equalTo: messageDateView.trailingAnchor), messageDate.topAnchor.constraint(equalTo: messageDateView.topAnchor), messageDate.bottomAnchor.constraint(equalTo: messageDateView.bottomAnchor)]
+        let userMessageConstraints = [userMessage.leadingAnchor.constraint(equalTo: userMessageView.leadingAnchor, constant: constants.optimalPaddingForLabel), userMessage.trailingAnchor.constraint(equalTo: userMessageView.trailingAnchor, constant: -constants.optimalPaddingForLabel), userMessage.topAnchor.constraint(equalTo: userMessageView.topAnchor), userMessage.bottomAnchor.constraint(equalTo: userMessageView.bottomAnchor, constant: -constants.optimalPaddingForLabel)]
+        NSLayoutConstraint.activate(messageStackConstraints + userAvatarConstraints + messageDateConstraints + userMessageConstraints)
         return messageView
     }
     
@@ -1166,6 +1226,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
             player2Timer.text = gameLogic.players.second!.timeLeft.timeAsString
             player1TimerForTurns.text = gameLogic.players.first!.timeLeft.timeAsString
             player2TimerForTurns.text = gameLogic.players.second!.timeLeft.timeAsString
+            player1TimerForMessagePopUp.text = gameLogic.players.first!.timeLeft.timeAsString
+            player2TimerForMessagePopUp.text = gameLogic.players.second!.timeLeft.timeAsString
         }
     }
     
@@ -1356,10 +1418,12 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 if self.gameLogic.currentPlayer.type == .player1 {
                     self.player1Timer.text = time.timeAsString
                     self.player1TimerForTurns.text = time.timeAsString
+                    self.player1TimerForMessagePopUp.text = time.timeAsString
                     if self.gameLogic.timeLeft < constants.dangerTimeleft {
                         let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
                             self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player1TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                            self.player1TimerForMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                         })
                         self.animations.append(animation)
                     }
@@ -1367,10 +1431,12 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 else {
                     self.player2Timer.text = time.timeAsString
                     self.player2TimerForTurns.text = time.timeAsString
+                    self.player2TimerForMessagePopUp.text = time.timeAsString
                     if self.gameLogic.timeLeft < constants.dangerTimeleft {
                         let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
                             self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player2TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                            self.player2TimerForMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                         })
                         self.animations.append(animation)
                     }
@@ -1824,16 +1890,21 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     let enemyPlayerTimer = currentPlayer.type == .player1 ? self.player2Timer : self.player1Timer
                     let currentPlayerTimerInTurns = currentPlayer.type == .player1 ? self.player1TimerForTurns : self.player2TimerForTurns
                     let enemyPlayerTimerInTurns = currentPlayer.type == .player1 ? self.player2TimerForTurns : self.player1TimerForTurns
+                    let currentPlayerTimerInMessagePopUp = currentPlayer.type == .player1 ? self.player1TimerForMessagePopUp : self.player2TimerForMessagePopUp
+                    let enemyPlayerTimerInMessagePopUp = currentPlayer.type == .player1 ? self.player2TimerForMessagePopUp : self.player1TimerForMessagePopUp
                     if currentPlayer.timeLeft > constants.dangerTimeleft {
                         currentPlayerTimer.layer.backgroundColor = self.currentPlayerDataColor.cgColor
                         currentPlayerTimerInTurns.layer.backgroundColor = self.currentPlayerDataColor.cgColor
+                        currentPlayerTimerInMessagePopUp.layer.backgroundColor = self.currentPlayerDataColor.cgColor
                     }
                     else {
                         currentPlayerTimer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                         currentPlayerTimerInTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                        currentPlayerTimerInMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                     }
                     enemyPlayerTimer.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
                     enemyPlayerTimerInTurns.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
+                    enemyPlayerTimerInMessagePopUp.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
                 }
             }
         })
@@ -2243,6 +2314,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //when we show turnsView, it blocks some UI, so we recreate it inside it
     private var player1TimerForTurns = UILabel()
     private var player2TimerForTurns = UILabel()
+    //same for message pop-up
+    private var player1TimerForMessagePopUp = UILabel()
+    private var player2TimerForMessagePopUp = UILabel()
     private var currentPlayerForTurns = UILabel()
     private var squares = [UIImageView]()
     private var destroyedFigures1 = UIView()
@@ -2540,8 +2614,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
         var currentUserChatWindowConstraints = [NSLayoutConstraint]()
         var oponnentChatWindowConstraints = [NSLayoutConstraint]()
         if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
-            currentUserChatWindowConstraints = [currentUserChatWindow.topAnchor.constraint(equalTo: gameBoard.topAnchor), currentUserChatWindow.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), currentUserChatWindow.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor), currentUserChatWindow.trailingAnchor.constraint(equalTo: gameBoard.leadingAnchor)]
-            oponnentChatWindowConstraints = [oponnentChatWindow.topAnchor.constraint(equalTo: gameBoard.topAnchor), oponnentChatWindow.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), oponnentChatWindow.leadingAnchor.constraint(equalTo: gameBoard.trailingAnchor), oponnentChatWindow.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor)]
+            currentUserChatWindowConstraints = [currentUserChatWindow.topAnchor.constraint(equalTo: gameBoard.topAnchor), currentUserChatWindow.bottomAnchor.constraint(equalTo: gameLogic.timerEnabled ? player1Timer.topAnchor : gameBoard.bottomAnchor), currentUserChatWindow.leadingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.leadingAnchor), currentUserChatWindow.trailingAnchor.constraint(equalTo: gameBoard.leadingAnchor)]
+            oponnentChatWindowConstraints = [oponnentChatWindow.topAnchor.constraint(equalTo: gameLogic.timerEnabled ? player2Timer.bottomAnchor : gameBoard.topAnchor), oponnentChatWindow.bottomAnchor.constraint(equalTo: gameBoard.bottomAnchor), oponnentChatWindow.leadingAnchor.constraint(equalTo: gameBoard.trailingAnchor), oponnentChatWindow.trailingAnchor.constraint(equalTo: scrollContentOfGame.layoutMarginsGuide.trailingAnchor)]
         }
         landscapeConstraints += player2FrameViewConstraints + player1FrameViewConstraints + player2TitleViewConstraints + player1TitleViewConstraints + player2FrameConstraintsDF + destroyedFigures1Constraints + player1FrameConstraintsDF + destroyedFigures2Constraints + currentUserChatWindowConstraints + oponnentChatWindowConstraints + specialConstraints
     }
@@ -2620,18 +2694,22 @@ class GameViewController: UIViewController, WebSocketDelegate {
         currentPlayerForTurns = makeLabel(text: gameLogic.currentPlayer.user.nickname)
         currentPlayerForTurns.backgroundColor = currentPlayerDataColor
         if gameLogic.timerEnabled {
-            player1Timer = makeTimer(with: gameLogic.players.first!.timeLeft.timeAsString)
-            player2Timer = makeTimer(with: gameLogic.players.second!.timeLeft.timeAsString)
+            player1Timer = makeTimer(with: gameLogic.players.first!.timeLeft.timeAsString, needHeightConstraint: true)
+            player2Timer = makeTimer(with: gameLogic.players.second!.timeLeft.timeAsString, needHeightConstraint: true)
             player1TimerForTurns = makeTimer(with: gameLogic.players.first!.timeLeft.timeAsString)
             player2TimerForTurns = makeTimer(with: gameLogic.players.second!.timeLeft.timeAsString)
         }
     }
     
-    private func makeTimer(with time: String) -> UILabel {
+    private func makeTimer(with time: String, needHeightConstraint: Bool = false) -> UILabel {
         let timer = makeLabel(text: time)
         timer.layer.cornerRadius = constants.cornerRadiusForChessTime
         timer.layer.masksToBounds = true
         timer.font = UIFont.monospacedDigitSystemFont(ofSize: timer.font.pointSize, weight: constants.weightForChessTime)
+        if needHeightConstraint {
+            let heightForTimer = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
+            timer.heightAnchor.constraint(equalToConstant: heightForTimer).isActive = true
+        }
         return timer
     }
     
@@ -3265,6 +3343,8 @@ private struct GameVC_Constants {
     static let timeToChatMessagePopUp = 5.0
     static let multiplierForAvatarInChatMessage = 2.0
     static let multiplierForDownStackInChatView = 1.5
+    static let dividerForDateFont = 3.0
+    static let optimalPaddingForLabel = 5.0
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {
