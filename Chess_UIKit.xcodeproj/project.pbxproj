@@ -49,6 +49,7 @@
 		7483B516285754B100BF3447 /* UIExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7483B515285754B100BF3447 /* UIExtensions.swift */; };
 		7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7489B0CB28D205B8002311BF /* MainMenuButton.swift */; };
 		749B6309292C11F20045B718 /* PlayerMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 749B6308292C11F20045B718 /* PlayerMessage.swift */; };
+		74A1928929644EEB00AAC877 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A1928829644EEB00AAC877 /* AudioPlayer.swift */; };
 		74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AB20D2295A02FB0076084C /* SmartTextField.swift */; };
 		74B2CED328CD14510002D075 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B2CED228CD14510002D075 /* User.swift */; };
 		74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */; };
@@ -93,6 +94,7 @@
 		7483B515285754B100BF3447 /* UIExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIExtensions.swift; sourceTree = "<group>"; };
 		7489B0CB28D205B8002311BF /* MainMenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuButton.swift; sourceTree = "<group>"; };
 		749B6308292C11F20045B718 /* PlayerMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerMessage.swift; sourceTree = "<group>"; };
+		74A1928829644EEB00AAC877 /* AudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
 		74AB20D2295A02FB0076084C /* SmartTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTextField.swift; sourceTree = "<group>"; };
 		74B2CED228CD14510002D075 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -196,6 +198,7 @@
 				74027DD2285B92CA00806401 /* Player.swift */,
 				74B2CED228CD14510002D075 /* User.swift */,
 				745D1C7628CB5DDC001E25D3 /* Storage.swift */,
+				74A1928829644EEB00AAC877 /* AudioPlayer.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -313,6 +316,7 @@
 				7470975228D350270089B483 /* CreateGameVC.swift in Sources */,
 				74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */,
 				74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */,
+				74A1928929644EEB00AAC877 /* AudioPlayer.swift in Sources */,
 				74B2CED328CD14510002D075 /* User.swift in Sources */,
 				74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */,
 				746F30232959056700C53A5A /* ChatMessage.swift in Sources */,

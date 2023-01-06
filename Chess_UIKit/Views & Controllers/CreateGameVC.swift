@@ -30,6 +30,8 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         case .binary(let data):
             print("Received data: \(data.count)")
             if let game = try? JSONDecoder().decode(GameLogic.self, from: data), game.gameID == gameID {
+                audioPlayer.stopSound(Music.menuBackgroundMusic)
+                audioPlayer.playSound(Sounds.successSound)
                 currentUser.addGame(game)
                 //we are saving game at the start for the case, where game will not be ended and
                 //to be able to take into account points from that game
@@ -82,11 +84,15 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         socket.delegate = self
     }
     
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        audioPlayer.playSound(Sounds.closePopUpSound)
+    }
+    
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         //we are making retain cycle, when attaching our functions to picker, so need to break it
         modePicker.breakRetainCycle()
-        timerPicker.breakRetainCycle()
         if let gameID = gameID {
             storage.deleteMultiplayerGame(with: gameID)
         }
@@ -104,6 +110,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     var currentUser: User!
     
     private let storage = Storage()
+    private let audioPlayer = AudioPlayer.sharedInstance
     
     //checks connection to the server
     private var pingTimer: Timer?
@@ -137,22 +144,21 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     }
     
     @objc private func createGame(_ sender: UIBarButtonItem? = nil) {
-        let alert = UIAlertController(title: "Error", message: "", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Ok", style: .default))
-        let condition1 = timerPicker.pickedData != nil && modePicker.pickedData != nil
-        let condition2 = rewindPicker.pickedData != nil || modePicker.pickedData == .multiplayer
-        if condition1 && condition2 && colorPicker.pickedData != nil {
+        if modePicker.pickedData != nil && colorPicker.pickedData != nil {
             var totalTime = 0
             var additionalTime = 0
-            if timerPicker.pickedData == .yes {
+            if timerSwitch.isOn {
                 totalTime = (Int(totalTimeMinutesValue.text!) ?? 0).seconds + (Int(totalTimeSecondsValue.text!) ?? 0)
                 additionalTime = (Int(additionalTimeMinutesValue.text!) ?? 0).seconds + (Int(additionalTimeSecondsValue.text!) ?? 0)
             }
             switch modePicker.pickedData! {
             case .oneScreen:
+                audioPlayer.stopSound(Music.menuBackgroundMusic)
+                audioPlayer.playSound(Sounds.successSound)
                 let secondUser = User(email: "Player2", nickname: "Player2")
-                let gameLogic = GameLogic(firstUser: currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindPicker.pickedData! == .yes ? true : false, totalTime: totalTime, additionalTime: additionalTime)
+                let gameLogic = GameLogic(firstUser: currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindSwitch.isOn, totalTime: totalTime, additionalTime: additionalTime)
                 let gameVC = GameViewController()
+                gameVC.isConnected = isConnected
                 gameVC.gameLogic = gameLogic
                 gameVC.currentUser = currentUser
                 gameVC.modalPresentationStyle = .fullScreen
@@ -188,13 +194,24 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
             }
         }
         else {
-            alert.message = "Pick data for all fields!"
-            present(alert, animated: true)
+            makeErrorAlert(with: "Pick data for all fields!")
         }
     }
     
     @objc private func close(_ sender: UIBarButtonItem? = nil) {
         dismiss(animated: true)
+    }
+    
+    @objc private func toggleTimer(_ sender: UISwitch? = nil) {
+        let viewsToToggle = [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine]
+        if let sender = sender {
+            UIView.animate(withDuration: constants.animationDuration, animations: {
+                for view in viewsToToggle {
+                    view.isHidden = !sender.isOn
+                }
+            })
+            audioPlayer.playSound(Sounds.moveSound2)
+        }
     }
     
     // MARK: - Local Methods
@@ -206,6 +223,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
                 UIView.animate(withDuration: constants.animationDuration, animations: {
                     viewToToggle.isHidden = false
                 })
+                audioPlayer.playSound(Sounds.moveSound2)
             }
         }
         else {
@@ -213,28 +231,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
                 UIView.animate(withDuration: constants.animationDuration, animations: {
                     viewToToggle.isHidden = true
                 })
-            }
-        }
-    }
-    
-    private func doneTimerPicker() {
-        let viewsToToggle = [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine]
-        if let enableTimer = timerPicker.pickedData, enableTimer as Answers == .yes {
-            if viewsToToggle.first!.isHidden {
-                UIView.animate(withDuration: constants.animationDuration, animations: {
-                    for view in viewsToToggle {
-                        view.isHidden = false
-                    }
-                })
-            }
-        }
-        else {
-            if !viewsToToggle.first!.isHidden {
-                UIView.animate(withDuration: constants.animationDuration, animations: {
-                    for view in viewsToToggle {
-                        view.isHidden = true
-                    }
-                })
+                audioPlayer.playSound(Sounds.moveSound2)
             }
         }
     }
@@ -247,6 +244,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Ok", style: .default))
         UIApplication.getTopMostViewController()?.present(alert, animated: true)
+        audioPlayer.playSound(Sounds.errorSound)
         if let gameID = gameID {
             storage.deleteMultiplayerGame(with: gameID)
         }
@@ -259,8 +257,6 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     private lazy var font = UIFont.systemFont(ofSize: min(view.frame.width, view.frame.height) / constants.dividerForFont)
     private lazy var modePicker = Picker(placeholder: "Pick mode", font: font, data: currentUser.guestMode ? [GameModes.oneScreen] : GameModes.allCases, doneAction: doneModePicker)
     private lazy var colorPicker = Picker(placeholder: "Pick color", font: font, data: GameColors.allCases)
-    private lazy var timerPicker = Picker(placeholder: "Pick answer", font: font, data: Answers.allCases, doneAction: doneTimerPicker)
-    private lazy var rewindPicker = Picker(placeholder: "Pick answer", font: font, data: Answers.allCases)
     
     private var rewindLine = UIStackView()
     private var totalTimeLine = UIStackView()
@@ -281,6 +277,8 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     //size is random, without it, it will make unsatisfied constraints errors
     private let toolbar = UIToolbar(frame: CGRect(origin: .zero, size: CGSize(width: 100, height: 44.0)))
     private let dataFieldsStack = UIStackView()
+    private let timerSwitch = UISwitch()
+    private let rewindSwitch = UISwitch()
     
     // MARK: - UI Methods
     
@@ -313,9 +311,11 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     }
     
     private func makeRewindLine() {
+        rewindSwitch.defaultSettings(with: nil, isOn: false)
         let rewindLabel = UILabel()
         rewindLabel.setup(text: "Enable rewind", alignment: .center, font: font)
-        rewindLine = makeDataLine(with: [rewindLabel, rewindPicker], isHidden: ((modePicker.pickedData ?? .multiplayer) as GameModes) != .oneScreen)
+        let rewindSwitchView = makeSpecialViewForSwitch(rewindSwitch)
+        rewindLine = makeDataLine(with: [rewindLabel, rewindSwitchView], isHidden: ((modePicker.pickedData ?? .multiplayer) as GameModes) != .oneScreen)
     }
     
     private func makeColorLine() -> UIStackView {
@@ -325,9 +325,11 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     }
     
     private func makeTimerLine() -> UIStackView {
+        timerSwitch.defaultSettings(with: #selector(toggleTimer), isOn: false)
         let timerLabel = UILabel()
         timerLabel.setup(text: "Enable timer", alignment: .center, font: font)
-        return makeDataLine(with: [timerLabel, timerPicker])
+        let timerSwitchView = makeSpecialViewForSwitch(timerSwitch)
+        return makeDataLine(with: [timerLabel, timerSwitchView])
     }
     
     private func makeDataLine(with views: [UIView], isHidden: Bool = false) -> UIStackView {
@@ -392,6 +394,16 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         return specialView
     }
     
+    private func makeSpecialViewForSwitch(_ switcher: UISwitch) -> UIView {
+        let specialView = UIView()
+        specialView.translatesAutoresizingMaskIntoConstraints = false
+        specialView.layer.masksToBounds = true
+        specialView.addSubview(switcher)
+        let specialViewConstraints = [switcher.trailingAnchor.constraint(equalTo: specialView.trailingAnchor), switcher.centerYAnchor.constraint(equalTo: specialView.centerYAnchor)]
+        NSLayoutConstraint.activate(specialViewConstraints)
+        return specialView
+    }
+    
     private func makeToolBar() {
         let toolbarBackgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         let toolbarBackground = toolbarBackgroundColor.image()
@@ -427,6 +439,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     //makes spinner, while waiting for second player to join multiplayer game
     private func makeLoadingSpinner() {
         loadingSpinner = LoadingSpinner()
+        loadingSpinner.waiting()
         scrollViewContent.addSubview(loadingSpinner)
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: scrollViewContent.layoutMarginsGuide.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: scrollViewContent.widthAnchor), loadingSpinner.heightAnchor.constraint(equalTo: scrollViewContent.heightAnchor)]
         NSLayoutConstraint.activate(spinnerConstraints)

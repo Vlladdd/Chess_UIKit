@@ -12,6 +12,8 @@ struct ChatMessage: Codable, Equatable {
     
     let date: Date
     let gameID: String
+    //chess timer
+    let timeLeft: Int
     let userNickname: String
     //nicknames can be the same or user can play against himself on different devices,
     //which is possible

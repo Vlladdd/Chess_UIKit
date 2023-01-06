@@ -266,7 +266,7 @@ enum Avatars: String, Codable, CaseIterable, Item {
     
 }
 
-enum Ranks: String {
+enum Ranks: String, Codable {
     case bronze
     case silver
     case gold
@@ -406,4 +406,47 @@ enum ItemTypes: String, CaseIterable {
     case background
     case title
     case avatar
+}
+
+enum Music: String, Sound {
+
+    case dangerMusic
+    case gameBackgroundMusic
+    case menuBackgroundMusic
+    case waitingMusic
+    
+    var folderName: String {
+        "music"
+    }
+    
+}
+
+enum Sounds: String, Sound {
+
+    case buyItemSound
+    case castleSound
+    case checkmateSound
+    case checkSound
+    case chooseItemSound
+    case clockTickSound
+    case closePopUpSound
+    case errorSound
+    case figureCaptureSound
+    case loseSound
+    case moveSound1
+    case moveSound2
+    case moveSound3
+    case moveSound4
+    case openPopUpSound
+    case pickItemSound
+    case removeSound
+    case sadSound
+    case successSound
+    case toggleSound
+    case winSound
+    
+    var folderName: String {
+        "sounds"
+    }
+    
 }

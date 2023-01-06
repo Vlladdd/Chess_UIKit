@@ -70,7 +70,3 @@ extension Int {
     }
     
 }
-
-extension Item where Self: RawRepresentable, Self.RawValue == String {
-    var name: String { rawValue }
-}

@@ -56,6 +56,35 @@ extension UIApplication {
     
 }
 
+extension UISwitch {
+    
+    @objc private func playToggleSound(_ sender: UISwitch? = nil) {
+        AudioPlayer.sharedInstance.playSound(Sounds.toggleSound)
+    }
+    
+    func defaultSettings(with function: Selector? = nil, isOn: Bool = true) {
+        translatesAutoresizingMaskIntoConstraints = false
+        self.isOn = isOn
+        set(offTint: Constants.offTintColor)
+        if let function = function {
+            addTarget(nil, action: function, for: .valueChanged)
+        }
+        addTarget(nil, action: #selector(playToggleSound), for: .valueChanged)
+    }
+
+    func set(offTint color: UIColor ) {
+        let minSide = min(bounds.size.height, bounds.size.width)
+        layer.cornerRadius = minSide / 2
+        backgroundColor = color
+        tintColor = color
+    }
+    
+    private struct Constants {
+        static let offTintColor = UIColor.red
+    }
+    
+}
+
 extension UIView {
     
     func rotate360Degrees(duration: CFTimeInterval = 3) {
@@ -86,6 +115,26 @@ extension UIView {
         for view in views {
             addSubview(view)
         }
+    }
+    
+    func isVisible() -> Bool {
+        if window == nil {
+            return false
+        }
+        var currentView = self
+        while let superview = currentView.superview {
+            if (superview.bounds).intersects(currentView.frame) == false {
+                return false
+            }
+            if currentView.isHidden {
+                return false
+            }
+            if currentView.alpha == 0 {
+                return false
+            }
+            currentView = superview
+        }
+        return true
     }
     
 }
@@ -302,9 +351,14 @@ extension UIImageView {
 
 extension UIStepper {
     
+    @objc private func playToggleSound(_ sender: UISwitch? = nil) {
+        AudioPlayer.sharedInstance.playSound(Sounds.toggleSound)
+    }
+    
     func stepperWith(minValue: Double, maxValue: Double, stepValue: Double, and action: Selector) {
         translatesAutoresizingMaskIntoConstraints = false
         wraps = true
+        addTarget(nil, action: #selector(playToggleSound), for: .valueChanged)
         addTarget(nil, action: action, for: .valueChanged)
         minimumValue = minValue
         maximumValue = maxValue

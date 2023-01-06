@@ -23,6 +23,11 @@ class UserProfileVC: UIViewController {
         userProgress.setNeedsDisplay()
     }
     
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        audioPlayer.playSound(Sounds.closePopUpSound)
+    }
+    
     // MARK: - Properties
     
     private typealias constants = UserProfileVC_Constants
@@ -30,8 +35,22 @@ class UserProfileVC: UIViewController {
     var currentUser: User!
     
     private let storage = Storage()
+    private let audioPlayer = AudioPlayer.sharedInstance
     
     // MARK: - Buttons Methods
+    
+    @objc private func toggleMusic(_ sender: UISwitch? = nil) {
+        audioPlayer.musicEnabled.toggle()
+        audioPlayer.musicEnabled ? audioPlayer.playSound(Music.menuBackgroundMusic) : audioPlayer.stopSound(Music.menuBackgroundMusic)
+        currentUser.updateMusicEnabled(newValue: audioPlayer.musicEnabled)
+        storage.saveUser(currentUser)
+    }
+    
+    @objc private func toggleSounds(_ sender: UISwitch? = nil) {
+        audioPlayer.soundsEnabled.toggle()
+        currentUser.updateSoundsEnabled(newValue: audioPlayer.soundsEnabled)
+        storage.saveUser(currentUser)
+    }
     
     @objc private func close(_ sender: UIBarButtonItem? = nil) {
         dismiss(animated: true)
@@ -50,6 +69,7 @@ class UserProfileVC: UIViewController {
                         if let self = self {
                             guard error == nil else {
                                 self.updateUserResultAlert(with: "Error", and: error!.localizedDescription)
+                                self.audioPlayer.playSound(Sounds.errorSound)
                                 return
                             }
                             self.currentUser.updateEmail(newValue: email)
@@ -64,10 +84,12 @@ class UserProfileVC: UIViewController {
         }
         else {
             updateUserResultAlert(with: "Error", and: "Nickname must be longer than \(constants.minimumSymbolsInData - 1) and less than \(constants.maximumSymbolsInData + 1)")
+            audioPlayer.playSound(Sounds.errorSound)
         }
     }
     
     @objc private func toggleAvatars(_ sender: UITapGestureRecognizer? = nil) {
+        audioPlayer.playSound(Sounds.pickItemSound)
         updateButton.isEnabled.toggle()
         if avatarsScrollView.alpha == 0 {
             userAvatar.layer.borderColor = constants.pickItemBorderColor
@@ -82,6 +104,7 @@ class UserProfileVC: UIViewController {
     @objc private func pickAvatar(_ sender: UITapGestureRecognizer? = nil) {
         if let sender = sender {
             if let avatar = sender.view?.layer.value(forKey: constants.keyForAvatar) as? Avatars {
+                audioPlayer.playSound(Sounds.pickItemSound)
                 currentUser.addSeenItem(avatar)
                 for avatarLine in avatarsView.arrangedSubviews {
                     if let avatarLine = avatarLine as? UIStackView {
@@ -127,6 +150,7 @@ class UserProfileVC: UIViewController {
             viewWithNotif.removeNotificationIcon()
         }
         updateUserResultAlert(with: "Action completed", and: "Data updated!")
+        audioPlayer.playSound(Sounds.successSound)
     }
     
     private func updateUserResultAlert(with title: String, and message: String) {
@@ -189,6 +213,7 @@ class UserProfileVC: UIViewController {
                 viewToExit.transform = .identity
             }
         }
+        audioPlayer.playSound(Sounds.moveSound1)
     }
     
     // MARK: - UI
@@ -233,6 +258,7 @@ class UserProfileVC: UIViewController {
         avatarsScrollView.alpha = 0
         makeAvatarsView()
         makeDataFields()
+        makeSettingsButtons()
     }
     
     private func makeAvatar() {
@@ -287,6 +313,12 @@ class UserProfileVC: UIViewController {
         dataScrollViewContent.addSubview(dataFieldsStack)
         let dataConstraints = [dataFieldsStack.topAnchor.constraint(equalTo: dataScrollViewContent.topAnchor, constant: constants.optimalDistance), dataFieldsStack.leadingAnchor.constraint(equalTo: dataScrollViewContent.layoutMarginsGuide.leadingAnchor), dataFieldsStack.trailingAnchor.constraint(equalTo: dataScrollViewContent.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance), dataFieldsStack.bottomAnchor.constraint(lessThanOrEqualTo: dataScrollViewContent.bottomAnchor)]
         NSLayoutConstraint.activate(dataConstraints)
+    }
+    
+    private func makeSettingsButtons() {
+        let toggleMusicLine = makeLine(with: "Music enabled", currentState: audioPlayer.musicEnabled, and: #selector(toggleMusic))
+        let toggleSoundsLine = makeLine(with: "Sounds enabled", currentState: audioPlayer.soundsEnabled, and: #selector(toggleSounds))
+        dataFieldsStack.addArrangedSubviews([toggleMusicLine, toggleSoundsLine])
     }
     
     private func makeAvatarInfoView() {
@@ -362,6 +394,22 @@ class UserProfileVC: UIViewController {
             avatarsViewConstraints.append(avatarsView.bottomAnchor.constraint(equalTo: avatarsScrollViewContent.bottomAnchor, constant: -constants.optimalDistance))
         }
         NSLayoutConstraint.activate(avatarsViewConstraints + avatarsLastLineConstraints)
+    }
+    
+    private func makeLine(with labelText: String, currentState: Bool, and selector: Selector) -> UIStackView {
+        let line = UIStackView()
+        line.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        let lineName = UILabel()
+        lineName.setup(text: labelText, alignment: .center, font: defaultFont)
+        let switcher = UISwitch()
+        switcher.defaultSettings(with: selector, isOn: currentState)
+        let switcherView = UIView()
+        switcherView.translatesAutoresizingMaskIntoConstraints = false
+        switcherView.addSubview(switcher)
+        let switchConstraints = [switcher.trailingAnchor.constraint(equalTo: switcherView.trailingAnchor), switcher.centerYAnchor.constraint(equalTo: switcherView.centerYAnchor)]
+        NSLayoutConstraint.activate(switchConstraints)
+        line.addArrangedSubviews([lineName, switcherView])
+        return line
     }
     
     private func makeLine(with labelText: String, textFieldPlaceholder: String, textFieldText: String?) -> UIStackView {
@@ -440,6 +488,7 @@ class UserProfileVC: UIViewController {
     //makes spinner, while waiting for response
     private func makeLoadingSpinner() {
         loadingSpinner = LoadingSpinner()
+        loadingSpinner.waiting()
         view.addSubview(loadingSpinner)
         let spinnerConstraints = [loadingSpinner.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor), loadingSpinner.bottomAnchor.constraint(equalTo: view.layoutMarginsGuide.bottomAnchor), loadingSpinner.leadingAnchor.constraint(equalTo: view.leadingAnchor), loadingSpinner.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
         NSLayoutConstraint.activate(spinnerConstraints)

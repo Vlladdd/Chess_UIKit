@@ -10,9 +10,16 @@ import UIKit
 //class that represents loading spinner
 class LoadingSpinner: UIImageView {
     
+    override func removeFromSuperview() {
+        super.removeFromSuperview()
+        audioPlayer.stopSound(Music.waitingMusic)
+    }
+    
     // MARK: - Properties
     
     private typealias constants = LoadingSpinner_Constants
+    
+    private let audioPlayer = AudioPlayer.sharedInstance
     
     // MARK: - Inits
     
@@ -41,6 +48,10 @@ class LoadingSpinner: UIImageView {
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
+    func waiting() {
+        audioPlayer.playSound(Music.waitingMusic, volume: constants.volumeForWaitingMusic)
+    }
+    
 }
 
 // MARK: - Constants
@@ -49,4 +60,5 @@ private struct LoadingSpinner_Constants {
     static let optimalAlpha = 0.5
     static let speedForSpinner = 1.0
     static let sizeMultiplierForSpinner = 0.6
+    static let volumeForWaitingMusic: Float = 0.3
 }

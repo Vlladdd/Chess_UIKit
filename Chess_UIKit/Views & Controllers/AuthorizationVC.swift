@@ -25,6 +25,7 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         present(alert, animated: true)
         loadingSpinner.removeFromSuperview()
         authorizationView.isHidden.toggle()
+        audioPlayer.playSound(Sounds.errorSound)
     }
     
     func successCallbackForAuthorization(user: User?) {
@@ -69,6 +70,8 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
     
     private typealias constants = AuthorizationVC_Constants
     
+    private let audioPlayer = AudioPlayer.sharedInstance
+    
     // MARK: - UI
     
     // MARK: - UI Properties
@@ -109,6 +112,7 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
     //makes spinner, while waiting for response
     private func makeLoadingSpinner() {
         loadingSpinner = LoadingSpinner()
+        loadingSpinner.waiting()
         view.addSubview(loadingSpinner)
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: view.layoutMarginsGuide.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: view.layoutMarginsGuide.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: authorizationView.widthAnchor), loadingSpinner.heightAnchor.constraint(equalTo: authorizationView.heightAnchor)]
         NSLayoutConstraint.activate(spinnerConstraints)

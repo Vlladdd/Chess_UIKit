@@ -16,8 +16,8 @@ struct PlayerMessage: Codable {
     private(set) var date = Date()
     private(set) var gameEnded = false
     private(set) var gameDraw = false
-    private(set) var player1Ready = false
-    private(set) var player2Ready = false
+    //when game starts
+    private(set) var playerReady = false
     private(set) var opponentWantsDraw = false
     private(set) var requestLastAction = false
     private(set) var playerToSurrender: GamePlayers = .player2

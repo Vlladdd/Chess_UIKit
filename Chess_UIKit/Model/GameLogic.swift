@@ -27,7 +27,6 @@ class GameLogic: Codable {
     //if winner is nil and gameEnded is true, it is a draw
     private(set) var winner: Player?
     private(set) var gameEnded = false
-    private(set) var timerEnabled: Bool
     //used in rewind
     private(set) var currentTurn: Turn?
     private(set) var firstTurn = false
@@ -35,6 +34,7 @@ class GameLogic: Codable {
     private(set) var timeLeft: Int
     private(set) var startDate = Date()
     
+    let timerEnabled: Bool
     //useful for multiplayer games
     let gameID: String?
     let squaresTheme: SquaresThemes
@@ -264,9 +264,10 @@ class GameLogic: Codable {
                     lastTurn = true
                     firstTurn = false
                 }
-                if enPassantSquares.contains(square) || currentTurn?.pawnSquare != nil {
+                if (enPassantSquares.contains(square) || currentTurn?.pawnSquare != nil) && pickedSquares.first!.figure!.name == .pawn {
                     destroyEnPassantPawn()
                 }
+                enPassantSquares.removeAll()
                 if (!shortCastle && !longCastle && pickedSquares.first!.figure!.name == .king && !backwardRewind && !forwardRewind) {
                     checkForCastle()
                 }
@@ -459,7 +460,6 @@ class GameLogic: Codable {
                 }
             }
         }
-        enPassantSquares.removeAll()
     }
     
     //calculates squares where picked figure can be moved

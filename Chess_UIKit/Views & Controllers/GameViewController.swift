@@ -112,16 +112,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
         reconnectTimer?.fire()
         //to be sure, that both players are connected
         //first player is always current user
-        if !needToRequestLastAction && gameLogic.players.first?.multiplayerType == .creator {
-            if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: .creator, player1Ready: true, player2Ready: true)) {
+        if !needToRequestLastAction {
+            if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, playerReady: true)) {
                 socket.write(data: playerMessage)
             }
         }
-        //if app was in suspended state for too long, we need to request last turn from opponent
-        else if needToRequestLastAction {
-            if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true)) {
-                socket.write(data: playerMessage)
-            }
+        //if app was in suspended state for too long, we need to request last action from opponent, or when start of the game,
+        //to be sure, that both players are ready
+        if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true)) {
+            socket.write(data: playerMessage)
         }
     }
     
@@ -135,7 +134,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
             makeEndOfTheGameView()
         }
-        else if playerMessage.player1Ready && playerMessage.player2Ready {
+        else if playerMessage.playerType != gameLogic.players.first!.multiplayerType && playerMessage.playerReady && gameLogic.turns.isEmpty {
             cancelGameTimer?.invalidate()
             loadingSpinner.removeFromSuperview()
             if gameLogic.currentPlayer.multiplayerType == gameLogic.players.first?.multiplayerType {
@@ -163,7 +162,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     })
                 }
             })
-            addMessageToChat(ChatMessage(date: playerMessage.date, gameID: playerMessage.gameID, userNickname: gameLogic.players.second!.user.nickname, playerType: gameLogic.players.second!.multiplayerType!, userAvatar: gameLogic.players.second!.user.playerAvatar, userFrame: gameLogic.players.second!.user.frame, message: "Wanna draw?"))
         }
     }
     
@@ -203,6 +201,12 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 finishAnimations()
                 if let turn = gameLogic.currentTurn, let square = turn.squares.last {
                     updateSquare(square, figure: figure)
+                    if turn.check && !turn.checkMate {
+                        audioPlayer.playSound(Sounds.checkSound)
+                    }
+                    else if turn.checkMate {
+                        audioPlayer.playSound(Sounds.checkmateSound)
+                    }
                 }
                 if gameLogic.gameEnded && view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
                     makeEndOfTheGameView()
@@ -246,12 +250,13 @@ class GameViewController: UIViewController, WebSocketDelegate {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        audioPlayer.playSound(Music.gameBackgroundMusic, volume: constants.volumeForBackgroundMusic)
         makeUI()
         if !gameLogic.turns.isEmpty && gameLogic.storedTurns.isEmpty {
             gameLogic.configureAfterLoad()
         }
         updateUIIfLoad()
-        updateUI()
+        updateUI(needSound: false)
         activateStartConstraints()
         if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
             configureForMultiplayer()
@@ -290,8 +295,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
         })
     }
     
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        audioPlayer.playSound(Sounds.closePopUpSound)
+    }
+    
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        audioPlayer.stopSound(Music.gameBackgroundMusic)
         deactivateMultiplayerTImers()
         if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
             mainMenuVC.socket.delegate = mainMenuVC
@@ -351,13 +362,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     //to check internet connection
     private let monitor = NWPathMonitor()
+    private let audioPlayer = AudioPlayer.sharedInstance
     
     private typealias constants = GameVC_Constants
     
     // MARK: - User Initiated Methods
     
     @objc private func sendMessageToChat(_ sender: UIButton? = nil) {
-        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, userNickname: currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: currentUser.playerAvatar, userFrame: currentUser.frame, message: chatMessageField.text!)
+        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, timeLeft: gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft, userNickname: currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: currentUser.playerAvatar, userFrame: currentUser.frame, message: chatMessageField.text!)
         addMessageToChat(chatMessage)
         if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
             socket.write(data: chatMessageJson)
@@ -387,6 +399,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //it could have been done in other way, but i think, it looks cooler this way :)
     //and also we are doing it asynchronously, cuz rewinding turns could take some seconds, which will freeze UI
     @objc private func restoreGame(_ sender: UIButton? = nil) {
+        audioPlayer.playSound(Sounds.toggleSound)
         if !animatingTurns && !fastAnimations {
             makeLoadingSpinner()
             restoringTurns = true
@@ -446,13 +459,19 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     //when pawn reached last row
-    @objc private func replacePawn(_ sender: UITapGestureRecognizer? = nil) {
-        if var square = sender?.view?.layer.value(forKey: constants.keyNameForSquare) as? Square, let figure = square.figure {
+    @objc private func replacePawn(_ sender: UIButton? = nil) {
+        if var square = sender?.superview?.layer.value(forKey: constants.keyNameForSquare) as? Square, let figure = square.figure {
             square.updateTime(newValue: Date())
             gameLogic.makeTurn(square: square)
             finishAnimations()
             if let turn = gameLogic.currentTurn, let square = turn.squares.last {
                 updateSquare(square, figure: figure)
+                if turn.check && !turn.checkMate {
+                    audioPlayer.playSound(Sounds.checkSound)
+                }
+                else if turn.checkMate {
+                    audioPlayer.playSound(Sounds.checkmateSound)
+                }
             }
             if gameLogic.gameEnded && view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
                 makeEndOfTheGameView()
@@ -486,9 +505,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
         animateTransition(of: frameForEndOfTheGameView, startAlpha: frameForEndOfTheGameView.alpha)
         animateTransition(of: endOfTheGameScrollView, startAlpha: endOfTheGameScrollView.alpha)
         animateTransition(of: endOfTheGameView, startAlpha: endOfTheGameView.alpha)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     @objc private func toggleFastAnimations(_ sender: UIButton? = nil) {
+        audioPlayer.playSound(Sounds.toggleSound)
         fastAnimations.toggle()
         if let sender = sender {
             if sender.backgroundColor == constants.dangerPlayerDataColor {
@@ -542,12 +563,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 sender.transform = CGAffineTransform(rotationAngle: .pi)
             }
             if let figuresColor = sender.layer.value(forKey: constants.keyForFigureColor) as? GameColors {
+                audioPlayer.playSound(Sounds.toggleSound)
                 rotateFiguresInSquares(with: figuresColor)
             }
         }
     }
     
     @objc private func toggleGameBoardAutoRotate(_ sender: UIButton? = nil) {
+        audioPlayer.playSound(Sounds.toggleSound)
         gameBoardAutoRotate.toggle()
         if let sender = sender {
             if sender.backgroundColor == constants.dangerPlayerDataColor {
@@ -573,6 +596,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     //locks scrolling of game view
     @objc private func lockGameView(_ sender: UIButton? = nil) {
+        audioPlayer.playSound(Sounds.toggleSound)
         scrollViewOfGame.isScrollEnabled.toggle()
         if let sender = sender {
             if sender.currentImage == UIImage(systemName: "lock.open") {
@@ -616,11 +640,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     }
                     else if !self.gameLogic.gameEnded {
                         self.currentUserWantsDraw = true
-                        //a little notification
-                        UIView.animate(withDuration: constants.animationDuration, animations: {
-                            self.surrenderButton.backgroundColor = constants.notificationColor
-                            self.additionalButton.backgroundColor = constants.notificationColor
-                        })
                         if self.opponentWantsDraw {
                             self.gameLogic.forceDraw()
                             if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
@@ -628,7 +647,16 @@ class GameViewController: UIViewController, WebSocketDelegate {
                             }
                         }
                         else {
-                            self.addMessageToChat(ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, userNickname: self.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.currentUser.playerAvatar, userFrame: self.currentUser.frame, message: "Wanna draw?"))
+                            //a little notification
+                            UIView.animate(withDuration: constants.animationDuration, animations: {
+                                self.surrenderButton.backgroundColor = constants.notificationColor
+                                self.additionalButton.backgroundColor = constants.notificationColor
+                            })
+                            let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.currentUser.playerAvatar, userFrame: self.currentUser.frame, message: "Wanna draw?")
+                            self.addMessageToChat(chatMessage)
+                            if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
+                                self.socket.write(data: chatMessageJson)
+                            }
                             Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
                                 self.currentUserWantsDraw = false
                                 self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
@@ -646,6 +674,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }))
             surrenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
             present(surrenderAlert, animated: true)
+            audioPlayer.playSound(Sounds.openPopUpSound)
         }
     }
     
@@ -681,6 +710,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         }))
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
         present(exitAlert, animated: true)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     //saves game in oneScreen mode
@@ -693,12 +723,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
             gameLogic.saveGameDataForRestore()
             restoreButton.isEnabled = gameLogic.rewindEnabled
             present(alert, animated: true)
+            audioPlayer.playSound(Sounds.successSound)
         }
     }
     
     //moves game back
     @objc private func turnsBackward(_ sender: UIButton? = nil) {
         if !animatingTurns {
+            audioPlayer.playSound(Sounds.toggleSound)
             moveTurn(forward: false)
         }
     }
@@ -706,12 +738,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //moves game forward
     @objc private func turnsForward(_ sender: UIButton? = nil) {
         if !animatingTurns {
+            audioPlayer.playSound(Sounds.toggleSound)
             moveTurn(forward: true)
         }
     }
     
     //stops/activates game playback
     @objc private func turnsAction(_ sender: UIButton? = nil) {
+        audioPlayer.playSound(Sounds.toggleSound)
         if turnsActionTimers.isEmpty && !animatingTurns {
             toggleTurnButtons(disable: true)
             if fastAnimations {
@@ -735,6 +769,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     @objc private func moveToTurn(_ sender: UITapGestureRecognizer? = nil) {
         if let turn = sender?.view?.layer.value(forKey: constants.keyNameForTurn) as? Turn {
             if turn != gameLogic.currentTurn && !animatingTurns {
+                audioPlayer.playSound(Sounds.pickItemSound)
                 toggleTurnButtons(disable: true)
                 if fastAnimations {
                     DispatchQueue.global().async {[weak self] in
@@ -753,11 +788,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
     // MARK: - Local Methods
     
     private func addMessageToChat(_ chatMessage: ChatMessage) {
+        if !muteChat {
+            audioPlayer.playSound(Sounds.openPopUpSound)
+        }
         storage.addChatMessageToHistory(chatMessage)
         //messageView for chat
-        let messageView = makeMessageView(from: chatMessage, needSpecialConstraint: true)
+        let messageView = makeMessageView(from: chatMessage, forPopUp: false)
         //messageView for pop-up
-        let messageViewCopy = makeMessageView(from: chatMessage, needSpecialConstraint: false)
+        let messageViewCopy = makeMessageView(from: chatMessage, forPopUp: true)
         messageView.alpha = 0
         chatMessages.addArrangedSubview(messageView)
         animateTransition(of: messageView)
@@ -809,7 +847,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         RunLoop.main.add(timer, forMode: .common)
     }
     
-    private func makeMessageView(from chatMessage: ChatMessage, needSpecialConstraint: Bool) -> UIImageView {
+    private func makeMessageView(from chatMessage: ChatMessage, forPopUp: Bool) -> UIImageView {
         let fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
         let messageView = SmartImageView()
         messageView.defaultSettings()
@@ -843,7 +881,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         messageStack.addArrangedSubviews([messageInfo, messageDateView, userMessageView])
         messageView.addSubview(messageStack)
         var messageStackConstraints = [messageDateView.heightAnchor.constraint(equalToConstant: fontSize / constants.dividerForDateFont)]
-        if !needSpecialConstraint {
+        if forPopUp {
             messageStackConstraints += [messageStack.leadingAnchor.constraint(equalTo: messageView.leadingAnchor, constant: constants.optimalDistance), messageStack.trailingAnchor.constraint(equalTo: messageView.trailingAnchor, constant: -constants.optimalDistance)]
             if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
                 messageStackConstraints += [messageStack.topAnchor.constraint(equalTo: messageView.topAnchor), messageStack.bottomAnchor.constraint(equalTo: messageView.bottomAnchor, constant: -constants.optimalDistance)]
@@ -889,19 +927,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
         else {
             messageStackConstraints += [messageStack.leadingAnchor.constraint(equalTo: messageView.leadingAnchor, constant: constants.optimalDistance), messageStack.trailingAnchor.constraint(equalTo: messageView.trailingAnchor)]
         }
-        if needSpecialConstraint || chatMessage.playerType != gameLogic.players.first!.multiplayerType {
+        if !forPopUp || chatMessage.playerType != gameLogic.players.first!.multiplayerType {
             messageStackConstraints += [messageStack.topAnchor.constraint(equalTo: messageView.topAnchor, constant: constants.optimalDistance), messageStack.bottomAnchor.constraint(equalTo: messageView.bottomAnchor)]
         }
-        if needSpecialConstraint && gameLogic.timerEnabled {
-            var playerTimer = UILabel()
-            if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
-                let timeLeft = gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft.timeAsString : gameLogic.players.first!.timeLeft.timeAsString
-                playerTimer = makeTimer(with: timeLeft)
-            }
-            else {
-                let timeLeft = gameLogic.currentPlayer.type == .player2 ? gameLogic.timeLeft.timeAsString : gameLogic.players.second!.timeLeft.timeAsString
-                playerTimer = makeTimer(with: timeLeft)
-            }
+        if !forPopUp && gameLogic.timerEnabled {
+            let playerTimer = makeTimer(with: chatMessage.timeLeft.timeAsString)
             messageInfo.addArrangedSubview(playerTimer)
             messageStackConstraints += [userName.widthAnchor.constraint(equalTo: playerTimer.widthAnchor)]
         }
@@ -1134,6 +1164,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             else if let topVC = UIApplication.getTopMostViewController() {
                 topVC.present(alert, animated: true)
             }
+            audioPlayer.playSound(Sounds.errorSound)
         }
     }
     
@@ -1356,6 +1387,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 NSLayoutConstraint.deactivate(timerConstraints)
                 NSLayoutConstraint.deactivate(additionalButtonConstraints)
                 NSLayoutConstraint.activate(specialConstraints)
+                audioPlayer.playSound(Sounds.moveSound4)
             }
         }
         updateLayout()
@@ -1404,6 +1436,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func startPlayerTime(continueTimer: Bool) {
         gameLogic.activateTime(continueTimer: continueTimer, callback: {[weak self] time in
             if let self = self {
+                self.audioPlayer.playSound(Sounds.clockTickSound)
                 if !self.isConnected && self.gameLogic.gameMode == .multiplayer && self.connectedToTheInternet {
                     self.gameLogic.stopTime()
                 }
@@ -1424,6 +1457,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
                             self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player1TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player1TimerForMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                            if !self.gameLogic.gameEnded {
+                                self.audioPlayer.playSound(Music.dangerMusic)
+                            }
                         })
                         self.animations.append(animation)
                     }
@@ -1437,6 +1473,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
                             self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player2TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player2TimerForMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                            if !self.gameLogic.gameEnded {
+                                self.audioPlayer.playSound(Music.dangerMusic)
+                            }
                         })
                         self.animations.append(animation)
                     }
@@ -1589,12 +1628,16 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 subview.removeFromSuperview()
             }
             pawnPicker.removeFromSuperview()
+            audioPlayer.playSound(Sounds.pickItemSound)
         }
         updateUI()
     }
     
     //updates Ui
-    private func updateUI(animateSquares: Bool = false) {
+    private func updateUI(animateSquares: Bool = false, needSound: Bool = true) {
+        if needSound {
+            audioPlayer.playSound(Sounds.toggleSound)
+        }
         updateSquares(animate: animateSquares)
         updateCurrentPlayer()
         updateCurrentTurn()
@@ -1690,6 +1733,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
         }
         else {
+            audioPlayer.playSound(Sounds.pickItemSound)
             updateSquares()
         }
     }
@@ -1896,6 +1940,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                         currentPlayerTimer.layer.backgroundColor = self.currentPlayerDataColor.cgColor
                         currentPlayerTimerInTurns.layer.backgroundColor = self.currentPlayerDataColor.cgColor
                         currentPlayerTimerInMessagePopUp.layer.backgroundColor = self.currentPlayerDataColor.cgColor
+                        self.audioPlayer.stopSound(Music.dangerMusic)
                     }
                     else {
                         currentPlayerTimer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
@@ -1933,6 +1978,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
         }
         NSLayoutConstraint.activate(pawnPickerConstraints)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     private func updateSquares(animate: Bool = false) {
@@ -2014,13 +2060,16 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 backwardSquareView = squareView
             }
         }
+        let needCastleSound = (turn.shortCastle || turn.longCastle) && turn.squares.first?.figure?.name == .rook
+        let needCheckSound = !backwardRewind ? turn.check && !gameLogic.gameEnded : gameLogic.currentTurn?.check ?? false
         if let firstSquareView = firstSquareView, let secondSquareView = secondSquareView, let firstSquare = firstSquare, let secondSquare = secondSquare {
-            animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: turn.pawnSquare, pawnTransform: turn.pawnTransform, backwardSquareView: backwardSquareView)
+            animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: turn.pawnSquare, pawnTransform: turn.pawnTransform, backwardSquareView: backwardSquareView, needCastleSound: needCastleSound, needCheckSound: needCheckSound, needCheckmateSound: turn.checkMate)
         }
     }
     
     //moves figure between squares and trash, both forward and backward, and also transform pawn when rewind
-    private func animateFigures(firstSquareView: UIImageView, secondSquareView: UIImageView, thirdSquareView: UIImageView?, firstSquare: Square, secondSquare: Square, pawnSquare: Square?, pawnTransform: Figure?, backwardSquareView: UIImageView?) {
+    private func animateFigures(firstSquareView: UIImageView, secondSquareView: UIImageView, thirdSquareView: UIImageView?, firstSquare: Square, secondSquare: Square, pawnSquare: Square?, pawnTransform: Figure?, backwardSquareView: UIImageView?, needCastleSound: Bool, needCheckSound: Bool, needCheckmateSound: Bool) {
+        audioPlayer.playSound(Sounds.moveSound3)
         //for proper coordinates for transform of figure, when we removing it from square
         firstSquareView.layoutIfNeeded()
         secondSquareView.layoutIfNeeded()
@@ -2042,6 +2091,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 if player1RotateFiguresButton.transform != player2RotateFiguresButton.transform {
                     backwardFigureView.image = backwardFigureView.image?.rotate(radians: .pi)
                 }
+                audioPlayer.playSound(Sounds.moveSound4)
             }
         }
         let frame = getFrameForAnimation(firstView: firstSquareView, secondView: secondSquareView)
@@ -2087,6 +2137,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
         }) { [weak self] _ in
             if let self = self {
+                if needCastleSound && !backwardRewind {
+                    self.audioPlayer.playSound(Sounds.castleSound)
+                }
+                if needCheckSound {
+                    self.audioPlayer.playSound(Sounds.checkSound)
+                }
+                else if needCheckmateSound && !backwardRewind {
+                    self.audioPlayer.playSound(Sounds.checkmateSound)
+                }
                 NSLayoutConstraint.deactivate(self.scrollContentOfGame.constraints.filter({$0.firstItem === firstFigureView || $0.firstItem === secondFigureView || $0.firstItem === thirdFigureView}))
                 self.figuresInMotion = []
                 //stops trashAnimation before starting new one
@@ -2173,6 +2232,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func moveFigureToTrash(figureView: UIImageView, currentPlayer: Player) {
+        audioPlayer.playSound(Sounds.figureCaptureSound)
         figureToTrash = figureView
         if player1RotateFiguresButton.transform != player2RotateFiguresButton.transform  {
             figureView.image = figureView.image?.rotate(radians: .pi)
@@ -2217,6 +2277,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func animateFigureToTrash(figure: UIView, x: CGFloat, y: CGFloat, currentPlayer: Player) {
+        audioPlayer.playSound(Sounds.moveSound4)
         trashAnimation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
             figure.transform = figure.transform.translatedBy(x: x, y: y)
         }) {[weak self] _ in
@@ -2470,59 +2531,69 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     //updates constraints depending on orientation
     private func updateConstraints(portrait: Bool) {
+        var needToUpdateLayout = false
         if portrait {
-            if arrowToAdditionalButtons.alpha == 1 {
-                arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi)
-                additionalButton.transform = CGAffineTransform(rotationAngle: .pi)
-            }
-            else {
-                arrowToAdditionalButtons.transform = .identity
-                additionalButton.transform = .identity
-            }
-            if additionalButtonsForFigures.alpha == 1 {
-                additionalButtonForFigures.transform = CGAffineTransform(rotationAngle: .pi)
-            }
-            else {
-                additionalButtonForFigures.transform = .identity
-            }
-            currentTransformOfArrow = .identity
-            if !specialLayout {
-                NSLayoutConstraint.deactivate(landscapeConstraints)
-                NSLayoutConstraint.activate(portraitConstraints)
-            }
-            else {
-                NSLayoutConstraint.deactivate(specialConstraints)
-                NSLayoutConstraint.activate(timerConstraints)
-                NSLayoutConstraint.activate(additionalButtonConstraints)
+            if (!specialLayout && landscapeConstraints.first!.isActive) || (specialLayout && specialConstraints.first!.isActive) {
+                needToUpdateLayout = true
+                if arrowToAdditionalButtons.alpha == 1 {
+                    arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi)
+                    additionalButton.transform = CGAffineTransform(rotationAngle: .pi)
+                }
+                else {
+                    arrowToAdditionalButtons.transform = .identity
+                    additionalButton.transform = .identity
+                }
+                if additionalButtonsForFigures.alpha == 1 {
+                    additionalButtonForFigures.transform = CGAffineTransform(rotationAngle: .pi)
+                }
+                else {
+                    additionalButtonForFigures.transform = .identity
+                }
+                currentTransformOfArrow = .identity
+                if !specialLayout {
+                    NSLayoutConstraint.deactivate(landscapeConstraints)
+                    NSLayoutConstraint.activate(portraitConstraints)
+                }
+                else {
+                    NSLayoutConstraint.deactivate(specialConstraints)
+                    NSLayoutConstraint.activate(timerConstraints)
+                    NSLayoutConstraint.activate(additionalButtonConstraints)
+                }
             }
         }
         else {
-            if arrowToAdditionalButtons.alpha == 1 {
-                arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
-                additionalButton.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
-            }
-            else {
-                arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
-                additionalButton.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
-            }
-            if additionalButtonsForFigures.alpha == 1 {
-                additionalButtonForFigures.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
-            }
-            else {
-                additionalButtonForFigures.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
-            }
-            currentTransformOfArrow = CGAffineTransform(rotationAngle: .pi * 1.5)
-            if !specialLayout {
-                NSLayoutConstraint.deactivate(portraitConstraints)
-                NSLayoutConstraint.activate(landscapeConstraints)
-            }
-            else {
-                NSLayoutConstraint.deactivate(timerConstraints)
-                NSLayoutConstraint.deactivate(additionalButtonConstraints)
-                NSLayoutConstraint.activate(specialConstraints)
+            if (!specialLayout && portraitConstraints.first!.isActive) || (specialLayout && timerConstraints.first!.isActive) {
+                needToUpdateLayout = true
+                if arrowToAdditionalButtons.alpha == 1 {
+                    arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
+                    additionalButton.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
+                }
+                else {
+                    arrowToAdditionalButtons.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+                    additionalButton.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+                }
+                if additionalButtonsForFigures.alpha == 1 {
+                    additionalButtonForFigures.transform = CGAffineTransform(rotationAngle: .pi).rotated(by: .pi * 1.5)
+                }
+                else {
+                    additionalButtonForFigures.transform = CGAffineTransform(rotationAngle: .pi * 1.5)
+                }
+                currentTransformOfArrow = CGAffineTransform(rotationAngle: .pi * 1.5)
+                if !specialLayout {
+                    NSLayoutConstraint.deactivate(portraitConstraints)
+                    NSLayoutConstraint.activate(landscapeConstraints)
+                }
+                else {
+                    NSLayoutConstraint.deactivate(timerConstraints)
+                    NSLayoutConstraint.deactivate(additionalButtonConstraints)
+                    NSLayoutConstraint.activate(specialConstraints)
+                }
             }
         }
-        updateLayout()
+        if needToUpdateLayout {
+            updateLayout()
+            audioPlayer.playSound(Sounds.moveSound4)
+        }
     }
     
     //if we dont have enough space for player data left and right from gameBoard,
@@ -2868,7 +2939,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         }
     }
     
-    private func getSquareView(image: UIImage? = nil, figure: Figure? = nil, multiplier: CGFloat = 1) -> UIImageView {
+    private func getSquareView(image: UIImage? = nil, figure: Figure? = nil, multiplier: CGFloat = 1, isButton: Bool = false) -> UIImageView {
         let square = UIImageView()
         let width = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * multiplier
         square.rectangleView(width: width)
@@ -2881,14 +2952,24 @@ class GameViewController: UIViewController, WebSocketDelegate {
         NSLayoutConstraint.activate(borderConstraints)
         //we are adding image in this way, so we can move figure separately from square
         if image != nil {
-            let imageView = UIImageView()
-            imageView.rectangleView(width: width)
-            imageView.layer.borderWidth = 0
-            imageView.image = image
-            imageView.layer.setValue(figure, forKey: constants.keyForFIgure)
-            square.addSubview(imageView)
-            let imageViewConstraints = [imageView.centerXAnchor.constraint(equalTo: square.centerXAnchor), imageView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
-            NSLayoutConstraint.activate(imageViewConstraints)
+            if !isButton {
+                let imageView = UIImageView()
+                imageView.rectangleView(width: width)
+                imageView.layer.borderWidth = 0
+                imageView.image = image
+                imageView.layer.setValue(figure, forKey: constants.keyForFIgure)
+                square.addSubview(imageView)
+                let imageViewConstraints = [imageView.centerXAnchor.constraint(equalTo: square.centerXAnchor), imageView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
+                NSLayoutConstraint.activate(imageViewConstraints)
+            }
+            else {
+                let button = UIButton()
+                button.buttonWith(image: image, and: #selector(replacePawn))
+                button.layer.setValue(figure, forKey: constants.keyForFIgure)
+                square.addSubview(button)
+                let buttonConstraints = [button.leadingAnchor.constraint(equalTo: square.leadingAnchor), button.trailingAnchor.constraint(equalTo: square.trailingAnchor), button.topAnchor.constraint(equalTo: square.topAnchor), button.bottomAnchor.constraint(equalTo: square.bottomAnchor)]
+                NSLayoutConstraint.activate(buttonConstraints)
+            }
         }
         return square
     }
@@ -2919,10 +3000,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
             let square = Square(column: gameLogic.turns.last!.squares.last!.column, row: gameLogic.turns.last!.squares.last!.row, color: gameLogic.turns.last!.squares.last!.color, gameID: gameLogic.gameID, figure: pawnPickerFigure)
             let figuresThemeName = gameLogic.currentPlayer.user.figuresTheme.rawValue
             let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(pawnPickerFigure.color.rawValue)_\(figureName.rawValue)")
-            let squareView = getSquareView(image: figureImage, figure: pawnPickerFigure)
+            let squareView = getSquareView(image: figureImage, figure: pawnPickerFigure, isButton: true)
             squareView.layer.setValue(square, forKey: constants.keyNameForSquare)
-            let tap = UITapGestureRecognizer(target: self, action: #selector(replacePawn))
-            squareView.addGestureRecognizer(tap)
             squareView.subviews.first!.layer.borderColor = squareColor == .black ? UIColor.white.cgColor : UIColor.black.cgColor
             pawnPicker.addArrangedSubview(squareView)
         }
@@ -2970,6 +3049,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeEndOfTheGameView() {
+        audioPlayer.stopSound(Music.dangerMusic)
         updatePlayersTime()
         deactivateMultiplayerTImers()
         saveButton.isEnabled = false
@@ -2987,6 +3067,12 @@ class GameViewController: UIViewController, WebSocketDelegate {
         endOfTheGameView.alpha = 0
         endOfTheGameScrollView.alpha = 0
         if !loadedEndedGame {
+            if gameLogic.winner == nil || gameLogic.winner == gameLogic.players.first! {
+                audioPlayer.playSound(Sounds.winSound)
+            }
+            else {
+                audioPlayer.playSound(Sounds.loseSound)
+            }
             if !gameLogic.turns.isEmpty {
                 currentUser.updatePoints(newValue: gameLogic.players.first!.user.points)
                 currentUser.addGame(gameLogic)
@@ -3032,6 +3118,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 view.transform = .identity
             }
         }
+        audioPlayer.playSound(Sounds.moveSound1)
     }
     
     //shows/hides additional buttons with animation
@@ -3080,6 +3167,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 arrowToAdditionalButtons?.transform = currentTransformOfArrow
             }
         }
+        audioPlayer.playSound(Sounds.moveSound2)
     }
     
     private func makeInfoStack() -> UIStackView {
@@ -3094,7 +3182,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let pointsLabel = makeLabel(text: String(startPoints))
         playerProgress.backgroundColor = constants.backgroundColorForProgressBar
         //how much percentage is filled
-        playerProgress.progress = CGFloat(startPoints * 100 / gameLogic.players.first!.user.rank.maximumPoints) / 100.0
+        playerProgress.progress = CGFloat(startPoints * 100 / startRank.maximumPoints) / 100
         if endPoints < 0 {
             endPoints = 0
         }
@@ -3110,7 +3198,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
         //1 is maximum value for progress, we convert rank points to this to properly fill progress bar
         //in other words if points for rank is 5000 the speed for filling the bar should be slower, than
         //if points for rank is 500
-        var progressPoints = 1.0 / CGFloat(rank.maximumPoints - rank.minimumPoints)
+        var progressPoints: CGFloat = 0.0
+        //current progress in decimal
+        let currentProgress = CGFloat(currentPoints * 100 / rank.maximumPoints) / 100
+        if currentPoints < endPoints {
+            progressPoints = (1.0 - currentProgress) / CGFloat(rank.maximumPoints - currentPoints)
+        }
+        else {
+            progressPoints = currentProgress / CGFloat(currentPoints - rank.minimumPoints)
+        }
         let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true, block: {[weak self] timer in
             if currentPoints == endPoints {
                 timer.invalidate()
@@ -3118,8 +3214,21 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
             playerProgress.progress += currentPoints < endPoints ? progressPoints : -progressPoints
             currentPoints += currentPoints < endPoints ? constants.pointsAnimationStep : -constants.pointsAnimationStep
-            if currentPoints == rank.nextRank.minimumPoints || currentPoints == rank.previousRank.maximumPoints {
-                rank = currentPoints == rank.nextRank.minimumPoints ? rank.nextRank : rank.previousRank
+            let condition1 = currentPoints == rank.nextRank.minimumPoints && currentPoints < endPoints
+            let condition2 = currentPoints == rank.previousRank.maximumPoints && currentPoints > endPoints
+            if condition1 || condition2 {
+                if condition1 {
+                    rank = rank.nextRank
+                    if playerProgress.isVisible() {
+                        self?.audioPlayer.playSound(Sounds.successSound)
+                    }
+                }
+                else if condition2 {
+                    rank = rank.previousRank
+                    if playerProgress.isVisible() {
+                        self?.audioPlayer.playSound(Sounds.sadSound)
+                    }
+                }
                 rankLabel.text = rank.rawValue
                 progressPoints = 1.0 / CGFloat(rank.maximumPoints - rank.minimumPoints)
             }
@@ -3240,6 +3349,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func makeLoadingSpinner() {
         loadingSpinner.removeFromSuperview()
         loadingSpinner = LoadingSpinner()
+        loadingSpinner.waiting()
         scrollContentOfGame.addSubview(loadingSpinner)
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: gameBoard.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: gameBoard.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: gameBoard.widthAnchor, multiplier: constants.sizeMultiplierForSpinnerView), loadingSpinner.heightAnchor.constraint(equalTo: gameBoard.heightAnchor, multiplier: constants.sizeMultiplierForSpinnerView)]
         NSLayoutConstraint.activate(spinnerConstraints)
@@ -3345,6 +3455,7 @@ private struct GameVC_Constants {
     static let multiplierForDownStackInChatView = 1.5
     static let dividerForDateFont = 3.0
     static let optimalPaddingForLabel = 5.0
+    static let volumeForBackgroundMusic: Float = 0.5
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

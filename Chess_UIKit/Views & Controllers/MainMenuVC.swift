@@ -84,8 +84,11 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        audioPlayer.musicEnabled = currentUser.musicEnabled
+        audioPlayer.soundsEnabled = currentUser.soundsEnabled
         makeUI()
         connectToWebSocketServer()
+        audioPlayer.playSound(Sounds.successSound)
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -97,6 +100,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
             randomAnimationFor(view: additionalButtons)
         }
         randomAnimationFor(view: userDataView)
+        audioPlayer.playSound(Sounds.moveSound2)
     }
     
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -131,6 +135,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                 }
             }
         }
+        audioPlayer.playSound(Music.menuBackgroundMusic, volume: constants.volumeForBackgroundMusic)
     }
     
     override func viewDidDisappear(_ animated: Bool) {
@@ -145,6 +150,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     private typealias constants = MainMenuVC_Constants
     
     private let storage = Storage()
+    private let audioPlayer = AudioPlayer.sharedInstance
     
     var currentUser: User!
     
@@ -166,10 +172,12 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                 else {
                     self.dismiss(animated: true)
                 }
+                self.audioPlayer.playSound(Sounds.closePopUpSound)
             }
         }))
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
         UIApplication.getTopMostViewController()?.present(exitAlert, animated: true)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
@@ -243,6 +251,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     @objc private func chooseItemInInventory(_ sender: UIButton? = nil) {
         if let sender = sender {
             if let item = sender.superview?.superview?.layer.value(forKey: constants.keyForItem) as? Item {
+                audioPlayer.playSound(Sounds.chooseItemSound)
                 currentUser.setValue(with: item)
                 updateItemsColor(inShop: false)
                 storage.saveUser(currentUser)
@@ -255,6 +264,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         if let sender = sender {
             if let mainMenuButton = sender.view?.superview {
                 if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? Item {
+                    audioPlayer.playSound(Sounds.pickItemSound)
                     currentUser.addSeenItem(item)
                     for button in buttonsStack.arrangedSubviews {
                         if let viewWithNotif = button as? ViewWithNotifIcon {
@@ -284,6 +294,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     @objc private func showDescriptionForItemInInventory(_ sender: UIButton? = nil) {
         if let mainMenuButton = sender?.superview?.superview {
+            audioPlayer.playSound(Sounds.toggleSound)
             let descriptionView = mainMenuButton.subviews[3]
             let newAlpha: CGFloat = descriptionView.alpha == 0 ? 1 : 0
             UIView.animate(withDuration: constants.animationDuration, animations: {
@@ -300,6 +311,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                 alert.addAction(UIAlertAction(title: "No", style: .cancel, handler: nil))
                 alert.addAction(UIAlertAction(title: "Yes", style: .default, handler: {[weak self] _ in
                     if let self = self {
+                        self.audioPlayer.playSound(Sounds.buyItemSound)
                         self.currentUser.addAvailableItem(item)
                         var startCoins = self.currentUser.coins
                         self.currentUser.addCoins(-item.cost)
@@ -335,6 +347,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                     }
                 }))
                 present(alert, animated: true)
+                audioPlayer.playSound(Sounds.openPopUpSound)
             }
         }
     }
@@ -486,6 +499,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                                     additionalInfo.isHidden = true
                                 }
                             }
+                            audioPlayer.playSound(Sounds.moveSound2)
                         }
                     }
                 }
@@ -522,6 +536,8 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                     }
                     makeGameMenu()
                 }
+                audioPlayer.stopSound(Music.menuBackgroundMusic)
+                audioPlayer.playSound(Sounds.successSound)
                 if let presentedViewController = presentedViewController {
                     presentedViewController.dismiss(animated: true) {[weak self] in
                         self?.makeGameVC(with: game)
@@ -551,12 +567,14 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                             }) { _ in
                                 gameInfo.removeFromSuperview()
                             }
+                            self.audioPlayer.playSound(Sounds.removeSound)
                         }
                     }
                 }
             }
         }))
         present(alert, animated: true)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     // MARK: - Local Methods
@@ -619,6 +637,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         userProfileVC.currentUser = currentUser
         configureSheetController(of: userProfileVC)
         present(userProfileVC, animated: true)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     //makes view for game creation
@@ -629,6 +648,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         createGameVC.currentUser = currentUser
         configureSheetController(of: createGameVC)
         present(createGameVC, animated: true)
+        audioPlayer.playSound(Sounds.openPopUpSound)
     }
     
     //makes game view with chosen game
@@ -659,6 +679,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         alert.addAction(UIAlertAction(title: "Ok", style: .default))
         if let topVC = UIApplication.getTopMostViewController(), topVC as? GameViewController == nil && topVC as? UIAlertController == nil {
             topVC.present(alert, animated: true)
+            audioPlayer.playSound(Sounds.errorSound)
         }
     }
     
@@ -768,6 +789,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                 self?.additionalButtons.transform = .identity
             }
         })
+        audioPlayer.playSound(Sounds.moveSound1)
     }
     
     //makes big round buttons to navigate through main menu
@@ -1387,6 +1409,7 @@ private struct MainMenuVC_Constants {
     static let pickItemBorderColor = UIColor.yellow.cgColor
     static let websocketAddress = "http://localhost:1337"
     static let requestTimeout = 5.0
+    static let volumeForBackgroundMusic: Float = 0.5
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {

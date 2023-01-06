@@ -71,3 +71,12 @@ extension AuthorizationDelegate {
     }
     
 }
+
+extension Item where Self: RawRepresentable, Self.RawValue == String {
+    var name: String { rawValue }
+}
+
+extension Sound where Self: RawRepresentable, Self.RawValue == String {
+    var name: String { rawValue }
+}
+

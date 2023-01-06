@@ -21,6 +21,7 @@ class WheelOfFortune: UIView {
     private let coinsText = UILabel()
     private let figureView = UIImageView()
     private let wheelContainer = UIView()
+    private let audioPlayer = AudioPlayer.sharedInstance
     
     private(set) var winCoins = 0
     
@@ -170,6 +171,9 @@ class WheelOfFortune: UIView {
     private func segmentAnimation(segmentData: SegmentData, delay: Double, animationDuration: Double, startAngle: CGFloat, reverse: Bool = true, angleModifier: Double = constants.defaultAngleModifier) {
         let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
             if let self = self {
+                if self.isVisible() {
+                    self.audioPlayer.playSound(Sounds.toggleSound)
+                }
                 self.coinsText.text = String(segmentData.coinsPrize) + " coins"
                 //changes stroke color of wheel segment
                 segmentData.layer.updateStroke(to: constants.colorForWinnerSegment, animated: true, duration: constants.animationDuration)

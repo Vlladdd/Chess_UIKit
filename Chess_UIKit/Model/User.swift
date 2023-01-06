@@ -14,6 +14,8 @@ struct User: Codable {
     
     //no-internet mode
     private(set) var guestMode: Bool = false
+    private(set) var musicEnabled = true
+    private(set) var soundsEnabled = true
     private(set) var nickname: String
     private(set) var email: String
     private(set) var squaresTheme: SquaresThemes = .defaultTheme
@@ -57,7 +59,7 @@ struct User: Codable {
     
     //storing encryptionKey along with the password is probably a bad idea, but that`s how it`s for now
     enum CodingKeys: String, CodingKey {
-        case nickname, email, games, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, coins, title, availableSquaresThemes, availableBackgrounds, availableFrames, availableFiguresThemes, availableBoardThemes, availableTitles, availableAvatars, seenSquaresThemes, seenBackgrounds, seenFrames, seenFiguresThemes, seenBoardThemes, seenTitles, seenAvatars
+        case nickname, email, games, points, squaresTheme, playerBackground, playerAvatar, frame, figuresTheme, boardTheme, coins, title, availableSquaresThemes, availableBackgrounds, availableFrames, availableFiguresThemes, availableBoardThemes, availableTitles, availableAvatars, seenSquaresThemes, seenBackgrounds, seenFrames, seenFiguresThemes, seenBoardThemes, seenTitles, seenAvatars, musicEnabled, soundsEnabled, rank
     }
     
     // MARK: - Inits
@@ -99,6 +101,9 @@ struct User: Codable {
         availableItems = availableSquaresThemes + availableBackgrounds + availableFrames
         availableItems += availableFiguresThemes + availableBoardThemes + availableTitles + availableAvatars
         games = (try? values.decode([GameLogic].self, forKey: .games)) ?? []
+        musicEnabled = (try? values.decode(Bool.self, forKey: .musicEnabled)) ?? true
+        soundsEnabled = (try? values.decode(Bool.self, forKey: .soundsEnabled)) ?? true
+        rank = (try? values.decode(Ranks.self, forKey: .rank)) ?? getRank(from: points)
     }
     
     // MARK: - Methods
@@ -342,6 +347,14 @@ struct User: Codable {
     
     mutating func updatePoints(newValue: Int) {
         points = newValue
+    }
+    
+    mutating func updateSoundsEnabled(newValue: Bool) {
+        soundsEnabled = newValue
+    }
+    
+    mutating func updateMusicEnabled(newValue: Bool) {
+        musicEnabled = newValue
     }
     
 }

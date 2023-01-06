@@ -26,3 +26,8 @@ protocol AuthorizationDelegate: UIViewController {
     func errorCallbackForAuthorization(errorMessage: String) -> Void
     func successCallbackForAuthorization(user: User?) -> Void
 }
+
+protocol Sound {
+    var name: String { get }
+    var folderName: String { get }
+}
