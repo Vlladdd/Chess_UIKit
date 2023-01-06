@@ -70,3 +70,14 @@ extension Int {
     }
     
 }
+
+extension Data {
+    
+    var MB: Double {
+        let bcf = ByteCountFormatter()
+        bcf.allowedUnits = [.useMB]
+        bcf.countStyle = .file
+        return Double(bcf.string(fromByteCount: Int64(count)).replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: " MB", with: "")) ?? 0.0
+    }
+    
+}

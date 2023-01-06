@@ -17,6 +17,8 @@ class AudioPlayer {
     var soundsEnabled = true
     
     private var audioPlayers = [AVAudioPlayer]()
+    //to avoid loading same sound more than once
+    private var loadedSounds = [Sound]()
     
     static let sharedInstance = AudioPlayer()
     
@@ -40,19 +42,37 @@ class AudioPlayer {
                 audioPlayer.play()
             }
             else {
-                do {
-                    try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-                    try AVAudioSession.sharedInstance().setActive(true)
-                    let audioPlayer = try AVAudioPlayer(data: audioData)
-                    audioPlayer.volume = volume
-                    audioPlayer.numberOfLoops = sound as? Music != nil ? constants.numberOfLoopsForMusic : 0
-                    audioPlayers.append(audioPlayer)
-                    audioPlayer.play()
-                }
-                catch {
-                    print(error.localizedDescription)
+                if !loadedSounds.contains(where: {$0.name == sound.name}) {
+                    loadedSounds.append(sound)
+                    //processes big files asynchronously, to avoid blocking UI
+                    //in chess app it is not necessary to play music(sounds can`t have such big size) immediately,
+                    //otherwise we could have add callback here and loadingSpinner in UI
+                    //or another solution is to load all sounds and music at the start of the app
+                    if audioData.MB > constants.bigFileSizeMB {
+                        DispatchQueue.global().async {[weak self] in
+                            self?.loadSound(sound, audioData: audioData, volume: volume)
+                        }
+                    }
+                    else {
+                        loadSound(sound, audioData: audioData, volume: volume)
+                    }
                 }
             }
+        }
+    }
+    
+    private func loadSound(_ sound: Sound, audioData: Data, volume: Float) {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            let audioPlayer = try AVAudioPlayer(data: audioData)
+            audioPlayer.volume = volume
+            audioPlayer.numberOfLoops = sound as? Music != nil ? constants.numberOfLoopsForMusic : 0
+            audioPlayers.append(audioPlayer)
+            audioPlayer.play()
+        }
+        catch {
+            print(error.localizedDescription)
         }
     }
     
@@ -70,4 +90,5 @@ class AudioPlayer {
 private struct AudioPlayer_Constants {
     static let numberOfLoopsForMusic = -1
     static let defaultVolume: Float = 1.0
+    static let bigFileSizeMB = 100.0
 }
