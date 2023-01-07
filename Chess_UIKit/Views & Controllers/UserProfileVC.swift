@@ -41,7 +41,7 @@ class UserProfileVC: UIViewController {
     
     @objc private func toggleMusic(_ sender: UISwitch? = nil) {
         audioPlayer.musicEnabled.toggle()
-        audioPlayer.musicEnabled ? audioPlayer.playSound(Music.menuBackgroundMusic) : audioPlayer.stopSound(Music.menuBackgroundMusic)
+        audioPlayer.musicEnabled ? audioPlayer.playSound(Music.menuBackgroundMusic) : audioPlayer.pauseSound(Music.menuBackgroundMusic)
         currentUser.updateMusicEnabled(newValue: audioPlayer.musicEnabled)
         storage.saveUser(currentUser)
     }

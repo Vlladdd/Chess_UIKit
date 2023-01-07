@@ -20,6 +20,7 @@
 		74414E71291689C9008CBD1E /* UserProfileVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74414E70291689C9008CBD1E /* UserProfileVC.swift */; };
 		74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74482B69286C59A7004EC83C /* PlayerFrame.swift */; };
 		744B4E04292293B70060527D /* AuthorizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744B4E03292293B70060527D /* AuthorizationView.swift */; };
+		744E4867296A13DA0058D5C4 /* AudioFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E4866296A13DA0058D5C4 /* AudioFile.swift */; };
 		745CC22929231B0600CDFA10 /* Protocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 745CC22829231B0600CDFA10 /* Protocols.swift */; };
 		745CC22D29231CDF00CDFA10 /* ProtocolsExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 745CC22C29231CDF00CDFA10 /* ProtocolsExtensions.swift */; };
 		745D1C7128CB5C52001E25D3 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7028CB5C52001E25D3 /* FirebaseAnalytics */; };
@@ -67,6 +68,7 @@
 		74414E70291689C9008CBD1E /* UserProfileVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileVC.swift; sourceTree = "<group>"; };
 		74482B69286C59A7004EC83C /* PlayerFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerFrame.swift; sourceTree = "<group>"; };
 		744B4E03292293B70060527D /* AuthorizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationView.swift; sourceTree = "<group>"; };
+		744E4866296A13DA0058D5C4 /* AudioFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFile.swift; sourceTree = "<group>"; };
 		745CC22829231B0600CDFA10 /* Protocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocols.swift; sourceTree = "<group>"; };
 		745CC22C29231CDF00CDFA10 /* ProtocolsExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsExtensions.swift; sourceTree = "<group>"; };
 		745D1C7628CB5DDC001E25D3 /* Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage.swift; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 			isa = PBXGroup;
 			children = (
 				741394882856555900159033 /* GameLogic.swift */,
+				744E4866296A13DA0058D5C4 /* AudioFile.swift */,
 				749B6308292C11F20045B718 /* PlayerMessage.swift */,
 				746F30222959056700C53A5A /* ChatMessage.swift */,
 				74700157285B49CB00CB7692 /* Turn.swift */,
@@ -304,6 +307,7 @@
 				741394892856555900159033 /* GameLogic.swift in Sources */,
 				74660A9428591E22006FBF70 /* Figure.swift in Sources */,
 				745D1C7728CB5DDC001E25D3 /* Storage.swift in Sources */,
+				744E4867296A13DA0058D5C4 /* AudioFile.swift in Sources */,
 				74027DD3285B92CA00806401 /* Player.swift in Sources */,
 				7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */,
 				7467A6912874553F00B7504A /* SegmentData.swift in Sources */,

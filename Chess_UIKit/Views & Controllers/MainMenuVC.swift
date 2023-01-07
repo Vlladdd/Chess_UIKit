@@ -536,7 +536,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                     }
                     makeGameMenu()
                 }
-                audioPlayer.stopSound(Music.menuBackgroundMusic)
+                audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
                 if let presentedViewController = presentedViewController {
                     presentedViewController.dismiss(animated: true) {[weak self] in

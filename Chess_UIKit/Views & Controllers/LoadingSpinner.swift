@@ -12,7 +12,7 @@ class LoadingSpinner: UIImageView {
     
     override func removeFromSuperview() {
         super.removeFromSuperview()
-        audioPlayer.stopSound(Music.waitingMusic)
+        audioPlayer.pauseSound(Music.waitingMusic)
     }
     
     // MARK: - Properties

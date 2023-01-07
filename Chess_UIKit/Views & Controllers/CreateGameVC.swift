@@ -30,7 +30,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         case .binary(let data):
             print("Received data: \(data.count)")
             if let game = try? JSONDecoder().decode(GameLogic.self, from: data), game.gameID == gameID {
-                audioPlayer.stopSound(Music.menuBackgroundMusic)
+                audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
                 currentUser.addGame(game)
                 //we are saving game at the start for the case, where game will not be ended and
@@ -153,7 +153,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
             }
             switch modePicker.pickedData! {
             case .oneScreen:
-                audioPlayer.stopSound(Music.menuBackgroundMusic)
+                audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
                 let secondUser = User(email: "Player2", nickname: "Player2")
                 let gameLogic = GameLogic(firstUser: currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindSwitch.isOn, totalTime: totalTime, additionalTime: additionalTime)

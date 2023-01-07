@@ -302,7 +302,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        audioPlayer.stopSound(Music.gameBackgroundMusic)
+        audioPlayer.pauseSound(Music.gameBackgroundMusic)
         deactivateMultiplayerTImers()
         if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
             mainMenuVC.socket.delegate = mainMenuVC
@@ -1940,7 +1940,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                         currentPlayerTimer.layer.backgroundColor = self.currentPlayerDataColor.cgColor
                         currentPlayerTimerInTurns.layer.backgroundColor = self.currentPlayerDataColor.cgColor
                         currentPlayerTimerInMessagePopUp.layer.backgroundColor = self.currentPlayerDataColor.cgColor
-                        self.audioPlayer.stopSound(Music.dangerMusic)
+                        self.audioPlayer.pauseSound(Music.dangerMusic)
                     }
                     else {
                         currentPlayerTimer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
@@ -3049,7 +3049,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeEndOfTheGameView() {
-        audioPlayer.stopSound(Music.dangerMusic)
+        audioPlayer.pauseSound(Music.dangerMusic)
         updatePlayersTime()
         deactivateMultiplayerTImers()
         saveButton.isEnabled = false

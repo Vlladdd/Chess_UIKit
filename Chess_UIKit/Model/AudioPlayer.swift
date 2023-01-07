@@ -15,10 +15,9 @@ class AudioPlayer {
     
     var musicEnabled = true
     var soundsEnabled = true
-    
-    private var audioPlayers = [AVAudioPlayer]()
-    //to avoid loading same sound more than once
-    private var loadedSounds = [Sound]()
+
+    //loaded music or sounds
+    private var loadedAudio = [AudioFile]()
     
     static let sharedInstance = AudioPlayer()
     
@@ -32,54 +31,50 @@ class AudioPlayer {
     // MARK: - Methods
     
     func playSound(_ sound: Sound, volume: Float = constants.defaultVolume) {
-        guard let audioData = NSDataAsset(name: "\(sound.folderName)/\(sound.name)")?.data else { return }
         if (sound as? Sounds != nil && soundsEnabled) || (sound as? Music != nil && musicEnabled) {
-            if let audioPlayer = audioPlayers.first(where: {$0.data == audioData}) {
-                if sound as? Sounds != nil && audioPlayer.isPlaying {
-                    audioPlayer.pause()
-                    audioPlayer.currentTime = 0
-                }
-                audioPlayer.play()
+            if let audioFile = loadedAudio.first(where: {$0.sound.name == sound.name}) {
+                audioFile.updateExpectedStatus(newValue: .playing)
             }
             else {
-                if !loadedSounds.contains(where: {$0.name == sound.name}) {
-                    loadedSounds.append(sound)
-                    //processes big files asynchronously, to avoid blocking UI
-                    //in chess app it is not necessary to play music(sounds can`t have such big size) immediately,
-                    //otherwise we could have add callback here and loadingSpinner in UI
-                    //or another solution is to load all sounds and music at the start of the app
-                    if audioData.MB > constants.bigFileSizeMB {
-                        DispatchQueue.global().async {[weak self] in
-                            self?.loadSound(sound, audioData: audioData, volume: volume)
-                        }
-                    }
-                    else {
-                        loadSound(sound, audioData: audioData, volume: volume)
+                guard let audioData = NSDataAsset(name: "\(sound.folderName)/\(sound.name)")?.data else { return }
+                let audioFile = AudioFile(sound: sound, data: audioData)
+                loadedAudio.append(audioFile)
+                //processes big files asynchronously, to avoid blocking UI
+                //in chess app it is not necessary to play music(sounds can`t have such big size) immediately,
+                //otherwise we could have add callback here and loadingSpinner in UI
+                //or another solution is to load all sounds and music at the start of the app
+                if audioFile.sizeMB > constants.bigFileSizeMB {
+                    audioFile.updateCurrentStatus(newValue: .loading)
+                    DispatchQueue.global().async {[weak self] in
+                        self?.loadAudio(audioFile, volume: volume)
                     }
                 }
+                else {
+                    loadAudio(audioFile, volume: volume)
+                }
+                audioFile.updateExpectedStatus(newValue: .playing)
             }
         }
     }
     
-    private func loadSound(_ sound: Sound, audioData: Data, volume: Float) {
+    private func loadAudio(_ audioFile: AudioFile, volume: Float) {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
-            let audioPlayer = try AVAudioPlayer(data: audioData)
+            let audioPlayer = try AVAudioPlayer(data: audioFile.data)
             audioPlayer.volume = volume
-            audioPlayer.numberOfLoops = sound as? Music != nil ? constants.numberOfLoopsForMusic : 0
-            audioPlayers.append(audioPlayer)
-            audioPlayer.play()
+            audioPlayer.numberOfLoops = audioFile.sound as? Music != nil ? constants.numberOfLoopsForMusic : 0
+            audioFile.updatePlayer(newValue: audioPlayer)
+            audioFile.updateCurrentStatus(newValue: audioFile.expectedStatus)
         }
         catch {
             print(error.localizedDescription)
         }
     }
     
-    func stopSound(_ sound: Sound) {
-        guard let audioData = NSDataAsset(name: "\(sound.folderName)/\(sound.name)")?.data else { return }
-        if let audioPlayer = audioPlayers.first(where: {$0.data == audioData}) {
-            audioPlayer.stop()
+    func pauseSound(_ sound: Sound) {
+        if let audioFile = loadedAudio.first(where: {$0.sound.name == sound.name}) {
+            audioFile.updateExpectedStatus(newValue: .paused)
         }
     }
     

@@ -450,3 +450,10 @@ enum Sounds: String, Sound {
     }
     
 }
+
+enum AudioStatus: String {
+    case notPlaying
+    case playing
+    case paused
+    case loading
+}
