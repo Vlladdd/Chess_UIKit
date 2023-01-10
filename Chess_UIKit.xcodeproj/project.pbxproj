@@ -27,7 +27,6 @@
 		745D1C7328CB5C52001E25D3 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7228CB5C52001E25D3 /* FirebaseAuth */; };
 		745D1C7528CB5C52001E25D3 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7428CB5C52001E25D3 /* FirebaseDatabase */; };
 		745D1C7728CB5DDC001E25D3 /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 745D1C7628CB5DDC001E25D3 /* Storage.swift */; };
-		745D1C7A28CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta in Frameworks */ = {isa = PBXBuildFile; productRef = 745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */; };
 		7460A1D52871C2070037A481 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7460A1D42871C2070037A481 /* ProgressBar.swift */; };
 		7460A1D72871C92B0037A481 /* WheelOfFortune.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7460A1D62871C92B0037A481 /* WheelOfFortune.swift */; };
 		74610B7D286B27510081EDF9 /* SquaresTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74610B7C286B27510081EDF9 /* SquaresTheme.swift */; };
@@ -48,6 +47,7 @@
 		7470975428D36EB90089B483 /* Picker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7470975328D36EB90089B483 /* Picker.swift */; };
 		7475D29328CA643100F9C97B /* AuthorizationVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7475D29228CA643100F9C97B /* AuthorizationVC.swift */; };
 		7483B516285754B100BF3447 /* UIExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7483B515285754B100BF3447 /* UIExtensions.swift */; };
+		74853275296DF1710003CFC4 /* FirebaseDatabaseSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 74853274296DF1710003CFC4 /* FirebaseDatabaseSwift */; };
 		7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7489B0CB28D205B8002311BF /* MainMenuButton.swift */; };
 		749B6309292C11F20045B718 /* PlayerMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 749B6308292C11F20045B718 /* PlayerMessage.swift */; };
 		74A1928929644EEB00AAC877 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A1928829644EEB00AAC877 /* AudioPlayer.swift */; };
@@ -108,12 +108,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				74853275296DF1710003CFC4 /* FirebaseDatabaseSwift in Frameworks */,
 				740B00A6292A479200D488B4 /* Starscream in Frameworks */,
 				74289912291EA571001523EF /* GoogleSignIn in Frameworks */,
 				745D1C7528CB5C52001E25D3 /* FirebaseDatabase in Frameworks */,
 				745D1C7128CB5C52001E25D3 /* FirebaseAnalytics in Frameworks */,
 				74289914291EA571001523EF /* GoogleSignInSwift in Frameworks */,
-				745D1C7A28CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta in Frameworks */,
 				745D1C7328CB5C52001E25D3 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -238,10 +238,10 @@
 				745D1C7028CB5C52001E25D3 /* FirebaseAnalytics */,
 				745D1C7228CB5C52001E25D3 /* FirebaseAuth */,
 				745D1C7428CB5C52001E25D3 /* FirebaseDatabase */,
-				745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */,
 				74289911291EA571001523EF /* GoogleSignIn */,
 				74289913291EA571001523EF /* GoogleSignInSwift */,
 				740B00A5292A479200D488B4 /* Starscream */,
+				74853274296DF1710003CFC4 /* FirebaseDatabaseSwift */,
 			);
 			productName = Chess_UIKit;
 			productReference = 74613E6C285649BB00FF1EF2 /* Chess_UIKit.app */;
@@ -573,7 +573,7 @@
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 8.0.0;
+				minimumVersion = 9.6.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -609,10 +609,10 @@
 			package = 745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseDatabase;
 		};
-		745D1C7928CB5F98001E25D3 /* FirebaseDatabaseSwift-Beta */ = {
+		74853274296DF1710003CFC4 /* FirebaseDatabaseSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 745D1C6F28CB5C52001E25D3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseDatabaseSwift-Beta";
+			productName = FirebaseDatabaseSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -134,7 +134,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
             makeEndOfTheGameView()
         }
-        else if playerMessage.playerType != gameLogic.players.first!.multiplayerType && playerMessage.playerReady && gameLogic.turns.isEmpty {
+        else if playerMessage.playerType != gameLogic.players.first!.multiplayerType && playerMessage.playerReady && cancelGameTimer?.isValid ?? false {
             cancelGameTimer?.invalidate()
             loadingSpinner.removeFromSuperview()
             if gameLogic.currentPlayer.multiplayerType == gameLogic.players.first?.multiplayerType {
@@ -2061,7 +2061,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
         }
         let needCastleSound = (turn.shortCastle || turn.longCastle) && turn.squares.first?.figure?.name == .rook
-        let needCheckSound = !backwardRewind ? turn.check && !gameLogic.gameEnded : gameLogic.currentTurn?.check ?? false
+        let needCheckSound = !backwardRewind ? turn.check && !turn.checkMate : gameLogic.currentTurn?.check ?? false
         if let firstSquareView = firstSquareView, let secondSquareView = secondSquareView, let firstSquare = firstSquare, let secondSquare = secondSquare {
             animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: turn.pawnSquare, pawnTransform: turn.pawnTransform, backwardSquareView: backwardSquareView, needCastleSound: needCastleSound, needCheckSound: needCheckSound, needCheckmateSound: turn.checkMate)
         }

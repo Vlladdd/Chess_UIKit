@@ -256,7 +256,7 @@ struct Storage {
                     callback(error, nil)
                     return
                 }
-                if snapshot.exists() {
+                if let snapshot, snapshot.exists() {
                     do {
                         let findedUser = try snapshot.data(as: User.self)
                         callback(nil, findedUser)

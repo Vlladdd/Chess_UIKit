@@ -101,7 +101,7 @@ wsServer.on('request', function (request) {
                         gamesInfo[JSON.parse(message.binaryData).gameID] = {pawnTransform : message.binaryData};
                     }
                 }
-                if(gameID != undefined && JSON.parse(message.binaryData).gameEnded != undefined) {
+                if(gameID != undefined && JSON.parse(message.binaryData).gameEnded != undefined && JSON.parse(message.binaryData).requestLastAction == false) {
                     var playerType = JSON.parse(message.binaryData).playerType;
                     if (gamesInfo[JSON.parse(message.binaryData).gameID] != undefined) {
                         gamesInfo[JSON.parse(message.binaryData).gameID][playerType] = message.binaryData;

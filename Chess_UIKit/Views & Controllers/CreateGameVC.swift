@@ -399,7 +399,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         specialView.translatesAutoresizingMaskIntoConstraints = false
         specialView.layer.masksToBounds = true
         specialView.addSubview(switcher)
-        let specialViewConstraints = [switcher.trailingAnchor.constraint(equalTo: specialView.trailingAnchor), switcher.centerYAnchor.constraint(equalTo: specialView.centerYAnchor)]
+        let specialViewConstraints = [switcher.trailingAnchor.constraint(equalTo: specialView.trailingAnchor, constant: -constants.distanceForSwitchInSpecialView), switcher.centerYAnchor.constraint(equalTo: specialView.centerYAnchor)]
         NSLayoutConstraint.activate(specialViewConstraints)
         return specialView
     }
@@ -470,4 +470,5 @@ private struct CreateGameVC_Constants {
     static let maxSecondsForTimer = 59.0
     static let stepValueForTimer = 1.0
     static let requestTimeout = 5.0
+    static let distanceForSwitchInSpecialView = 3.0
 }
