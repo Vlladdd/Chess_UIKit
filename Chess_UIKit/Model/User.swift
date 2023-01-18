@@ -31,6 +31,9 @@ struct User: Codable {
             if points < 0 {
                 points = 0
             }
+            else if points > Ranks.maxRank.maximumPoints {
+                points = Ranks.maxRank.maximumPoints
+            }
             rank = getRank(from: points)
         }
     }
@@ -38,7 +41,7 @@ struct User: Codable {
     private(set) var title: Titles = .novice
     private(set) var games = [GameLogic]()
     //items which was unlocked or bought and can be used by a user
-    private(set) var availableItems: [Item] = [SquaresThemes.defaultTheme, Backgrounds.defaultBackground, Frames.defaultFrame, FiguresThemes.defaultTheme, BoardThemes.defaultTheme, Titles.novice, Avatars.defaultAvatar]
+    private(set) var availableItems: [GameItem] = [SquaresThemes.defaultTheme, Backgrounds.defaultBackground, Frames.defaultFrame, FiguresThemes.defaultTheme, BoardThemes.defaultTheme, Titles.novice, Avatars.defaultAvatar]
     
     private var availableSquaresThemes = [SquaresThemes.defaultTheme]
     private var availableBackgrounds = [Backgrounds.defaultBackground]
@@ -108,6 +111,64 @@ struct User: Codable {
     
     // MARK: - Methods
     
+    //right now only titles can be different in shop and inventory, but it might change in future
+    func haveNewItemsInInventory() -> Bool {
+        var haveNewInventoryItem = false
+        if !guestMode {
+            for itemType in GameItems.allCases {
+                switch itemType {
+                case .squaresThemes:
+                    haveNewInventoryItem = haveNewSquaresThemesInInventory()
+                case .figuresThemes:
+                    haveNewInventoryItem = haveNewFiguresThemesInInventory()
+                case .boardThemes:
+                    haveNewInventoryItem = haveNewBoardThemesInInventory()
+                case .frames:
+                    haveNewInventoryItem = haveNewFramesInInventory()
+                case .backgrounds:
+                    haveNewInventoryItem = haveNewBackgroundsInInventory()
+                case .titles:
+                    haveNewInventoryItem = haveNewTitlesInInventory()
+                case .avatars:
+                    //avatars are not part of inventory and instead can be found in user profile
+                    break
+                }
+                if haveNewInventoryItem {
+                    return haveNewInventoryItem
+                }
+            }
+        }
+        return haveNewInventoryItem
+    }
+    
+    func haveNewItemsInShop() -> Bool {
+        var haveNewShopItem = false
+        if !guestMode {
+            for itemType in GameItems.allCases {
+                switch itemType {
+                case .squaresThemes:
+                    haveNewShopItem = haveNewSquaresThemesInShop()
+                case .figuresThemes:
+                    haveNewShopItem = haveNewFiguresThemesInShop()
+                case .boardThemes:
+                    haveNewShopItem = haveNewBoardThemesInShop()
+                case .frames:
+                    haveNewShopItem = haveNewFramesInShop()
+                case .backgrounds:
+                    haveNewShopItem = haveNewBackgroundsInShop()
+                case .titles:
+                    haveNewShopItem = haveNewTitlesInShop()
+                case .avatars:
+                    haveNewShopItem = haveNewAvatarsInShop()
+                }
+                if haveNewShopItem {
+                    return haveNewShopItem
+                }
+            }
+        }
+        return haveNewShopItem
+    }
+    
     func getRank(from points: Int) -> Ranks {
         switch points {
         case _ where points >= Ranks.bronze.minimumPoints && points <= Ranks.bronze.maximumPoints:
@@ -125,10 +186,12 @@ struct User: Codable {
         }
     }
     
-    mutating func addGame(_ game: GameLogic) {
+    mutating func addGame(_ game: GameLogic) -> Bool {
         if games.firstIndex(where: {$0.startDate == game.startDate}) == nil {
             games.append(game)
+            return true
         }
+        return false
     }
     
     mutating func removeGame(_ game: GameLogic) {
@@ -145,101 +208,101 @@ struct User: Codable {
         self.coins += coins
     }
     
-    mutating func addAvailableItem(_ item: Item) {
+    mutating func addAvailableItem(_ item: GameItem) {
         availableItems.append(item)
         switch item.type {
-        case .squaresTheme:
+        case .squaresThemes:
             if let squaresTheme = item as? SquaresThemes {
                 availableSquaresThemes.append(squaresTheme)
             }
-        case .figuresTheme:
+        case .figuresThemes:
             if let figuresTheme = item as? FiguresThemes {
                 availableFiguresThemes.append(figuresTheme)
             }
-        case .boardTheme:
+        case .boardThemes:
             if let boardTheme = item as? BoardThemes {
                 availableBoardThemes.append(boardTheme)
             }
-        case .frame:
+        case .frames:
             if let frame = item as? Frames {
                 availableFrames.append(frame)
             }
-        case .background:
+        case .backgrounds:
             if let playerBackground = item as? Backgrounds {
                 availableBackgrounds.append(playerBackground)
             }
-        case .title:
+        case .titles:
             if let title = item as? Titles {
                 availableTitles.append(title)
             }
-        case .avatar:
+        case .avatars:
             if let playerAvatar = item as? Avatars {
                 availableAvatars.append(playerAvatar)
             }
         }
     }
     
-    mutating func addSeenItem(_ item: Item) {
+    mutating func addSeenItem(_ item: GameItem) {
         switch item.type {
-        case .squaresTheme:
+        case .squaresThemes:
             if let squaresTheme = item as? SquaresThemes {
                 seenSquaresThemes.append(squaresTheme)
             }
-        case .figuresTheme:
+        case .figuresThemes:
             if let figuresTheme = item as? FiguresThemes {
                 seenFiguresThemes.append(figuresTheme)
             }
-        case .boardTheme:
+        case .boardThemes:
             if let boardTheme = item as? BoardThemes {
                 seenBoardThemes.append(boardTheme)
             }
-        case .frame:
+        case .frames:
             if let frame = item as? Frames {
                 seenFrames.append(frame)
             }
-        case .background:
+        case .backgrounds:
             if let playerBackground = item as? Backgrounds {
                 seenBackgrounds.append(playerBackground)
             }
-        case .title:
+        case .titles:
             if let title = item as? Titles {
                 seenTitles.append(title)
             }
-        case .avatar:
+        case .avatars:
             if let playerAvatar = item as? Avatars {
                 seenAvatars.append(playerAvatar)
             }
         }
     }
     
-    func containsNewItemIn(items: [Item]) -> Bool {
+    func containsNewItemIn(items: [GameItem]) -> Bool {
         if items.count > 0 && !guestMode {
             switch items.first!.type {
-            case .squaresTheme:
+            case .squaresThemes:
                 if let squaresThemes = items as? [SquaresThemes] {
                     return squaresThemes.first(where: {!seenSquaresThemes.contains($0)}) != nil
                 }
-            case .figuresTheme:
+            case .figuresThemes:
                 if let figuresThemes = items as? [FiguresThemes] {
                     return figuresThemes.first(where: {!seenFiguresThemes.contains($0)}) != nil
                 }
-            case .boardTheme:
+            case .boardThemes:
                 if let boardThemes = items as? [BoardThemes] {
                     return boardThemes.first(where: {!seenBoardThemes.contains($0)}) != nil
                 }
-            case .frame:
+            case .frames:
                 if let frames = items as? [Frames] {
                     return frames.first(where: {!seenFrames.contains($0)}) != nil
                 }
-            case .background:
+            case .backgrounds:
                 if let playerBackgrounds = items as? [Backgrounds] {
                     return playerBackgrounds.first(where: {!seenBackgrounds.contains($0)}) != nil
                 }
-            case .title:
+            case .titles:
                 if let titles = items as? [Titles] {
                     return titles.first(where: {!seenTitles.contains($0)}) != nil
                 }
-            case .avatar:
+            case .avatars:
                 if let playerAvatars = items as? [Avatars] {
                     return playerAvatars.first(where: {!seenAvatars.contains($0)}) != nil
                 }
@@ -248,27 +311,27 @@ struct User: Codable {
         return false
     }
     
-    func haveNewSquaresThemesInInventory() -> Bool {
+    private func haveNewSquaresThemesInInventory() -> Bool {
         containsNewItemIn(items: SquaresThemes.allCases)
     }
     
-    func haveNewFiguresThemesInInventory() -> Bool {
+    private func haveNewFiguresThemesInInventory() -> Bool {
         containsNewItemIn(items: FiguresThemes.allCases)
     }
     
-    func haveNewBoardThemesInInventory() -> Bool {
+    private func haveNewBoardThemesInInventory() -> Bool {
         containsNewItemIn(items: BoardThemes.allCases)
     }
     
-    func haveNewFramesInInventory() -> Bool {
+    private func haveNewFramesInInventory() -> Bool {
         containsNewItemIn(items: Frames.allCases)
     }
     
-    func haveNewBackgroundsInInventory() -> Bool {
+    private func haveNewBackgroundsInInventory() -> Bool {
         containsNewItemIn(items: Backgrounds.allCases)
     }
     
-    func haveNewTitlesInInventory() -> Bool {
+    private func haveNewTitlesInInventory() -> Bool {
         containsNewItemIn(items: Titles.allCases)
     }
     
@@ -276,61 +339,61 @@ struct User: Codable {
         containsNewItemIn(items: Avatars.allCases)
     }
     
-    func haveNewSquaresThemesInShop() -> Bool {
+    private func haveNewSquaresThemesInShop() -> Bool {
         containsNewItemIn(items: SquaresThemes.purchasable)
     }
     
-    func haveNewFiguresThemesInShop() -> Bool {
+    private func haveNewFiguresThemesInShop() -> Bool {
         containsNewItemIn(items: FiguresThemes.purchasable)
     }
     
-    func haveNewBoardThemesInShop() -> Bool {
+    private func haveNewBoardThemesInShop() -> Bool {
         containsNewItemIn(items: BoardThemes.purchasable)
     }
     
-    func haveNewFramesInShop() -> Bool {
+    private func haveNewFramesInShop() -> Bool {
         containsNewItemIn(items: Frames.purchasable)
     }
     
-    func haveNewBackgroundsInShop() -> Bool {
+    private func haveNewBackgroundsInShop() -> Bool {
         containsNewItemIn(items: Backgrounds.purchasable)
     }
     
-    func haveNewTitlesInShop() -> Bool {
+    private func haveNewTitlesInShop() -> Bool {
         containsNewItemIn(items: Titles.purchasable)
     }
     
-    func haveNewAvatarsInShop() -> Bool {
+    private func haveNewAvatarsInShop() -> Bool {
         containsNewItemIn(items: Avatars.purchasable)
     }
     
-    mutating func setValue(with item: Item) {
+    mutating func setValue(with item: GameItem) {
         switch item.type {
-        case .squaresTheme:
+        case .squaresThemes:
             if let squaresTheme = item as? SquaresThemes {
                 self.squaresTheme = squaresTheme
             }
-        case .figuresTheme:
+        case .figuresThemes:
             if let figuresTheme = item as? FiguresThemes {
                 self.figuresTheme = figuresTheme
             }
-        case .boardTheme:
+        case .boardThemes:
             if let boardTheme = item as? BoardThemes {
                 self.boardTheme = boardTheme
             }
-        case .frame:
+        case .frames:
             if let frame = item as? Frames {
                 self.frame = frame
             }
-        case .background:
+        case .backgrounds:
             if let playerBackground = item as? Backgrounds {
                 self.playerBackground = playerBackground
             }
-        case .title:
+        case .titles:
             if let title = item as? Titles {
                 self.title = title
             }
-        case .avatar:
+        case .avatars:
             if let playerAvatar = item as? Avatars {
                 self.playerAvatar = playerAvatar
             }

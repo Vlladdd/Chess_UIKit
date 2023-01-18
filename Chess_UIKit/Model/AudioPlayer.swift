@@ -30,13 +30,13 @@ class AudioPlayer {
     
     // MARK: - Methods
     
-    func playSound(_ sound: Sound, volume: Float = constants.defaultVolume) {
+    func playSound(_ sound: SoundItem, volume: Float = constants.defaultVolume) {
         if (sound as? Sounds != nil && soundsEnabled) || (sound as? Music != nil && musicEnabled) {
             if let audioFile = loadedAudio.first(where: {$0.sound.name == sound.name}) {
                 audioFile.updateExpectedStatus(newValue: .playing)
             }
-            else {
-                guard let audioData = NSDataAsset(name: "\(sound.folderName)/\(sound.name)")?.data else { return }
+            else if let soundPath = sound.getFullPath() {
+                guard let audioData = NSDataAsset(name: soundPath)?.data else { return }
                 let audioFile = AudioFile(sound: sound, data: audioData)
                 loadedAudio.append(audioFile)
                 //processes big files asynchronously, to avoid blocking UI
@@ -72,7 +72,7 @@ class AudioPlayer {
         }
     }
     
-    func pauseSound(_ sound: Sound) {
+    func pauseSound(_ sound: SoundItem) {
         if let audioFile = loadedAudio.first(where: {$0.sound.name == sound.name}) {
             audioFile.updateExpectedStatus(newValue: .paused)
         }

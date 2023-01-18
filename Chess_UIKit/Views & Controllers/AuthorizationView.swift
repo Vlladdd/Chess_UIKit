@@ -43,12 +43,12 @@ class AuthorizationView: UIStackView {
     @objc private func signUp(_ sender: UIButton? = nil) {
         if let delegate = delegate {
             delegate.prepareForAuthorizationProcess()
-            delegate.storage.createUser(with: emailField.text!, and: passwordField.text!) { error, user in
+            delegate.storage.createUser(with: emailField.text!, and: passwordField.text!) { error in
                 guard error == nil else {
                     delegate.errorCallbackForAuthorization(errorMessage: error!.localizedDescription)
                     return
                 }
-                delegate.successCallbackForAuthorization(user: user)
+                delegate.successCallbackForAuthorization()
             }
         }
         else {
@@ -59,8 +59,8 @@ class AuthorizationView: UIStackView {
     @objc private func signIn(_ sender: UIButton? = nil) {
         if let delegate = delegate {
             delegate.prepareForAuthorizationProcess()
-            delegate.storage.signInWith(email: emailField.text!, and: passwordField.text!, callback: { error, user, resolver, displayNameString in
-                delegate.loginOperation(currentUser: user, error: error, resolver: resolver, displayNameString: displayNameString)
+            delegate.storage.signInWith(email: emailField.text!, and: passwordField.text!, callback: { error, resolver, displayNameString in
+                delegate.loginOperation(error: error, resolver: resolver, displayNameString: displayNameString)
             })
         }
         else {
@@ -70,7 +70,8 @@ class AuthorizationView: UIStackView {
     
     @objc private func signInViaGuestMode(_ sender: UIButton? = nil) {
         if let delegate = delegate {
-            delegate.successCallbackForAuthorization(user: User(email: "", nickname: "Player1", guestMode: true))
+            delegate.storage.signInAsGuest()
+            delegate.successCallbackForAuthorization()
         }
         else {
             fatalError("delegate is nil")
@@ -86,7 +87,7 @@ class AuthorizationView: UIStackView {
         isLayoutMarginsRelativeArrangement = true
         backgroundColor = backgroundColor?.withAlphaComponent(constants.optimalAlpha)
         let guestModeButton = UIButton()
-        guestModeButton.buttonWith(image: UIImage(systemName: "wifi.slash"), and: #selector(signInViaGuestMode))
+        guestModeButton.buttonWith(imageItem: SystemImages.noInternetImage, and: #selector(signInViaGuestMode))
         let goggleSignInView = UIView()
         goggleSignInView.translatesAutoresizingMaskIntoConstraints = false
         goggleSignInView.addSubview(goggleSignInButton)

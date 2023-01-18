@@ -19,15 +19,9 @@ class ProgressBar: UIView {
     }
     var progress: CGFloat = constants.defaultProgressValue {
         didSet {
-            if progress >= 1 || progress < 0 {
+            if progress == 1 || progress == 0 {
                 backgroundColor = progressColor
                 progressColor = .random()
-                if progress >= 1 {
-                    progress = 0
-                }
-                else {
-                    progress = 1
-                }
             }
             setNeedsDisplay()
         }
@@ -51,6 +45,14 @@ class ProgressBar: UIView {
     }
     
     // MARK: - Methods
+    
+    func reset() {
+        progress = 0
+    }
+    
+    func fill() {
+        progress = 1
+    }
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false

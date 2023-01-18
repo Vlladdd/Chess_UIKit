@@ -37,11 +37,11 @@ class LoadingSpinner: UIImageView {
     private func setup() {
         defaultSettings()
         backgroundColor = backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let figureName = traitCollection.userInterfaceStyle == .dark ? "white_king" : "black_king"
+        let figureItem = traitCollection.userInterfaceStyle == .dark ? constants.spinningFigureDarkMode : constants.spinningFigureLightMode
         let spinner = UIImageView()
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.contentMode = .scaleAspectFit
-        spinner.image = UIImage(named: "figuresThemes/defaultTheme/\(figureName)")
+        spinner.setImage(with: FiguresThemes.defaultTheme.getSkinedFigure(from: figureItem))
         spinner.rotate360Degrees(duration: constants.speedForSpinner)
         addSubview(spinner)
         let spinnerConstraints = [spinner.widthAnchor.constraint(equalTo: widthAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.heightAnchor.constraint(equalTo: heightAnchor, multiplier: constants.sizeMultiplierForSpinner), spinner.centerXAnchor.constraint(equalTo: centerXAnchor), spinner.centerYAnchor.constraint(equalTo: centerYAnchor)]
@@ -61,4 +61,6 @@ private struct LoadingSpinner_Constants {
     static let speedForSpinner = 1.0
     static let sizeMultiplierForSpinner = 0.6
     static let volumeForWaitingMusic: Float = 0.3
+    static let spinningFigureLightMode = Figure(type: .king, color: .black)
+    static let spinningFigureDarkMode = Figure(type: .king, color: .white)
 }

@@ -32,9 +32,7 @@ class UserProfileVC: UIViewController {
     
     private typealias constants = UserProfileVC_Constants
     
-    var currentUser: User!
-    
-    private let storage = Storage()
+    private let storage = Storage.sharedInstance
     private let audioPlayer = AudioPlayer.sharedInstance
     
     // MARK: - Buttons Methods
@@ -42,14 +40,12 @@ class UserProfileVC: UIViewController {
     @objc private func toggleMusic(_ sender: UISwitch? = nil) {
         audioPlayer.musicEnabled.toggle()
         audioPlayer.musicEnabled ? audioPlayer.playSound(Music.menuBackgroundMusic) : audioPlayer.pauseSound(Music.menuBackgroundMusic)
-        currentUser.updateMusicEnabled(newValue: audioPlayer.musicEnabled)
-        storage.saveUser(currentUser)
+        storage.currentUser.updateMusicEnabled(newValue: audioPlayer.musicEnabled)
     }
     
     @objc private func toggleSounds(_ sender: UISwitch? = nil) {
         audioPlayer.soundsEnabled.toggle()
-        currentUser.updateSoundsEnabled(newValue: audioPlayer.soundsEnabled)
-        storage.saveUser(currentUser)
+        storage.currentUser.updateSoundsEnabled(newValue: audioPlayer.soundsEnabled)
     }
     
     @objc private func close(_ sender: UIBarButtonItem? = nil) {
@@ -61,7 +57,7 @@ class UserProfileVC: UIViewController {
         makeLoadingSpinner()
         let nicknameView = nicknameLine.arrangedSubviews.second?.subviews.first as? UITextField ?? nicknameLine.arrangedSubviews.second as? UITextField
         if let nickname = nicknameView?.text, nickname.count >= constants.minimumSymbolsInData && nickname.count <= constants.maximumSymbolsInData {
-            if !storage.checkIfGoogleSignIn() && !currentUser.guestMode {
+            if !storage.checkIfGoogleSignIn() && !storage.currentUser.guestMode {
                 let email = (emailLine.arrangedSubviews.second as? UITextField)?.text
                 let password = (passwordLine.arrangedSubviews.second as? UITextField)?.text
                 if let email = email, let password = password {
@@ -72,7 +68,7 @@ class UserProfileVC: UIViewController {
                                 self.audioPlayer.playSound(Sounds.errorSound)
                                 return
                             }
-                            self.currentUser.updateEmail(newValue: email)
+                            self.storage.currentUser.updateEmail(newValue: email)
                             self.updateNickname(newValue: nickname, nicknameView: nicknameView!)
                         }
                     })
@@ -105,27 +101,25 @@ class UserProfileVC: UIViewController {
         if let sender = sender {
             if let avatar = sender.view?.layer.value(forKey: constants.keyForAvatar) as? Avatars {
                 audioPlayer.playSound(Sounds.pickItemSound)
-                currentUser.addSeenItem(avatar)
+                storage.currentUser.addSeenItem(avatar)
                 for avatarLine in avatarsView.arrangedSubviews {
                     if let avatarLine = avatarLine as? UIStackView {
                         resetPickedAvatar(in: avatarLine)
                     }
                 }
                 resetPickedAvatar(in: avatarsLastLine)
-                if currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
-                    currentUser.setValue(with: avatar)
-                    storage.saveUser(currentUser)
+                if storage.currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
+                    storage.currentUser.setValue(with: avatar)
                     sender.view?.subviews.first?.backgroundColor = constants.chosenItemColor
                 }
                 UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
                     if let self = self {
-                        self.userAvatar.image = UIImage(named: "avatars/\(avatar.rawValue)")
+                        self.userAvatar.setImage(with: avatar)
                     }
                 })
                 avatarInfo.text = avatar.description
                 sender.view?.layer.borderColor = constants.pickItemBorderColor
                 if let mainMenuVC = presentingViewController as? MainMenuVC {
-                    mainMenuVC.currentUser = currentUser
                     mainMenuVC.updateUserData()
                     mainMenuVC.removeNotificationIconsIfNeeded()
                 }
@@ -139,10 +133,8 @@ class UserProfileVC: UIViewController {
     // MARK: - Local Methods
     
     private func updateNickname(newValue: String, nicknameView: UIView) {
-        currentUser.updateNickname(newValue: newValue)
-        storage.saveUser(currentUser)
+        storage.currentUser.updateNickname(newValue: newValue)
         if let mainMenuVC = presentingViewController as? MainMenuVC {
-            mainMenuVC.currentUser = currentUser
             mainMenuVC.updateUserData()
             mainMenuVC.removeNotificationIconsIfNeeded()
         }
@@ -184,10 +176,10 @@ class UserProfileVC: UIViewController {
     private func getColorForAvatar(from avatarView: UIView) -> UIColor {
         var color = defaultBackgroundColor
         if let avatar = avatarView.layer.value(forKey: constants.keyForAvatar) as? Avatars {
-            if avatar == currentUser.playerAvatar {
+            if avatar == storage.currentUser.playerAvatar {
                 color = constants.chosenItemColor
             }
-            else if !currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
+            else if !storage.currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
                 color = constants.notAvailableColor
             }
         }
@@ -267,7 +259,7 @@ class UserProfileVC: UIViewController {
         userAvatar.rectangleView(width: widthForAvatar)
         userAvatar.contentMode = .scaleAspectFill
         userAvatar.layer.masksToBounds = true
-        userAvatar.image = UIImage(named: "avatars/\(currentUser.playerAvatar.rawValue)")
+        userAvatar.setImage(with: storage.currentUser.playerAvatar)
         userAvatar.addGestureRecognizer(tapGesture)
         view.addSubview(userAvatar)
         let avatarConstraints = [userAvatar.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), userAvatar.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor)]
@@ -278,12 +270,13 @@ class UserProfileVC: UIViewController {
         let userInfo = UIStackView()
         userInfo.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         let userRank = UILabel()
-        userRank.setup(text: currentUser.rank.rawValue, alignment: .center, font: defaultFont)
+        userRank.setup(text: storage.currentUser.rank.asString, alignment: .center, font: defaultFont)
         userProgress.backgroundColor = constants.backgroundColorForProgressBar
+        let currentUserRank = storage.currentUser.rank
         //how much percentage is filled
-        userProgress.progress = CGFloat(currentUser.points * 100 / currentUser.rank.maximumPoints) / 100.0
+        userProgress.progress = CGFloat(storage.currentUser.points - currentUserRank.minimumPoints) / CGFloat(currentUserRank.maximumPoints - currentUserRank.minimumPoints)
         let userPoints = UILabel()
-        userPoints.setup(text: String(currentUser.points) + "/" + String(currentUser.rank.maximumPoints), alignment: .center, font: defaultFont)
+        userPoints.setup(text: String(storage.currentUser.points) + "/" + String(storage.currentUser.rank.maximumPoints), alignment: .center, font: defaultFont)
         userInfo.addArrangedSubviews([userRank, userProgress, userPoints])
         view.addSubview(userInfo)
         let userInfoConstraints = [userInfo.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), userInfo.leadingAnchor.constraint(equalTo: userAvatar.trailingAnchor, constant: constants.optimalDistance), userInfo.bottomAnchor.constraint(equalTo: userAvatar.bottomAnchor), userInfo.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor)]
@@ -292,20 +285,20 @@ class UserProfileVC: UIViewController {
     
     private func makeDataFields() {
         dataFieldsStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-        nicknameLine = makeLine(with: "Nickname", textFieldPlaceholder: "Enter new nickname", textFieldText: currentUser.nickname)
-        if currentUser.guestMode {
+        nicknameLine = makeLine(with: "Nickname", textFieldPlaceholder: "Enter new nickname", textFieldText: storage.currentUser.nickname)
+        if storage.currentUser.guestMode {
             dataFieldsStack.addArrangedSubviews([nicknameLine])
         }
         else if storage.checkIfGoogleSignIn() {
-            emailLine = makeLine(with: "Email", labelData: currentUser.email)
+            emailLine = makeLine(with: "Email", labelData: storage.currentUser.email)
             dataFieldsStack.addArrangedSubviews([nicknameLine, emailLine])
         }
         else {
-            emailLine = makeLine(with: "Email", textFieldPlaceholder: "Enter new email", textFieldText: currentUser.email)
+            emailLine = makeLine(with: "Email", textFieldPlaceholder: "Enter new email", textFieldText: storage.currentUser.email)
             passwordLine = makeLine(with: "Password", textFieldPlaceholder: "Enter new password", textFieldText: nil)
             dataFieldsStack.addArrangedSubviews([nicknameLine, emailLine, passwordLine])
         }
-        if currentUser.nickname.isEmpty {
+        if storage.currentUser.nickname.isEmpty {
             let field = nicknameLine.arrangedSubviews.second!
             let nicknameView = ViewWithNotifIcon(mainView: field, cornerRadius: fontSize / constants.minimumDividerForCornerRadius)
             nicknameLine.addArrangedSubview(nicknameView)
@@ -325,7 +318,7 @@ class UserProfileVC: UIViewController {
         avatarInfoScrollView.translatesAutoresizingMaskIntoConstraints = false
         avatarInfoScrollView.alpha = 0
         avatarInfoScrollView.backgroundColor = defaultBackgroundColor
-        avatarInfo.setup(text: currentUser.playerAvatar.description, alignment: .center, font: defaultFont)
+        avatarInfo.setup(text: storage.currentUser.playerAvatar.description, alignment: .center, font: defaultFont)
         avatarInfo.numberOfLines = 0
         view.addSubview(avatarInfoScrollView)
         avatarInfoScrollView.addSubview(avatarInfo)
@@ -349,16 +342,16 @@ class UserProfileVC: UIViewController {
             let tapGesture = UITapGestureRecognizer(target: self, action: #selector(pickAvatar))
             avatarView.defaultSettings()
             avatarView.isUserInteractionEnabled = true
-            avatarView.image = UIImage(named: "avatars/\(avatar.rawValue)")
+            avatarView.setImage(with: avatar)
             avatarView.layer.setValue(avatar, forKey: constants.keyForAvatar)
             avatarView.addGestureRecognizer(tapGesture)
             avatarView.addSubview(backgroundView)
             backgroundView.backgroundColor = getColorForAvatar(from: avatarView)
-            if currentUser.playerAvatar == avatar {
+            if storage.currentUser.playerAvatar == avatar {
                 avatarView.layer.borderColor = constants.pickItemBorderColor
             }
             let avatarViewConstraints = [avatarView.heightAnchor.constraint(equalTo: avatarView.widthAnchor), backgroundView.heightAnchor.constraint(equalTo: avatarView.heightAnchor), backgroundView.widthAnchor.constraint(equalTo: avatarView.widthAnchor), backgroundView.centerXAnchor.constraint(equalTo: avatarView.centerXAnchor), backgroundView.centerYAnchor.constraint(equalTo: avatarView.centerYAnchor)]
-            if currentUser.containsNewItemIn(items: [avatar]) {
+            if storage.currentUser.containsNewItemIn(items: [avatar]) {
                 let avatarViewWithNotif = ViewWithNotifIcon(mainView: avatarView, cornerRadius: fontSize / constants.minimumDividerForCornerRadius)
                 avatarsViews.append(avatarViewWithNotif)
             }
@@ -498,7 +491,7 @@ class UserProfileVC: UIViewController {
         for avatarView in line.arrangedSubviews {
             if let viewWithNotif = avatarView as? ViewWithNotifIcon {
                 if let item = viewWithNotif.mainView.layer.value(forKey: constants.keyForAvatar) as? Avatars {
-                    if !currentUser.containsNewItemIn(items: [item]) {
+                    if !storage.currentUser.containsNewItemIn(items: [item]) {
                         viewWithNotif.removeNotificationIcon()
                     }
                 }

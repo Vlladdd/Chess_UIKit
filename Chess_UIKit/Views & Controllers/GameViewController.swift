@@ -21,7 +21,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         switch event {
         case .connected(let headers):
             print("websocket is connected: \(headers)")
-            socket.write(string: currentUser.email + Date().toStringDateHMS + "GameVC")
+            socket.write(string: storage.currentUser.email + Date().toStringDateHMS + "GameVC")
             if !finalError {
                 websocketDidConnect()
             }
@@ -106,8 +106,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         if !gameLogic.timerIsValid() && !gameLogic.turns.isEmpty {
             activatePlayerTime(continueTimer: true)
         }
-        currentUser.addGame(gameLogic)
-        storage.saveUser(currentUser)
+        storage.addGameToCurrentUserAndSave(gameLogic)
         isConnected = true
         reconnectTimer?.fire()
         //to be sure, that both players are connected
@@ -139,6 +138,10 @@ class GameViewController: UIViewController, WebSocketDelegate {
             loadingSpinner.removeFromSuperview()
             if gameLogic.currentPlayer.multiplayerType == gameLogic.players.first?.multiplayerType {
                 toggleTurnButtons(disable: false)
+            }
+            else {
+                surrenderButton.isEnabled = true
+                exitButton.isEnabled = true
             }
         }
         else if playerMessage.opponentWantsDraw && playerMessage.playerType != gameLogic.players.first!.multiplayerType {
@@ -226,8 +229,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func handleWebSocketError(_ error: Error?) {
         if let error = error as? WSError {
             if !gameLogic.gameEnded && connectedToTheInternet {
-                currentUser.removeGame(gameLogic)
-                storage.saveUser(currentUser)
+                storage.currentUser.removeGame(gameLogic)
             }
             makeErrorAlert(with: "websocket encountered an error: \(error.message)", addReconnectButton: true)
         }
@@ -235,8 +237,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             if let error = error as? NWError {
                 //if server encountered a problem, user shouldn`t lose points
                 if error._code == 0 && !gameLogic.gameEnded && connectedToTheInternet {
-                    currentUser.removeGame(gameLogic)
-                    storage.saveUser(currentUser)
+                    storage.currentUser.removeGame(gameLogic)
                 }
             }
             makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)", addReconnectButton: true)
@@ -313,7 +314,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
     // MARK: - Properties
     
     var gameLogic: GameLogic!
-    var currentUser: User!
     
     //to mute pop-ups with new messages
     private var muteChat = false
@@ -358,18 +358,18 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private var animatingTurns = false
     //to rotate gameBoard after currentPlayer changed
     private var gameBoardAutoRotate = false
-    private var storage = Storage()
     
     //to check internet connection
     private let monitor = NWPathMonitor()
     private let audioPlayer = AudioPlayer.sharedInstance
+    private let storage = Storage.sharedInstance
     
     private typealias constants = GameVC_Constants
     
     // MARK: - User Initiated Methods
     
     @objc private func sendMessageToChat(_ sender: UIButton? = nil) {
-        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, timeLeft: gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft, userNickname: currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: currentUser.playerAvatar, userFrame: currentUser.frame, message: chatMessageField.text!)
+        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, timeLeft: gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft, userNickname: storage.currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: storage.currentUser.playerAvatar, userFrame: storage.currentUser.frame, message: chatMessageField.text!)
         addMessageToChat(chatMessage)
         if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
             socket.write(data: chatMessageJson)
@@ -421,7 +421,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                         }
                         self.makeEmptyTurnData()
                         for turn in self.gameLogic.turns {
-                            if (!turn.shortCastle && !turn.longCastle) || turn.squares.first?.figure?.name == .rook {
+                            if (!turn.shortCastle && !turn.longCastle) || turn.squares.first?.figure?.type == .rook {
                                 self.addTurnToUI(turn)
                             }
                         }
@@ -599,11 +599,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
         audioPlayer.playSound(Sounds.toggleSound)
         scrollViewOfGame.isScrollEnabled.toggle()
         if let sender = sender {
-            if sender.currentImage == UIImage(systemName: "lock.open") {
-                sender.setImage(UIImage(systemName: "lock"), for: .normal)
+            if sender.compareCurrentImageTo(SystemImages.unlockedImage) {
+                sender.setImage(with: SystemImages.lockedImage)
             }
             else {
-                sender.setImage(UIImage(systemName: "lock.open"), for: .normal)
+                sender.setImage(with: SystemImages.unlockedImage)
             }
         }
     }
@@ -652,7 +652,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                                 self.surrenderButton.backgroundColor = constants.notificationColor
                                 self.additionalButton.backgroundColor = constants.notificationColor
                             })
-                            let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.currentUser.playerAvatar, userFrame: self.currentUser.frame, message: "Wanna draw?")
+                            let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.storage.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.storage.currentUser.playerAvatar, userFrame: self.storage.currentUser.frame, message: "Wanna draw?")
                             self.addMessageToChat(chatMessage)
                             if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
                                 self.socket.write(data: chatMessageJson)
@@ -697,13 +697,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 self.finishAnimations()
                 if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
                     self.gameLogic.surrender(for: .player1)
-                    self.storage.saveUser(self.currentUser)
+                    //gameLogic is a class, saveCurrentUser() will not triger, so we have to do it manually
+                    self.storage.saveCurrentUser()
                     if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true)) {
                         self.socket.write(data: gameStatusJson)
                     }
-                }
-                if let mainMenuVC = self.presentingViewController as? MainMenuVC {
-                    mainMenuVC.currentUser = self.currentUser
                 }
                 self.dismiss(animated: true)
             }
@@ -718,8 +716,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         if !animatingTurns {
             let alert = UIAlertController(title: "Action completed", message: "Game saved!", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "Ok", style: .default))
-            currentUser.addGame(gameLogic)
-            storage.saveUser(currentUser)
+            storage.addGameToCurrentUserAndSave(gameLogic)
             gameLogic.saveGameDataForRestore()
             restoreButton.isEnabled = gameLogic.rewindEnabled
             present(alert, animated: true)
@@ -851,7 +848,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
         let messageView = SmartImageView()
         messageView.defaultSettings()
-        messageView.image = UIImage(named: "frames/\(chatMessage.userFrame.rawValue)")
+        messageView.setImage(with: chatMessage.userFrame)
         let messageStack = UIStackView()
         messageStack.setup(axis: .vertical, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
         messageStack.defaultSettings()
@@ -861,7 +858,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         messageInfo.defaultSettings()
         let userAvatar = UIImageView()
         userAvatar.defaultSettings()
-        userAvatar.image = UIImage(named: "avatars/\(chatMessage.userAvatar.rawValue)")
+        userAvatar.setImage(with: chatMessage.userAvatar)
         let userName = UILabel()
         userName.setup(text: chatMessage.userNickname, alignment: .center, font: UIFont.systemFont(ofSize: fontSize))
         let messageDate = UILabel()
@@ -987,6 +984,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let queue = DispatchQueue(label: "Monitor")
         monitor.start(queue: queue)
         toggleTurnButtons(disable: true)
+        surrenderButton.isEnabled = false
+        exitButton.isEnabled = false
         makeLoadingSpinner()
         socket.delegate = self
         websocketDidConnect()
@@ -998,8 +997,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         cancelGameTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
             if let self = self {
                 self.makeErrorAlert(with: "Game was cancelled")
-                self.currentUser.removeGame(self.gameLogic)
-                self.storage.saveUser(self.currentUser)
+                self.storage.currentUser.removeGame(self.gameLogic)
             }
         })
     }
@@ -1139,9 +1137,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 if let self = self {
                     self.stopTurnsPlayback()
                     self.finishAnimations()
-                    if let mainMenuVC = self.presentingViewController as? MainMenuVC {
-                        mainMenuVC.currentUser = self.currentUser
-                    }
                     self.dismiss(animated: true)
                 }
             })
@@ -1291,8 +1286,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     //when user wants to restore turns instantly
     private func replaceFiguresInSquares() {
-        let player1figuresThemeName = gameLogic.players.first!.user.figuresTheme.rawValue
-        let player2figuresThemeName = gameLogic.players.second!.user.figuresTheme.rawValue
+        let player1figuresTheme = gameLogic.players.first!.user.figuresTheme
+        let player2figuresTheme = gameLogic.players.second!.user.figuresTheme
         let width = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
         for squareView in squares {
             if let oldSquare = squareView.layer.value(forKey: constants.keyNameForSquare) as? Square {
@@ -1303,18 +1298,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     }
                     squareView.layer.setValue(newSquare, forKey: constants.keyNameForSquare)
                     if let figure = newSquare.figure {
-                        let figuresThemeName = figure.color == gameLogic.players.first?.figuresColor ? player1figuresThemeName : player2figuresThemeName
-                        var figureImage: UIImage?
-                        figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
+                        let figuresTheme = figure.color == gameLogic.players.first?.figuresColor ? player1figuresTheme : player2figuresTheme
                         let figureButton = gameLogic.players.first?.figuresColor == figure.color ? player1RotateFiguresButton : player2RotateFiguresButton
-                        if figureButton.transform != .identity {
-                            //we are not using transform here to not have problems with animation
-                            figureImage = figureImage?.rotate(radians: .pi)
-                        }
                         let figureView = UIImageView()
                         figureView.rectangleView(width: width)
                         figureView.layer.borderWidth = 0
-                        figureView.image = figureImage
+                        let figureItem = figuresTheme.getSkinedFigure(from: figure)
+                        //we are not using transform here to not have problems with animation
+                        figureView.setImage(with: figureItem, upsideDown: figureButton.transform != .identity)
                         figureView.layer.setValue(figure, forKey: constants.keyForFIgure)
                         squareView.addSubview(figureView)
                     }
@@ -1335,8 +1326,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
         turnBackward.isEnabled = disable ? !disable : condition && !gameLogic.firstTurn
         turnForward.isEnabled = disable ? !disable : condition && !gameLogic.lastTurn
         if gameLogic.gameMode == .oneScreen || gameLogic.gameEnded {
-            let turnActionImage = disable ? UIImage(systemName: "stop") : UIImage(systemName: "play")
-            turnAction.setImage(turnActionImage, for: .normal)
+            let turnActionImageItem = disable ? SystemImages.stopImage : SystemImages.playImage
+            turnAction.setImage(with: turnActionImageItem)
         }
         turnAction.isEnabled = disable ? !disable : condition && !gameLogic.lastTurn
         fastAnimationsButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
@@ -1613,13 +1604,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
             else if squareView.subviews.count == 2 {
                 squareView.subviews.second!.removeFromSuperview()
             }
-            let themeName = gameLogic.currentPlayer.user.figuresTheme.rawValue
+            let figuresTheme = gameLogic.currentPlayer.user.figuresTheme
             let figureButton = gameLogic.players.first?.figuresColor == figure.color ? player1RotateFiguresButton : player2RotateFiguresButton
-            var figureImage = UIImage(named: "figuresThemes/\(themeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
-            if figureButton.transform != .identity {
-                figureImage = figureImage?.rotate(radians: .pi)
-            }
-            let figureView = getSquareView(image: figureImage, figure: figure).subviews.second!
+            let figureView = getSquareView(figuresTheme: figuresTheme, figure: figure, imageUpsideDown: figureButton.transform != .identity).subviews.second!
             figureView.layer.borderWidth = 0
             squareView.addSubview(figureView)
             let figureViewConstraints = [figureView.centerXAnchor.constraint(equalTo: squareView.centerXAnchor), figureView.centerYAnchor.constraint(equalTo: squareView.centerYAnchor)]
@@ -1646,21 +1633,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //updates UI, if game was loaded and/or not in start state
     private func updateUIIfLoad() {
         for turn in gameLogic.turns {
-            if (!turn.shortCastle && !turn.longCastle) || turn.squares.first?.figure?.name == .rook {
+            if (!turn.shortCastle && !turn.longCastle) || turn.squares.first?.figure?.type == .rook {
                 addTurnToUI(turn)
             }
         }
         for player in gameLogic.players {
             for figure in player.destroyedFigures {
-                var figureImage: UIImage?
-                let figuresThemeName = player.user.figuresTheme.rawValue
-                figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
                 let figureButton = gameLogic.players.first?.figuresColor == figure.color ? player2RotateFiguresButton : player1RotateFiguresButton
-                if figureButton.transform != .identity {
-                    //we are not using transform here to not have problems with animation
-                    figureImage = figureImage?.rotate(radians: .pi)
-                }
-                let squareView = getSquareView(image: figureImage, figure: figure)
+                //we are not using transform here to not have problems with animation
+                let squareView = getSquareView(figuresTheme: player.user.figuresTheme, figure: figure, imageUpsideDown: figureButton.transform != .identity)
                 if let figureView = squareView.subviews.last {
                     switch player.type {
                     case .player1:
@@ -1751,19 +1732,19 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let playerOfTurn = turn.squares.first?.figure?.color == gameLogic.players.first?.figuresColor ? gameLogic.players.first! : gameLogic.players.second!
         let enemyPlayer = playerOfTurn.type == .player1 ? gameLogic.players.second! : gameLogic.players.first!
         if let firstFigure = firstFigure {
-            firstFigureView = makeFigureView(of: playerOfTurn, with: firstFigure.name.rawValue)
+            firstFigureView = makeFigureView(of: playerOfTurn, with: firstFigure.type)
             //we are adding castle as one turn
             if turn.shortCastle || turn.longCastle {
-                let kingView = makeFigureView(of: playerOfTurn, with: Figures.king.rawValue)
+                let kingView = makeFigureView(of: playerOfTurn, with: .king)
                 thisTurnData.addArrangedSubview(kingView)
             }
         }
         let secondFigure = turn.squares.second?.figure == nil ? turn.pawnSquare?.figure : turn.squares.second?.figure
         if let secondFigure = secondFigure {
-            secondFigureView = makeFigureView(of: enemyPlayer, with: secondFigure.name.rawValue)
+            secondFigureView = makeFigureView(of: enemyPlayer, with: secondFigure.type)
         }
         if let figure = turn.pawnTransform {
-            pawnTransformFigureView = makeFigureView(of: playerOfTurn, with: figure.name.rawValue)
+            pawnTransformFigureView = makeFigureView(of: playerOfTurn, with: figure.type)
         }
         let turnLabel = makeTurnLabel(from: turn)
         if let firstFigureView = firstFigureView {
@@ -1797,8 +1778,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeTurnLabel(from turn: Turn) -> UILabel {
-        var firstSqureText = turn.squares.first!.column.rawValue + String(turn.squares.first!.row)
-        var secondSqureText = turn.squares.second!.column.rawValue + String(turn.squares.second!.row)
+        var firstSqureText = turn.squares.first!.column.asString + String(turn.squares.first!.row)
+        var secondSqureText = turn.squares.second!.column.asString + String(turn.squares.second!.row)
         if turn.shortCastle || turn.longCastle {
             if turn.shortCastle {
                 firstSqureText = constants.shortCastleNotation
@@ -1822,11 +1803,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
         return turnLabel
     }
     
-    private func makeFigureView(of player: Player, with figureName: String) -> UIImageView {
-        let figuresThemeName = player.user.figuresTheme.rawValue
-        let figureColor = player.figuresColor.rawValue
-        let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figureColor)_\(figureName)")
-        let figureImageView = getSquareView(image: figureImage)
+    private func makeFigureView(of player: Player, with figureType: Figures) -> UIImageView {
+        let figure = Figure(type: figureType, color: player.figuresColor)
+        let figureImageView = getSquareView(figuresTheme: player.user.figuresTheme, figure: figure)
         figureImageView.subviews.first!.layer.borderWidth = 0
         return figureImageView
     }
@@ -2060,7 +2039,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 backwardSquareView = squareView
             }
         }
-        let needCastleSound = (turn.shortCastle || turn.longCastle) && turn.squares.first?.figure?.name == .rook
+        let needCastleSound = (turn.shortCastle || turn.longCastle) && turn.squares.first?.figure?.type == .rook
         let needCheckSound = !backwardRewind ? turn.check && !turn.checkMate : gameLogic.currentTurn?.check ?? false
         if let firstSquareView = firstSquareView, let secondSquareView = secondSquareView, let firstSquare = firstSquare, let secondSquare = secondSquare {
             animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: turn.pawnSquare, pawnTransform: turn.pawnTransform, backwardSquareView: backwardSquareView, needCastleSound: needCastleSound, needCheckSound: needCheckSound, needCheckmateSound: turn.checkMate)
@@ -2404,14 +2383,13 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     //letters line on top and bottom of the board
     private var lettersLine: UIStackView {
-        let boardTheme = gameLogic.boardTheme.rawValue
         let lettersLine = UIStackView()
         lettersLine.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: 0)
-        lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter")))
-        for column in GameBoard.availableColumns {
-            lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter_\(column.rawValue)")))
+        lettersLine.addArrangedSubview(getSquareView(imageItem: gameLogic.boardTheme.emptySquareItem))
+        for column in BoardFiles.allCases {
+            lettersLine.addArrangedSubview(getSquareView(imageItem: gameLogic.boardTheme.getSkinedLetter(from: column)))
         }
-        lettersLine.addArrangedSubview(getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter")))
+        lettersLine.addArrangedSubview(getSquareView(imageItem: gameLogic.boardTheme.emptySquareItem))
         return lettersLine
     }
     
@@ -2420,41 +2398,42 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //makes button to show/hide additional buttons
     private func makeAdditionalButton() {
         let fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
-        let figuresThemeName = gameLogic.players.first!.user.figuresTheme.rawValue
-        let figureColor = traitCollection.userInterfaceStyle == .dark ? GameColors.black.rawValue : GameColors.white.rawValue
-        let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figureColor)_pawn")
-        arrowToAdditionalButtons.image = figureImage
+        let figuresTheme = gameLogic.players.first!.user.figuresTheme
+        let figureColor = traitCollection.userInterfaceStyle == .dark ? GameColors.black : GameColors.white
+        let figure = Figure(type: .pawn, color: figureColor)
+        let figureItem = figuresTheme.getSkinedFigure(from: figure)
+        arrowToAdditionalButtons.setImage(with: figureItem)
         scrollContentOfGame.addSubview(arrowToAdditionalButtons)
-        additionalButton.buttonWith(image: UIImage(systemName: "arrowtriangle.down.fill"), and: #selector(transitAdditonalButtons))
+        additionalButton.buttonWith(imageItem: SystemImages.expandImage2, and: #selector(transitAdditonalButtons))
         additionalButtonForFigures.buttonWith(text: "♞", font: UIFont.systemFont(ofSize: fontSize), and: #selector(transitAdditonalButtons))
     }
     
     private func makeAdditionalButtons() {
-        surrenderButton.buttonWith(image: UIImage(systemName: "flag.fill"), and: #selector(surrender))
+        surrenderButton.buttonWith(imageItem: SystemImages.surrenderImage, and: #selector(surrender))
         let lockScrolling = UIButton()
-        lockScrolling.buttonWith(image: UIImage(systemName: "lock.open"), and: #selector(lockGameView))
+        lockScrolling.buttonWith(imageItem: SystemImages.unlockedImage, and: #selector(lockGameView))
         let turnsViewButton = UIButton()
-        turnsViewButton.buttonWith(image: UIImage(systemName: "backward"), and: #selector(transitTurnsView))
+        turnsViewButton.buttonWith(imageItem: SystemImages.backwardImage, and: #selector(transitTurnsView))
         if #available(iOS 15.0, *) {
-            exitButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right"), and: #selector(exit))
+            exitButton.buttonWith(imageItem: SystemImages.exitImageiOS15, and: #selector(exit))
         }
         else {
-            exitButton.buttonWith(image: UIImage(systemName: "arrow.left.square"), and: #selector(exit))
+            exitButton.buttonWith(imageItem: SystemImages.exitImage, and: #selector(exit))
         }
-        showEndOfTheGameView.buttonWith(image: UIImage(systemName: "doc.text.magnifyingglass"), and: #selector(transitEndOfTheGameView))
+        showEndOfTheGameView.buttonWith(imageItem: SystemImages.detailedInfoImage, and: #selector(transitEndOfTheGameView))
         var buttonViews = [showEndOfTheGameView, lockScrolling, turnsViewButton, exitButton]
         if !gameLogic.gameEnded {
             buttonViews.insert(surrenderButton, at: 2)
         }
         additionalButtons.addArrangedSubviews(buttonViews)
         if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
-            showChatButton.buttonWith(image: UIImage(systemName: "text.bubble"), and: #selector(toggleChat))
+            showChatButton.buttonWith(imageItem: SystemImages.chatImage, and: #selector(toggleChat))
             //context menu on long press
-            addToggleChatMuteAction(with: "Mute chat", and: UIImage(systemName: "eye.slash"), to: showChatButton)
+            addToggleChatMuteAction(with: "Mute chat", and: SystemImages.hideImage, to: showChatButton)
             additionalButtons.addArrangedSubview(showChatButton)
         }
         if gameLogic.gameMode == .oneScreen && !gameLogic.gameEnded {
-            saveButton.buttonWith(image: UIImage(systemName: "square.and.arrow.down"), and: #selector(saveGame))
+            saveButton.buttonWith(imageItem: SystemImages.saveImage, and: #selector(saveGame))
             saveButton.isEnabled = false
             additionalButtons.addArrangedSubview(saveButton)
         }
@@ -2462,14 +2441,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     //we can`t change title of children in UIMenu, so we have to recreate a UIMenu
-    private func addToggleChatMuteAction(with title: String, and image: UIImage?, to parent: UIButton) {
+    private func addToggleChatMuteAction(with title: String, and imageItem: SystemImages, to parent: UIButton) {
+        let image = UIImage(systemName: imageItem.getSystemName())
         let toggleChatMute = UIAction(title: title, image: image) { [weak self] _ in
             if let self = self {
                 if self.muteChat {
-                    self.addToggleChatMuteAction(with: "Mute chat", and: UIImage(systemName: "eye.slash"), to: parent)
+                    self.addToggleChatMuteAction(with: "Mute chat", and: SystemImages.hideImage, to: parent)
                 }
                 else {
-                    self.addToggleChatMuteAction(with: "Unmute chat", and: UIImage(systemName: "eye"), to: parent)
+                    self.addToggleChatMuteAction(with: "Unmute chat", and: SystemImages.showImage, to: parent)
                 }
                 self.muteChat.toggle()
             }
@@ -2478,12 +2458,16 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeAdditionalButtonsForFigures() {
-        let figureImageFirstPlayer = (makeFigureView(of: gameLogic.players.first!, with: "pawn").subviews.second as? UIImageView)?.image
-        let figureImageSecondPlayer = (makeFigureView(of: gameLogic.players.second!, with: "pawn").subviews.second as? UIImageView)?.image
-        player1RotateFiguresButton.buttonWith(image: figureImageFirstPlayer, and: #selector(rotateFigures))
-        player2RotateFiguresButton.buttonWith(image: figureImageSecondPlayer, and: #selector(rotateFigures))
+        let figureItemPlayer1 = Figure(type: .pawn, color: gameLogic.players.first!.figuresColor)
+        let figureItemPlayer2 = Figure(type: .pawn, color: gameLogic.players.second!.figuresColor)
+        player1RotateFiguresButton.buttonWith(imageItem: nil, and: #selector(rotateFigures))
+        let figureImageItemPlayer1 = gameLogic.players.first!.user.figuresTheme.getSkinedFigure(from: figureItemPlayer1)
+        player1RotateFiguresButton.setImage(with: figureImageItemPlayer1)
+        player2RotateFiguresButton.buttonWith(imageItem: nil, and: #selector(rotateFigures))
+        let figureImageItemPlayer2 = gameLogic.players.second!.user.figuresTheme.getSkinedFigure(from: figureItemPlayer2)
+        player2RotateFiguresButton.setImage(with: figureImageItemPlayer2)
         let gameBoardAutoRotateButton = UIButton()
-        gameBoardAutoRotateButton.buttonWith(image: UIImage(systemName: "arrow.2.squarepath"), and: #selector(toggleGameBoardAutoRotate))
+        gameBoardAutoRotateButton.buttonWith(imageItem: SystemImages.autorotateFiguresImage, and: #selector(toggleGameBoardAutoRotate))
         gameBoardAutoRotateButton.backgroundColor = constants.dangerPlayerDataColor
         player1RotateFiguresButton.layer.setValue(gameLogic.players.first!.figuresColor, forKey: constants.keyForFigureColor)
         player2RotateFiguresButton.layer.setValue(gameLogic.players.second!.figuresColor, forKey: constants.keyForFigureColor)
@@ -2817,7 +2801,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func makePlayer2Title() {
         let player2Background = gameLogic.players.second!.user.playerBackground
         let player2Frame = gameLogic.players.second!.user.frame
-        let player2Title = makeLabel(text: gameLogic.players.second!.user.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
+        let player2Title = makeLabel(text: gameLogic.players.second!.user.title.getHumanReadableName())
         player2TitleView = PlayerFrame(background: player2Background, playerFrame: player2Frame, data: player2Title)
         scrollContentOfGame.addSubview(player2TitleView)
         if gameLogic.gameMode == .oneScreen {
@@ -2828,7 +2812,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func makePlayer1Title() {
         let player1Background = gameLogic.players.first!.user.playerBackground
         let player1Frame = gameLogic.players.first!.user.frame
-        let player1Title = makeLabel(text: gameLogic.players.first!.user.title.rawValue.capitalizingFirstLetter().replacingOccurrences(of: "_", with: " "))
+        let player1Title = makeLabel(text: gameLogic.players.first!.user.title.getHumanReadableName())
         player1TitleView = PlayerFrame(background: player1Background, playerFrame: player1Frame, data: player1Title)
         scrollContentOfGame.addSubview(player1TitleView)
     }
@@ -2848,7 +2832,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makePlayer2DestroyedFiguresView() {
-        player2FrameForDF.image = UIImage(named: "frames/\(gameLogic.players.second!.user.frame.rawValue)")
+        player2FrameForDF.setImage(with: gameLogic.players.second!.user.frame)
         scrollContentOfGame.addSubview(player2FrameForDF)
         //in oneScreen second stack should be first, in other words upside down
         if gameLogic.gameMode == .oneScreen {
@@ -2862,7 +2846,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makePlayer1DestroyedFiguresView() {
-        player1FrameForDF.image = UIImage(named: "frames/\(gameLogic.players.first!.user.frame.rawValue)")
+        player1FrameForDF.setImage(with: gameLogic.players.first!.user.frame)
         scrollContentOfGame.addSubview(player1FrameForDF)
         destroyedFigures2 = makeDestroyedFiguresView(destroyedFigures1: player2DestroyedFigures1, destroyedFigures2: player2DestroyedFigures2)
         scrollContentOfGame.addSubview(destroyedFigures2)
@@ -2871,11 +2855,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func addPlayersBackgrounds() {
         let bottomPlayerBackground = UIImageView()
         bottomPlayerBackground.defaultSettings()
-        bottomPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")
+        bottomPlayerBackground.setImage(with: gameLogic.players.first!.user.playerAvatar)
         if gameLogic.gameMode == .multiplayer {
             let topPlayerBackground = UIImageView()
             topPlayerBackground.defaultSettings()
-            topPlayerBackground.image = UIImage(named: "avatars/\(gameLogic.players.second!.user.playerAvatar.rawValue)")
+            topPlayerBackground.setImage(with: gameLogic.players.second!.user.playerAvatar)
             view.addSubviews([topPlayerBackground, bottomPlayerBackground])
             let topConstraints = [topPlayerBackground.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor), topPlayerBackground.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.multiplierForBackground), topPlayerBackground.leadingAnchor.constraint(equalTo: view.leadingAnchor), topPlayerBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
             let bottomConstraints = [bottomPlayerBackground.bottomAnchor.constraint(equalTo: view.bottomAnchor), bottomPlayerBackground.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: constants.multiplierForBackground), bottomPlayerBackground.leadingAnchor.constraint(equalTo: view.leadingAnchor), bottomPlayerBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
@@ -2898,22 +2882,21 @@ class GameViewController: UIViewController, WebSocketDelegate {
             line.addArrangedSubview(getNumberSquareView(number: coordinate))
             for column in GameBoard.availableColumns {
                 if let square = gameLogic.gameBoard[column, coordinate] {
-                    var figureImage: UIImage?
+                    var figuresTheme: FiguresThemes?
+                    var rotateFigure = false
                     if let figure = square.figure {
-                        if square.figure?.color == .black {
-                            let figuresThemeName = gameLogic.players.second!.user.figuresTheme.rawValue
-                            figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
+                        if figure.color == .black {
+                            figuresTheme = gameLogic.players.second!.user.figuresTheme
                         }
                         else {
-                            let figuresThemeName = gameLogic.players.first!.user.figuresTheme.rawValue
-                            figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(figure.color.rawValue)_\(figure.name.rawValue)")
+                            figuresTheme = gameLogic.players.first!.user.figuresTheme
                         }
                         if gameLogic.gameMode == .oneScreen && square.figure?.color == colorToRotate {
                             //we are not using transform here to not have problems with animation
-                            figureImage = figureImage?.rotate(radians: .pi)
+                            rotateFigure = true
                         }
                     }
-                    let squareView = getSquareView(image: figureImage, figure: square.figure)
+                    let squareView = getSquareView(figuresTheme: figuresTheme, figure: square.figure, imageUpsideDown: rotateFigure)
                     switch square.color {
                     case .white:
                         squareView.backgroundColor = constants.convertLogicColor(gameLogic.squaresTheme.getTheme().firstColor)
@@ -2939,7 +2922,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         }
     }
     
-    private func getSquareView(image: UIImage? = nil, figure: Figure? = nil, multiplier: CGFloat = 1, isButton: Bool = false) -> UIImageView {
+    private func getSquareView(imageItem: ImageItem? = nil, figuresTheme: FiguresThemes? = nil, figure: Figure? = nil, multiplier: CGFloat = 1, isButton: Bool = false, imageUpsideDown: Bool = false) -> UIImageView {
         let square = UIImageView()
         let width = min(view.frame.width, view.frame.height)  / constants.dividerForSquare * multiplier
         square.rectangleView(width: width)
@@ -2951,20 +2934,30 @@ class GameViewController: UIViewController, WebSocketDelegate {
         let borderConstraints = [border.centerXAnchor.constraint(equalTo: square.centerXAnchor), border.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
         NSLayoutConstraint.activate(borderConstraints)
         //we are adding image in this way, so we can move figure separately from square
-        if image != nil {
+        if imageItem != nil || figuresTheme != nil {
             if !isButton {
                 let imageView = UIImageView()
                 imageView.rectangleView(width: width)
                 imageView.layer.borderWidth = 0
-                imageView.image = image
+                if let figure, let figuresTheme {
+                    let figureImageItem = figuresTheme.getSkinedFigure(from: figure)
+                    imageView.setImage(with: figureImageItem)
+                }
+                else if let imageItem {
+                    imageView.setImage(with: imageItem)
+                }
+                if imageUpsideDown {
+                    imageView.rotateImageOn90()
+                }
                 imageView.layer.setValue(figure, forKey: constants.keyForFIgure)
                 square.addSubview(imageView)
                 let imageViewConstraints = [imageView.centerXAnchor.constraint(equalTo: square.centerXAnchor), imageView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
                 NSLayoutConstraint.activate(imageViewConstraints)
             }
-            else {
+            else if let figure, let figuresTheme {
+                let figureImageItem = figuresTheme.getSkinedFigure(from: figure)
                 let button = UIButton()
-                button.buttonWith(image: image, and: #selector(replacePawn))
+                button.buttonWith(imageItem: figureImageItem, and: #selector(replacePawn))
                 button.layer.setValue(figure, forKey: constants.keyForFIgure)
                 square.addSubview(button)
                 let buttonConstraints = [button.leadingAnchor.constraint(equalTo: square.leadingAnchor), button.trailingAnchor.constraint(equalTo: square.trailingAnchor), button.topAnchor.constraint(equalTo: square.topAnchor), button.bottomAnchor.constraint(equalTo: square.bottomAnchor)]
@@ -2977,9 +2970,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //according to current design, we need to make number image smaller
     private func getNumberSquareView(number: Int) -> UIImageView {
         var square = UIImageView()
-        let boardTheme = gameLogic.boardTheme.rawValue
-        square = getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/letter"))
-        let numberView = getSquareView(image: UIImage(named: "boardThemes/\(boardTheme)/number_\(number)"), multiplier: constants.multiplierForNumberView)
+        square = getSquareView(imageItem: gameLogic.boardTheme.emptySquareItem)
+        let numberView = getSquareView(imageItem: gameLogic.boardTheme.getSkinedNumber(from: number), multiplier: constants.multiplierForNumberView)
         numberView.subviews.first!.layer.borderWidth = 0
         square.addSubview(numberView)
         let numberViewConstraints = [numberView.centerXAnchor.constraint(equalTo: square.centerXAnchor), numberView.centerYAnchor.constraint(equalTo: square.centerYAnchor)]
@@ -2994,13 +2986,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makePawnPicker(figure: Figure, squareColor: GameColors) {
-        let figuresNames: [Figures] = [.rook, .queen, .bishop, .knight]
-        for figureName in figuresNames {
-            let pawnPickerFigure = Figure(name: figureName, color: figure.color, startColumn: figure.startColumn, startRow: figure.startRow)
+        for figureType in Figures.forPawnTransform {
+            let pawnPickerFigure = Figure(type: figureType, color: figure.color, startColumn: figure.startColumn, startRow: figure.startRow)
             let square = Square(column: gameLogic.turns.last!.squares.last!.column, row: gameLogic.turns.last!.squares.last!.row, color: gameLogic.turns.last!.squares.last!.color, gameID: gameLogic.gameID, figure: pawnPickerFigure)
-            let figuresThemeName = gameLogic.currentPlayer.user.figuresTheme.rawValue
-            let figureImage = UIImage(named: "figuresThemes/\(figuresThemeName)/\(pawnPickerFigure.color.rawValue)_\(figureName.rawValue)")
-            let squareView = getSquareView(image: figureImage, figure: pawnPickerFigure, isButton: true)
+            let figuresTheme = gameLogic.currentPlayer.user.figuresTheme
+            let squareView = getSquareView(figuresTheme: figuresTheme, figure: pawnPickerFigure, isButton: true)
             squareView.layer.setValue(square, forKey: constants.keyNameForSquare)
             squareView.subviews.first!.layer.borderColor = squareColor == .black ? UIColor.white.cgColor : UIColor.black.cgColor
             pawnPicker.addArrangedSubview(squareView)
@@ -3036,15 +3026,12 @@ class GameViewController: UIViewController, WebSocketDelegate {
         }
         let backgroundConstraints = [destroyedFiguresBackground.leadingAnchor.constraint(equalTo: destroyedFigures.leadingAnchor), destroyedFiguresBackground.trailingAnchor.constraint(equalTo: destroyedFigures.trailingAnchor), destroyedFiguresBackground.topAnchor.constraint(equalTo: destroyedFigures.topAnchor), destroyedFiguresBackground.bottomAnchor.constraint(equalTo: destroyedFigures.bottomAnchor)]
         NSLayoutConstraint.activate(destroyedFiguresConstraints1 + destroyedFiguresConstraints2 + destroyedFiguresConstraints3 + backgroundConstraints)
-        var image = UIImage(named: "backgrounds/\(gameLogic.players.first!.user.playerBackground.rawValue)")
+        var imageItem = gameLogic.players.first!.user.playerBackground
         if player2 {
-            image = UIImage(named: "backgrounds/\(gameLogic.players.second!.user.playerBackground.rawValue)")
-            if gameLogic.gameMode == .oneScreen {
-                image = image?.rotate(radians: .pi)
-            }
+            imageItem = gameLogic.players.second!.user.playerBackground
         }
-        image = image?.alpha(constants.alphaForTrashBackground)
-        destroyedFiguresBackground.image = image
+        destroyedFiguresBackground.setImage(with: imageItem, upsideDown: gameLogic.gameMode == .oneScreen)
+        destroyedFiguresBackground.image = destroyedFiguresBackground.image?.alpha(constants.alphaForTrashBackground)
         return destroyedFigures
     }
     
@@ -3057,10 +3044,10 @@ class GameViewController: UIViewController, WebSocketDelegate {
         surrenderButton.isEnabled = false
         //if there is no winner, it means, that it is a draw and we will choose data of current user
         let winner = gameLogic.winner ?? gameLogic.players.first!
-        frameForEndOfTheGameView.image = UIImage(named: "frames/\(winner.user.frame.rawValue)")
-        let winnerBackground = UIImage(named: "backgrounds/\(winner.user.playerBackground.rawValue)")?.alpha(constants.alphaForPlayerBackground)
+        frameForEndOfTheGameView.setImage(with: winner.user.frame)
         let data = makeEndOfTheGameData()
-        endOfTheGameView.image = winnerBackground
+        endOfTheGameView.setImage(with: winner.user.playerBackground)
+        endOfTheGameView.image = endOfTheGameView.image?.alpha(constants.alphaForPlayerBackground)
         view.addSubviews([frameForEndOfTheGameView, endOfTheGameView, endOfTheGameScrollView])
         endOfTheGameScrollView.addSubview(data)
         frameForEndOfTheGameView.alpha = 0
@@ -3074,9 +3061,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 audioPlayer.playSound(Sounds.loseSound)
             }
             if !gameLogic.turns.isEmpty {
-                currentUser.updatePoints(newValue: gameLogic.players.first!.user.points)
-                currentUser.addGame(gameLogic)
-                storage.saveUser(currentUser)
+                storage.currentUser.updatePoints(newValue: gameLogic.players.first!.user.points)
+                storage.addGameToCurrentUserAndSave(gameLogic)
                 gameLogic.saveGameDataForRestore()
             }
             for view in [frameForEndOfTheGameView, endOfTheGameView, endOfTheGameScrollView] {
@@ -3171,27 +3157,30 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeInfoStack() -> UIStackView {
-        //just for animation
-        let startPoints = gameLogic.players.first!.user.points - gameLogic.players.first!.pointsForGame
-        var endPoints = gameLogic.players.first!.user.points
-        let startRank = gameLogic.players.first!.user.getRank(from: startPoints)
-        let factor = endPoints > startPoints ? gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation : -(gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation)
         let infoStack = UIStackView()
         infoStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-        let rankLabel = makeLabel(text: startRank.rawValue)
-        let pointsLabel = makeLabel(text: String(startPoints))
+        let currentUserCurrentRank = gameLogic.players.first!.user.rank
+        let currentUserCurrentPoints = gameLogic.players.first!.user.points
+        let rankLabel = makeLabel(text: currentUserCurrentRank.asString)
+        let pointsLabel = makeLabel(text: String(currentUserCurrentPoints))
         playerProgress.backgroundColor = constants.backgroundColorForProgressBar
         //how much percentage is filled
-        playerProgress.progress = CGFloat(startPoints * 100 / startRank.maximumPoints) / 100
-        if endPoints < 0 {
-            endPoints = 0
+        playerProgress.progress = CGFloat(currentUserCurrentPoints - currentUserCurrentRank.minimumPoints) / CGFloat(currentUserCurrentRank.maximumPoints - currentUserCurrentRank.minimumPoints)
+        if !loadedEndedGame {
+            //just for animation
+            let currentUserStartPoints = currentUserCurrentPoints - gameLogic.players.first!.pointsForGame
+            let currentUserStartRank = gameLogic.players.first!.user.getRank(from: currentUserStartPoints)
+            let factor = gameLogic.players.first!.pointsForGame / constants.dividerForFactorForPointsAnimation
+            rankLabel.text = currentUserStartRank.asString
+            pointsLabel.text = String(currentUserStartPoints)
+            playerProgress.progress = CGFloat(currentUserStartPoints - currentUserStartRank.minimumPoints) / CGFloat(currentUserStartRank.maximumPoints - currentUserStartRank.minimumPoints)
+            animatePoints(interval: constants.intervalForPointsAnimation, startPoints: currentUserStartPoints, endPoints: currentUserCurrentPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor, rank: currentUserStartRank, rankLabel: rankLabel)
         }
-        animatePoints(interval: constants.intervalForPointsAnimation, startPoints: startPoints, endPoints: endPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor, rank: startRank, rankLabel: rankLabel)
         infoStack.addArrangedSubviews([rankLabel, playerProgress, pointsLabel])
         return infoStack
     }
     
-    //points increasing animation
+    //points increasing or decreasing animation
     private func animatePoints(interval: Double, startPoints: Int, endPoints: Int, playerProgress: ProgressBar, pointsLabel: UILabel, factor: Int, rank: Ranks, rankLabel: UILabel) {
         var currentPoints = startPoints
         var rank = rank
@@ -3200,7 +3189,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
         //if points for rank is 500
         var progressPoints: CGFloat = 0.0
         //current progress in decimal
-        let currentProgress = CGFloat(currentPoints * 100 / rank.maximumPoints) / 100
+        let currentProgress = CGFloat(currentPoints - rank.minimumPoints) / CGFloat(rank.maximumPoints - rank.minimumPoints)
         if currentPoints < endPoints {
             progressPoints = (1.0 - currentProgress) / CGFloat(rank.maximumPoints - currentPoints)
         }
@@ -3218,18 +3207,23 @@ class GameViewController: UIViewController, WebSocketDelegate {
             let condition2 = currentPoints == rank.previousRank.maximumPoints && currentPoints > endPoints
             if condition1 || condition2 {
                 if condition1 {
+                    //we could have didSet in playerProgress to automatically reset or fill, but when
+                    //we add or subtract extra small numbers, we lost accuracy and it will never be exactly 0 or 1
+                    //previously that logic was in didSet
+                    playerProgress.reset()
                     rank = rank.nextRank
                     if playerProgress.isVisible() {
                         self?.audioPlayer.playSound(Sounds.successSound)
                     }
                 }
                 else if condition2 {
+                    playerProgress.fill()
                     rank = rank.previousRank
                     if playerProgress.isVisible() {
                         self?.audioPlayer.playSound(Sounds.sadSound)
                     }
                 }
-                rankLabel.text = rank.rawValue
+                rankLabel.text = rank.asString
                 progressPoints = 1.0 / CGFloat(rank.maximumPoints - rank.minimumPoints)
             }
             pointsLabel.text = String(currentPoints)
@@ -3246,23 +3240,22 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private func makeEndOfTheGameData() -> UIImageView {
         toggleTurnButtons(disable: false)
         let hideButton = UIButton()
-        hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(transitEndOfTheGameView))
+        hideButton.buttonWith(imageItem: SystemImages.hideImage, and: #selector(transitEndOfTheGameView))
         let data = UIImageView()
         data.defaultSettings()
         data.isUserInteractionEnabled = true
         data.backgroundColor = data.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
-        let playerAvatarImage = UIImage(named: "avatars/\(gameLogic.players.first!.user.playerAvatar.rawValue)")
         let playerAvatar = UIImageView()
         playerAvatar.rectangleView(width: min(view.frame.width, view.frame.height) / constants.dividerForPlayerAvatar)
         playerAvatar.contentMode = .scaleAspectFill
         playerAvatar.layer.masksToBounds = true
-        playerAvatar.image = playerAvatarImage
+        playerAvatar.setImage(with: gameLogic.players.first!.user.playerAvatar)
         var hideButtonConstraints = [NSLayoutConstraint]()
         var wheelConstraints = [NSLayoutConstraint]()
         if !loadedEndedGame && gameLogic.gameMode != .oneScreen && !gameLogic.turns.isEmpty {
             let wheel = WheelOfFortune(figuresTheme: gameLogic.players.first!.user.figuresTheme, maximumCoins: gameLogic.maximumCoinsForWheel)
             wheel.translatesAutoresizingMaskIntoConstraints = false
-            currentUser.addCoins(wheel.winCoins)
+            storage.currentUser.addCoins(wheel.winCoins)
             data.addSubview(wheel)
             wheelConstraints = [wheel.topAnchor.constraint(equalTo: playerAvatar.bottomAnchor, constant: constants.optimalDistance), wheel.centerXAnchor.constraint(equalTo: data.centerXAnchor), wheel.heightAnchor.constraint(equalTo: wheel.widthAnchor), wheel.leadingAnchor.constraint(equalTo: data.layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), wheel.trailingAnchor.constraint(equalTo: data.layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance)]
             hideButtonConstraints.append(hideButton.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: constants.optimalDistance))
@@ -3298,25 +3291,24 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     private func makeTurnsView() {
         let heightForButtons = min(view.frame.width, view.frame.height)  / constants.dividerForSquare
-        let playerBackground = UIImage(named: "backgrounds/\(gameLogic.players.first!.user.playerBackground.rawValue)")
         let background = UIImageView()
         background.defaultSettings()
-        background.image = playerBackground
+        background.setImage(with: gameLogic.players.first!.user.playerBackground)
         background.contentMode = .scaleAspectFill
         let turnsContent = UIView()
         turnsContent.translatesAutoresizingMaskIntoConstraints = false
-        turnBackward.buttonWith(image: UIImage(systemName: "backward"), and: #selector(turnsBackward))
-        turnForward.buttonWith(image: UIImage(systemName: "forward"), and: #selector(turnsForward))
-        turnAction.buttonWith(image: UIImage(systemName: "play"), and: #selector(turnsAction))
+        turnBackward.buttonWith(imageItem: SystemImages.backwardImage, and: #selector(turnsBackward))
+        turnForward.buttonWith(imageItem: SystemImages.forwardImage, and: #selector(turnsForward))
+        turnAction.buttonWith(imageItem: SystemImages.playImage, and: #selector(turnsAction))
         let hideButton = UIButton()
-        hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(transitTurnsView))
-        restoreButton.buttonWith(image: UIImage(systemName: "arrow.uturn.backward"), and: #selector(restoreGame))
+        hideButton.buttonWith(imageItem: SystemImages.hideImage, and: #selector(transitTurnsView))
+        restoreButton.buttonWith(imageItem: SystemImages.restoreImage, and: #selector(restoreGame))
         restoreButton.isEnabled = false
-        fastAnimationsButton.buttonWith(image: UIImage(systemName: "timer"), and: #selector(toggleFastAnimations))
+        fastAnimationsButton.buttonWith(imageItem: SystemImages.speedupImage, and: #selector(toggleFastAnimations))
         fastAnimationsButton.backgroundColor = constants.dangerPlayerDataColor
         let buttons = [turnBackward, turnAction, turnForward, hideButton, restoreButton, fastAnimationsButton]
         if gameLogic.gameEnded || gameLogic.gameMode == .oneScreen {
-            if currentUser.games.contains(where: {$0.startDate == gameLogic.startDate}) {
+            if storage.currentUser.games.contains(where: {$0.startDate == gameLogic.startDate}) {
                 restoreButton.isEnabled = gameLogic.rewindEnabled
             }
         }
@@ -3357,18 +3349,19 @@ class GameViewController: UIViewController, WebSocketDelegate {
     
     private func makeChatView() {
         let fontSize = min(view.frame.width, view.frame.height) / constants.dividerForFont
-        chatView.image = UIImage(named: "backgrounds/\(currentUser.playerBackground.rawValue)")?.alpha(constants.optimalAlpha)
+        chatView.setImage(with: storage.currentUser.playerBackground)
+        chatView.image = chatView.image?.alpha(constants.optimalAlpha)
         chatScrollView.addSubview(chatMessages)
         let contentHeight = chatMessages.heightAnchor.constraint(equalTo: chatScrollView.heightAnchor)
         contentHeight.priority = .defaultLow
-        sendMessageToChatButton.buttonWith(image: UIImage(systemName: "paperplane"), and: #selector(sendMessageToChat))
+        sendMessageToChatButton.buttonWith(imageItem: SystemImages.sendImage, and: #selector(sendMessageToChat))
         sendMessageToChatButton.isEnabled = false
         chatMessageField = SmartTextField(maxCharacters: constants.maxCharactersForChatMessage, sendButton: sendMessageToChatButton)
         chatMessageField.setup(placeholder: "Enter message", font: UIFont.systemFont(ofSize: fontSize))
         chatMessageField.adjustsFontSizeToFitWidth = false
         chatMessageField.isConnectedToTheServer = isConnected
         let hideButton = UIButton()
-        hideButton.buttonWith(image: UIImage(systemName: "eye.slash"), and: #selector(toggleChat))
+        hideButton.buttonWith(imageItem: SystemImages.hideImage, and: #selector(toggleChat))
         let downStack = UIStackView()
         downStack.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
         downStack.addArrangedSubviews([chatMessageField, sendMessageToChatButton, hideButton])

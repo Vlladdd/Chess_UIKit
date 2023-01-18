@@ -12,8 +12,6 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
     
     // MARK: - AuthorizationDelegate
     
-    let storage = Storage()
-    
     func prepareForAuthorizationProcess() {
         authorizationView.isHidden.toggle()
         makeLoadingSpinner()
@@ -28,19 +26,12 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         audioPlayer.playSound(Sounds.errorSound)
     }
     
-    func successCallbackForAuthorization(user: User?) {
-        if let user = user {
-            let mainMenuVC = MainMenuVC()
-            mainMenuVC.currentUser = user
-            mainMenuVC.modalPresentationStyle = .fullScreen
-            present(mainMenuVC, animated: false) {[weak self] in
-                self?.loadingSpinner.removeFromSuperview()
-                self?.authorizationView.isHidden = false
-            }
-            return
-        }
-        else {
-            errorCallbackForAuthorization(errorMessage: "Something went wrong")
+    func successCallbackForAuthorization() {
+        let mainMenuVC = MainMenuVC()
+        mainMenuVC.modalPresentationStyle = .fullScreen
+        present(mainMenuVC, animated: false) {[weak self] in
+            self?.loadingSpinner.removeFromSuperview()
+            self?.authorizationView.isHidden = false
         }
     }
     
@@ -51,13 +42,13 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         makeUI()
         configureKeyboardToHideWhenTappedAround()
         prepareForAuthorizationProcess()
-        storage.checkIfUserIsLoggedIn(callback: { [weak self] isLoggedIn, error, user in
+        storage.checkIfUserIsLoggedIn(callback: { [weak self] isLoggedIn, error in
             if isLoggedIn {
                 guard error == nil else {
                     self?.errorCallbackForAuthorization(errorMessage: error!.localizedDescription)
                     return
                 }
-                self?.successCallbackForAuthorization(user: user)
+                self?.successCallbackForAuthorization()
             }
             else {
                 self?.loadingSpinner.removeFromSuperview()
@@ -91,7 +82,7 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
     private func makeBackground() {
         let background = UIImageView()
         background.translatesAutoresizingMaskIntoConstraints = false
-        background.image = UIImage(named: "misc/defaultBG")
+        background.setImage(with: MiscImages.defaultBG)
         background.contentMode = .scaleAspectFill
         background.layer.masksToBounds = true
         view.addSubview(background)

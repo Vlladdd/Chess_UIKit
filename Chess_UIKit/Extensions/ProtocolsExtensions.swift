@@ -13,7 +13,11 @@ import Firebase
 
 extension AuthorizationDelegate {
     
-    func loginOperation(currentUser: User?, error: Error?, resolver: MultiFactorResolver?, displayNameString: String?) {
+    var storage: Storage {
+        Storage.sharedInstance
+    }
+    
+    func loginOperation(error: Error?, resolver: MultiFactorResolver?, displayNameString: String?) {
         guard error == nil else {
             if let resolver = resolver, let displayNameString = displayNameString {
                 showTextInputPrompt(withMessage: "Select factor to sign in\n\(displayNameString)", completionBlock: {
@@ -34,7 +38,7 @@ extension AuthorizationDelegate {
                 return
             }
         }
-        successCallbackForAuthorization(user: currentUser)
+        successCallbackForAuthorization()
     }
     
     private func multiFactorOperation(error: Error?, verificationID: String?, selectedHint: PhoneMultiFactorInfo?, resolver: MultiFactorResolver) {
@@ -47,8 +51,8 @@ extension AuthorizationDelegate {
                 [weak self] userPressedOK, verificationCode in
                 if let verificationCode = verificationCode {
                     self?.storage.checkVerificationCode(with: resolver, verificationID: verificationID, verificationCode: verificationCode, callback: {
-                        error, user in
-                        self?.checkVerificationCodeOperation(error: error, currentUser: user)
+                        error in
+                        self?.checkVerificationCodeOperation(error: error)
                     })
                 }
                 else {
@@ -61,22 +65,49 @@ extension AuthorizationDelegate {
         }
     }
     
-    private func checkVerificationCodeOperation(error: Error?, currentUser: User?) {
+    private func checkVerificationCodeOperation(error: Error?) {
         guard error == nil else {
             errorCallbackForAuthorization(errorMessage: "Multi factor finalize sign in failed. Error: \(error.debugDescription)")
             return
         }
         navigationController?.popViewController(animated: true)
-        successCallbackForAuthorization(user: currentUser)
+        successCallbackForAuthorization()
     }
     
 }
 
 extension Item where Self: RawRepresentable, Self.RawValue == String {
-    var name: String { rawValue }
+    var name: String { asString }
 }
 
-extension Sound where Self: RawRepresentable, Self.RawValue == String {
-    var name: String { rawValue }
+extension Item {
+    
+    func getHumanReadableName() -> String {
+        name.getHumanReadableString()
+    }
+    
 }
 
+extension StorageItem {
+    
+    //some items have different folders, depending on what theme is used,
+    //so we are not specifying it here, instead using CustomItem
+    var folderName: Item? {
+        nil
+    }
+    
+    //some items can`t exist without theme, CustomItem should be used
+    func getFullPath() -> String? {
+        if let folderName {
+            return "\(folderName)/\(name)"
+        }
+        return nil
+    }
+    
+}
+
+extension StorageItem where Self: GameItem {
+    var folderName: Item? {
+        type
+    }
+}

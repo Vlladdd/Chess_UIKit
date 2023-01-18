@@ -12,24 +12,15 @@ import Foundation
 extension Array {
     
     var second: Self.Element? {
-        if self.count > 1 {
-            return self[1]
-        }
-        return nil
+        self.count > 1 ? self[1] : nil
     }
     
     var third: Self.Element? {
-        if self.count > 2 {
-            return self[2]
-        }
-        return nil
+        self.count > 2 ? self[2] : nil
     }
     
     var beforeLast: Self.Element? {
-        if self.count > 1 {
-            return self[self.count-2]
-        }
-        return nil
+        self.count > 1 ? self[self.count-2] : nil
     }
     
 }
@@ -37,11 +28,29 @@ extension Array {
 extension String {
     
     func capitalizingFirstLetter() -> String {
-      return prefix(1).uppercased() + self.dropFirst()
+        prefix(1).uppercased() + dropFirst()
     }
-
+    
     mutating func capitalizeFirstLetter() {
-      self = self.capitalizingFirstLetter()
+        self = capitalizingFirstLetter()
+    }
+    
+    //converts variable name in string sentence
+    func getHumanReadableString() -> String {
+        var string = self
+        var indexOffset = 0
+        for (index, character) in string.enumerated() {
+            let stringCharacter = String(character)
+            if stringCharacter.lowercased() != stringCharacter {
+                guard index != 0 else { continue }
+                let stringIndex = string.index(string.startIndex, offsetBy: index + indexOffset)
+                let endStringIndex = string.index(string.startIndex, offsetBy: index + 1 + indexOffset)
+                let range = stringIndex..<endStringIndex
+                indexOffset += 1
+                string.replaceSubrange(range, with: " \(stringCharacter)")
+            }
+        }
+        return string.capitalizingFirstLetter()
     }
     
 }
@@ -78,6 +87,14 @@ extension Data {
         bcf.allowedUnits = [.useMB]
         bcf.countStyle = .file
         return Double(bcf.string(fromByteCount: Int64(count)).replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: " MB", with: "")) ?? 0.0
+    }
+    
+}
+
+extension RawRepresentable where RawValue == String {
+    
+    var asString: String {
+        rawValue
     }
     
 }

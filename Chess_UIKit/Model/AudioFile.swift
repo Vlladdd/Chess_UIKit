@@ -13,7 +13,7 @@ class AudioFile {
     
     // MARK: - Properties
     
-    let sound: Sound
+    let sound: SoundItem
     let data: Data
     
     var sizeMB: Double {
@@ -31,7 +31,7 @@ class AudioFile {
     
     // MARK: - Inits
     
-    init(sound: Sound, data: Data) {
+    init(sound: SoundItem, data: Data) {
         self.sound = sound
         self.data = data
     }

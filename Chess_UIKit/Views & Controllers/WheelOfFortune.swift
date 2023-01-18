@@ -38,9 +38,9 @@ class WheelOfFortune: UIView {
     
     private func setup() {
         coinsText.setup(text: "0 coins", alignment: .center, font: UIFont.systemFont(ofSize: constants.defaultFontSize))
-        let figureImage = UIImage(named: "figuresThemes/\(figuresTheme.rawValue)/black_bishop")
+        let spinningFigure = traitCollection.userInterfaceStyle == .dark ? constants.spinningFigureDarkMode : constants.spinningFigureLightMode
         figureView.defaultSettings()
-        figureView.image = figureImage
+        figureView.setImage(with: figuresTheme.getSkinedFigure(from: spinningFigure))
         figureView.backgroundColor = constants.figureBackgroundColor
         figureView.layer.borderWidth = constants.figureBorderWidth
         figureView.contentMode = .scaleAspectFit
@@ -246,4 +246,6 @@ private struct WheelOfFortune_Constants {
     static let minimumSizeForLuckyAngle = 1.0
     //360 degress - gapSize
     static let circleSize = circleDegrees - gapSize
+    static let spinningFigureLightMode = Figure(type: .bishop, color: .black)
+    static let spinningFigureDarkMode = Figure(type: .bishop, color: .white)
 }

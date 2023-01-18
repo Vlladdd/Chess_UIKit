@@ -23,7 +23,6 @@ class GameLogic: Codable {
     //when pawn reached last row and is about to transform
     private(set) var pawnWizard = false
     private(set) var players = [Player]()
-    private(set) var gameMode: GameModes
     //if winner is nil and gameEnded is true, it is a draw
     private(set) var winner: Player?
     private(set) var gameEnded = false
@@ -34,6 +33,7 @@ class GameLogic: Codable {
     private(set) var timeLeft: Int
     private(set) var startDate = Date()
     
+    let gameMode: GameModes
     let timerEnabled: Bool
     //useful for multiplayer games
     let gameID: String?
@@ -209,7 +209,7 @@ class GameLogic: Codable {
                     turnDuration = currentPlayer.timeLeft - timeLeft - additionalTime
                 }
                 pickedSquares.append(square)
-                if pickedSquares.first!.figure!.name == .pawn && constants.lastRowsForPawn.contains(pickedSquares.second!.row) {
+                if pickedSquares.first!.figure!.type == .pawn && constants.lastRowsForPawn.contains(pickedSquares.second!.row) {
                     pawnWizard = true
                 }
                 if timerEnabled && !pawnWizard && !shortCastle && !longCastle, let index = players.firstIndex(where: {$0 == currentPlayer}) {
@@ -264,11 +264,11 @@ class GameLogic: Codable {
                     lastTurn = true
                     firstTurn = false
                 }
-                if (enPassantSquares.contains(square) || currentTurn?.pawnSquare != nil) && pickedSquares.first!.figure!.name == .pawn {
+                if (enPassantSquares.contains(square) || currentTurn?.pawnSquare != nil) && pickedSquares.first!.figure!.type == .pawn {
                     destroyEnPassantPawn()
                 }
                 enPassantSquares.removeAll()
-                if (!shortCastle && !longCastle && pickedSquares.first!.figure!.name == .king && !backwardRewind && !forwardRewind) {
+                if (!shortCastle && !longCastle && pickedSquares.first!.figure!.type == .king && !backwardRewind && !forwardRewind) {
                     checkForCastle()
                 }
                 if !shortCastle && !longCastle && !backwardRewind && !pawnWizard {
@@ -309,13 +309,13 @@ class GameLogic: Codable {
         var rightRookMoved = true
         outerLoop: for square in gameBoard.squares {
             if let figure = square.figure {
-                if figure.name == .king && square.figure?.color == currentPlayer.figuresColor {
+                if figure.type == .king && square.figure?.color == currentPlayer.figuresColor {
                     kingMoved = checkIfFigureMoved(figure: figure)
                     if kingMoved {
                         break outerLoop
                     }
                 }
-                if figure.name == .rook && square.figure?.color == currentPlayer.figuresColor {
+                if figure.type == .rook && square.figure?.color == currentPlayer.figuresColor {
                     if square.figure?.startColumn == constants.leftRookStartColumn {
                         leftRookMoved = checkIfFigureMoved(figure: figure)
                     }
@@ -346,7 +346,7 @@ class GameLogic: Codable {
     
     //checks if current player made castle
     private func checkIfCastled(squares: [Square]) {
-        if squares.first?.figure?.name == .king && squares.first?.row == squares.first?.figure?.startRow && squares.first?.column == squares.first?.figure?.startColumn {
+        if squares.first?.figure?.type == .king && squares.first?.row == squares.first?.figure?.startRow && squares.first?.column == squares.first?.figure?.startColumn {
             if squares.second?.column == constants.kingColumnForLongCastle {
                 longCastle = true
             }
@@ -466,7 +466,7 @@ class GameLogic: Codable {
     private func calculateAvailableSquares(square: Square) {
         availableSquares = []
         if let currentFigure = square.figure {
-            switch currentFigure.name {
+            switch currentFigure.type {
             case .pawn:
                 calculateAvailableSquaresForPawn(currentSquare: square, currentFigure: currentFigure)
             case .rook:
@@ -486,7 +486,7 @@ class GameLogic: Codable {
     //filters available squares based on the situation
     private func filterAvailableSquares(square: Square) {
         if let currentFigure = square.figure {
-            if currentFigure.name == .king {
+            if currentFigure.type == .king {
                 availableSquares = availableSquares.filter({!checkSquares.contains($0)})
             }
             //if check and possible check at the same time, that means we can`t move picked figure anywhere
@@ -529,7 +529,7 @@ class GameLogic: Codable {
                 }
                 //except en passant case, where the figure, which is going to be eaten is left or right from current one
                 if abs(square.column.index - currentSquare.column.index) == constants.minimumDistance && square.row == currentSquare.row {
-                    if figure.name == .pawn && figure.color != currentFigure.color {
+                    if figure.type == .pawn && figure.color != currentFigure.color {
                         if let turn = currentTurn, turn.squares.contains(square) && turn.squares.second!.row - turn.squares.first!.row == -rowDistance * 2  {
                             let enPassantSquare = gameBoard.squares.first(where: {$0.column == square.column && $0.row == square.row + rowDistance})
                             if let enPassantSquare = enPassantSquare {
@@ -663,7 +663,7 @@ class GameLogic: Codable {
             }
         }
         //king can`t eat other king :D
-        availableSquares = availableSquares.filter({$0.figure?.name != .king})
+        availableSquares = availableSquares.filter({$0.figure?.type != .king})
     }
     
     // MARK: - Check
@@ -674,7 +674,7 @@ class GameLogic: Codable {
         checkMate = false
         check = false
         blockFromCheckSquares = checkForCheck(color: color)
-        if checkSquares.contains(where: {$0.figure?.name == .king && $0.figure?.color != color}) {
+        if checkSquares.contains(where: {$0.figure?.type == .king && $0.figure?.color != color}) {
             check = true
             if !forwardRewind && !backwardRewind {
                 checkForEndGame()
@@ -690,14 +690,14 @@ class GameLogic: Codable {
     private func checkForPossibleCheck(square: Square, color: GameColors) {
         blockFromPossibleCheckSquares = []
         possibleCheck = false
-        if square.figure?.name == .king || checkingDeadPosition {
+        if square.figure?.type == .king || checkingDeadPosition {
             checkingKingSquaresWhenCheck = true
         }
         //removes figure from board to simulate available squares without her
         gameBoard.updateSquare(square: square)
         blockFromPossibleCheckSquares = checkForCheck(color: color)
         gameBoard.updateSquare(square: square, figure: square.figure)
-        if checkSquares.contains(where: {$0.figure?.name == .king && $0.figure?.color != color}) {
+        if checkSquares.contains(where: {$0.figure?.type == .king && $0.figure?.color != color}) {
             possibleCheck = true
         }
     }
@@ -711,8 +711,8 @@ class GameLogic: Codable {
             if let figure = square.figure, figure.color == color {
                 calculateAvailableSquares(square: square)
                 checkSquares += availableSquares
-                if let kingSquare = availableSquares.first(where: {$0.figure?.name == .king && $0.figure?.color == color.opposite()}) {
-                    switch figure.name {
+                if let kingSquare = availableSquares.first(where: {$0.figure?.type == .king && $0.figure?.color == color.opposite()}) {
+                    switch figure.type {
                     case .pawn:
                         blockedSquares += []
                     case .rook:
@@ -878,7 +878,7 @@ class GameLogic: Codable {
         var deadPositions: [Bool] = []
         outerLoop: for square in gameBoard.squares.filter({$0.figure != nil}) {
             findAvailableSquares(square)
-            if square.figure?.name != .king {
+            if square.figure?.type != .king {
                 figuresBlocked = availableSquares.isEmpty
                 if !figuresBlocked {
                     break outerLoop
@@ -886,7 +886,7 @@ class GameLogic: Codable {
             }
         }
         if figuresBlocked {
-            let kingsSquares = gameBoard.squares.filter({$0.figure?.name == .king})
+            let kingsSquares = gameBoard.squares.filter({$0.figure?.type == .king})
             var kingBlockPawn = false
             checkingDeadPosition.toggle()
             for kingSquare in kingsSquares {
@@ -913,7 +913,7 @@ class GameLogic: Codable {
     
     //checks if pawn blocked by king
     private func pawnBlockedByKing(square: Square, kingSquare: Square) -> Bool {
-        if square.figure?.name == .pawn && square.column == kingSquare.column {
+        if square.figure?.type == .pawn && square.column == kingSquare.column {
             var operation: (Int, Int) -> Bool = kingSquare.figure?.color == .white ? (>) : (<)
             if kingSquare.figure?.color == square.figure?.color {
                 operation = kingSquare.figure?.color == .white ? (<) : (>)
@@ -931,7 +931,7 @@ class GameLogic: Codable {
         let squaresSortedByRow = gameBoard.squares.sorted(by: {$0.row < $1.row})
         let condition: (Square) -> Bool = { [weak self] in
             if let self = self {
-                return $0.figure?.name == .pawn && $0.figure?.color != color && !self.checkSquares.contains($0)
+                return $0.figure?.type == .pawn && $0.figure?.color != color && !self.checkSquares.contains($0)
             }
             return false
         }
@@ -996,7 +996,7 @@ class GameLogic: Codable {
         }
         //if player have king and bishop/knight(when checking for 1 player)
         //if one player have only king and another player have king and bishop/knight(when checking for both players)
-        else if figuresAvailable.count == 3 - figuresFactor && figuresAvailable.contains(where: {$0.figure?.name == .bishop || $0.figure?.name == .knight}) {
+        else if figuresAvailable.count == 3 - figuresFactor && figuresAvailable.contains(where: {$0.figure?.type == .bishop || $0.figure?.type == .knight}) {
             return true
         }
         //if both players have king and bishop/knight or one player have only king and another player have king and 2 knights
@@ -1004,8 +1004,8 @@ class GameLogic: Codable {
         //king and 2 knights, it`s not counts as insufficient material and in all other cases, if oppoent have more then 2 figures
         //it`s not an unsufficient material
         else if figuresAvailable.count == 4 && player == nil {
-            let bishopsSquares = figuresAvailable.filter({$0.figure?.name == .bishop})
-            let knightSquares = figuresAvailable.filter({$0.figure?.name == .knight})
+            let bishopsSquares = figuresAvailable.filter({$0.figure?.type == .bishop})
+            let knightSquares = figuresAvailable.filter({$0.figure?.type == .knight})
             if bishopsSquares.count == 2 {
                 //checks if bishops don`t belong to same player
                 if bishopsSquares.first?.figure?.color != bishopsSquares.second?.figure?.color {
@@ -1079,7 +1079,7 @@ class GameLogic: Codable {
         resetPickedSquares()
         if !firstTurn {
             if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
-                if (!currentTurn.shortCastle && !currentTurn.longCastle) || currentTurn.squares.first?.figure?.name == .king {
+                if (!currentTurn.shortCastle && !currentTurn.longCastle) || currentTurn.squares.first?.figure?.type == .king {
                     switchPlayer()
                 }
                 backwardRewind.toggle()
@@ -1111,7 +1111,7 @@ class GameLogic: Codable {
         resetPickedSquares()
         if !lastTurn {
             if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
-                if (currentTurn.shortCastle || currentTurn.longCastle) && currentTurn.squares.first?.figure?.name == .king {
+                if (currentTurn.shortCastle || currentTurn.longCastle) && currentTurn.squares.first?.figure?.type == .king {
                     switchPlayer()
                 }
                 forwardRewind.toggle()
@@ -1191,10 +1191,10 @@ class GameLogic: Codable {
             var turnsCount = turnsLeft.count
             //we are storing castle turn as 2 turns, but in reality it is one turn (and we are animating it as 1 turn), so
             //we need to check, if turnsLeft contains black or white castle and make it 1 or 2 less
-            if turnsLeft.contains(where: {$0.squares.first?.figure?.name == .king && $0.squares.first?.figure?.color == .white && $0.squares.first?.column == $0.squares.first?.figure?.startColumn && ($0.squares.second?.column == constants.kingColumnForLongCastle || $0.squares.second?.column == constants.kingColumnForShortCastle)}) {
+            if turnsLeft.contains(where: {$0.squares.first?.figure?.type == .king && $0.squares.first?.figure?.color == .white && $0.squares.first?.column == $0.squares.first?.figure?.startColumn && ($0.squares.second?.column == constants.kingColumnForLongCastle || $0.squares.second?.column == constants.kingColumnForShortCastle)}) {
                 turnsCount -= 1
             }
-            if turnsLeft.contains(where: {$0.squares.first?.figure?.name == .king && $0.squares.first?.figure?.color == .black && $0.squares.first?.column == $0.squares.first?.figure?.startColumn && ($0.squares.second?.column == constants.kingColumnForLongCastle || $0.squares.second?.column == constants.kingColumnForShortCastle)}) {
+            if turnsLeft.contains(where: {$0.squares.first?.figure?.type == .king && $0.squares.first?.figure?.color == .black && $0.squares.first?.column == $0.squares.first?.figure?.startColumn && ($0.squares.second?.column == constants.kingColumnForLongCastle || $0.squares.second?.column == constants.kingColumnForShortCastle)}) {
                 turnsCount -= 1
             }
             if firstTurn && forward {
@@ -1215,7 +1215,7 @@ class GameLogic: Codable {
     }
     
     private func getKingSquare(color: GameColors) -> Square? {
-        return gameBoard.squares.first(where: {$0.figure?.name == .king && $0.figure?.color != color})
+        return gameBoard.squares.first(where: {$0.figure?.type == .king && $0.figure?.color != color})
     }
     
     private func resetCastle() {

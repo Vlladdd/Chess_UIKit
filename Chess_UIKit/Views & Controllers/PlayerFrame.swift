@@ -71,10 +71,8 @@ class PlayerFrame: UIView {
         frameBackground.defaultSettings()
         let backgroundColorForData = traitCollection.userInterfaceStyle == .dark ? constants.defaultDarkModeColorForDataBackground : constants.defaultLightModeColorForDataBackground
         dataBackgroundView.backgroundColor = backgroundColorForData
-        let backgroundImage = UIImage(named: "backgrounds/\(background.rawValue)")
-        let frameImage = UIImage(named: "frames/\(playerFrame.rawValue)")
-        frameBackground.image = backgroundImage
-        frameBorder.image = frameImage
+        frameBackground.setImage(with: background)
+        frameBorder.setImage(with: playerFrame)
         addSubviews([frameBorder, frameBackground, dataBackgroundView, data])
         let constraints = [data.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: constants.distanceForTextInFrame), data.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -constants.distanceForTextInFrame), data.centerXAnchor.constraint(equalTo: centerXAnchor), data.centerYAnchor.constraint(equalTo: centerYAnchor), frameBackground.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.widthAnchor.constraint(equalTo: widthAnchor), frameBorder.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.centerXAnchor.constraint(equalTo: centerXAnchor), frameBorder.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.heightAnchor.constraint(equalTo: heightAnchor), dataBackgroundView.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.centerXAnchor.constraint(equalTo: centerXAnchor), frameBackground.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.centerXAnchor.constraint(equalTo: centerXAnchor), dataBackgroundView.centerYAnchor.constraint(equalTo: centerYAnchor)]
         NSLayoutConstraint.activate(constraints)

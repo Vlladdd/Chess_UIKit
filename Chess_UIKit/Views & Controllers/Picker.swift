@@ -32,7 +32,7 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     @objc private func donePicker(_ sender: UIBarButtonItem? = nil) {
         resignFirstResponder()
         pickedData = pickedData == nil ? data.first : pickedData
-        textView.text = pickedData?.rawValue
+        textView.text = pickedData?.asString
         placeHolderView.text = ""
         doneAction?()
     }
@@ -98,7 +98,7 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
         NSLayoutConstraint.activate(textViewConstraints)
         if data.count == 1 {
             pickedData = data.first
-            textView.text = pickedData?.rawValue
+            textView.text = pickedData?.asString
             placeHolderView.text = ""
             isEnabled = false
         }
@@ -113,7 +113,7 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     }
     
     func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? {
-        return data[row].rawValue
+        return data[row].asString
     }
     
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {

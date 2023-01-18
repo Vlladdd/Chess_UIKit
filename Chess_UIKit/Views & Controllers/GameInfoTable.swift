@@ -22,8 +22,8 @@ class GameInfoTable: UITableView, UITableViewDelegate, UITableViewDataSource {
     init(gameData: GameLogic, dataFont: UIFont) {
         super.init(frame: .zero, style: .insetGrouped)
         self.dataFont = dataFont
-        data[0] = ["Game mode", gameData.gameMode.rawValue]
-        data[1] = ["Rewind enabled", gameData.rewindEnabled ? Answers.yes.rawValue : Answers.no.rawValue]
+        data[0] = ["Game mode", gameData.gameMode.asString]
+        data[1] = ["Rewind enabled", gameData.rewindEnabled ? Answers.yes.asString : Answers.no.asString]
         if gameData.timerEnabled {
             data[2] = ["Total time", gameData.totalTime.timeAsString]
             data[3] = ["+Time per turn", gameData.additionalTime.timeAsString]

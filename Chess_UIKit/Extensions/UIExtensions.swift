@@ -87,6 +87,10 @@ extension UISwitch {
 
 extension UIView {
     
+    var rootView: UIView {
+        superview?.rootView ?? self
+    }
+    
     func rotate360Degrees(duration: CFTimeInterval = 3) {
         let rotateAnimation = CABasicAnimation(keyPath: "transform.rotation")
         rotateAnimation.fromValue = 0.0
@@ -141,20 +145,53 @@ extension UIView {
 
 extension UIButton {
     
-    func buttonWith(image: UIImage? = nil, text: String? = nil, font: UIFont? = nil, and function: Selector) {
+    func buttonWith(imageItem: ImageItem? = nil, text: String? = nil, font: UIFont? = nil, and function: Selector) {
         translatesAutoresizingMaskIntoConstraints = false
         isExclusiveTouch = true
         addTarget(nil, action: function, for: .touchUpInside)
-        if image != nil {
-            contentVerticalAlignment = .fill
-            contentHorizontalAlignment = .fill
-            setImage(image, for: .normal)
-            imageView?.contentMode = .scaleAspectFit
+        if let imageItem {
+            var image: UIImage?
+            if let imageItem = imageItem as? SystemImages {
+                image = UIImage(systemName: imageItem.getSystemName())
+            }
+            else if let imagePath = imageItem.getFullPath() {
+                image = UIImage(named: "\(imagePath)")
+            }
+            if let image {
+                setImage(image, for: .normal)
+                settingsForButtonWithImage()
+            }
         }
         setTitle(text, for: .normal)
         titleLabel?.textAlignment = .center
         titleLabel?.font = font
         titleLabel?.adjustsFontSizeToFitWidth = true
+    }
+    
+    func setImage(with imageItem: ImageItem) {
+        if let imageItem = imageItem as? SystemImages {
+            setImage(UIImage(systemName: imageItem.getSystemName()), for: .normal)
+        }
+        else if let imagePath = imageItem.getFullPath() {
+            setImage(UIImage(named: imagePath), for: .normal)
+        }
+        settingsForButtonWithImage()
+    }
+    
+    private func settingsForButtonWithImage() {
+        contentVerticalAlignment = .fill
+        contentHorizontalAlignment = .fill
+        imageView?.contentMode = .scaleAspectFit
+    }
+    
+    func compareCurrentImageTo(_ imageItem: ImageItem) -> Bool {
+        if let imageItem = imageItem as? SystemImages {
+            return currentImage == UIImage(systemName: imageItem.getSystemName())
+        }
+        else if let imagePath = imageItem.getFullPath() {
+            return currentImage == UIImage(named: imagePath)
+        }
+        return false
     }
     
 }
@@ -336,6 +373,26 @@ extension UIImageView {
         } else {
             layer.borderColor = Constants.lightModeBorderColor
         }
+    }
+    
+    func setImage(with imageItem: ImageItem, upsideDown: Bool = false) {
+        if let imageItem = imageItem as? SystemImages {
+            image = UIImage(systemName: imageItem.getSystemName())
+        }
+        else if let imagePath = imageItem.getFullPath() {
+            image = UIImage(named: imagePath)
+        }
+        if upsideDown {
+            rotateImageOn90()
+        }
+    }
+    
+    func rotateImageOn90() {
+        rotateImage(on: .pi)
+    }
+    
+    func rotateImage(on radians: Float) {
+        image = image?.rotate(radians: radians)
     }
     
     private struct Constants {

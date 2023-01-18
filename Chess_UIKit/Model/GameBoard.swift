@@ -90,19 +90,19 @@ private struct GameBoard_Constants {
         if row == startRowsForWhite.first! || row == startRowsForBlack.second! {
             switch column {
             case .A, .H:
-                return Figure(name: .rook, color: figureColor, startColumn: column, startRow: row)
+                return Figure(type: .rook, color: figureColor, startColumn: column, startRow: row)
             case .B, .G:
-                return Figure(name: .knight, color: figureColor, startColumn: column, startRow: row)
+                return Figure(type: .knight, color: figureColor, startColumn: column, startRow: row)
             case .C, .F:
-                return Figure(name: .bishop, color: figureColor, startColumn: column, startRow: row)
+                return Figure(type: .bishop, color: figureColor, startColumn: column, startRow: row)
             case .E:
-                return Figure(name: .king, color: figureColor, startColumn: column, startRow: row)
+                return Figure(type: .king, color: figureColor, startColumn: column, startRow: row)
             case .D:
-                return Figure(name: .queen, color: figureColor, startColumn: column, startRow: row)
+                return Figure(type: .queen, color: figureColor, startColumn: column, startRow: row)
             }
         }
         else if row == startRowsForWhite.second! || row == startRowsForBlack.first! {
-            return Figure(name: .pawn, color: figureColor, startColumn: column, startRow: row)
+            return Figure(type: .pawn, color: figureColor, startColumn: column, startRow: row)
         }
         return nil
     }

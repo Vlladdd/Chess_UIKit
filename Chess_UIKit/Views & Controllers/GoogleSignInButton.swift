@@ -44,8 +44,8 @@ class GoogleSignInButton: GIDSignInButton {
                     delegate.errorCallbackForAuthorization(errorMessage: "Can`t find idToken")
                     return
                 }
-                delegate.storage.signInWith(idToken: idToken, and: authentication.accessToken, callback: { error, user, resolver, displayNameString in
-                    delegate.loginOperation(currentUser: user, error: error, resolver: resolver, displayNameString: displayNameString)
+                delegate.storage.signInWith(idToken: idToken, and: authentication.accessToken, callback: { error, resolver, displayNameString in
+                    delegate.loginOperation(error: error, resolver: resolver, displayNameString: displayNameString)
                 })
             }
         }

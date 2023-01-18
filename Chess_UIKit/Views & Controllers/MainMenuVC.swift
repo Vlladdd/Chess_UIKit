@@ -36,7 +36,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         case .connected(let headers):
             isConnected = true
             print("websocket is connected: \(headers)")
-            socket.write(string: currentUser.email + Date().toStringDateHMS + "MainMenuVC")
+            socket.write(string: storage.currentUser.email + Date().toStringDateHMS + "MainMenuVC")
             if !(pingTimer?.isValid ?? false) {
                 pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
                     if let jsonData = try? JSONEncoder().encode("Hello") {
@@ -84,8 +84,8 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        audioPlayer.musicEnabled = currentUser.musicEnabled
-        audioPlayer.soundsEnabled = currentUser.soundsEnabled
+        audioPlayer.musicEnabled = storage.currentUser.musicEnabled
+        audioPlayer.soundsEnabled = storage.currentUser.soundsEnabled
         makeUI()
         connectToWebSocketServer()
         audioPlayer.playSound(Sounds.successSound)
@@ -125,12 +125,11 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         super.viewDidAppear(animated)
         socket.delegate = self
         //if user disconnected from last game, we need to take into account points from that game
-        if let lastGame = currentUser.games.last {
+        if let lastGame = storage.currentUser.games.last {
             if lastGame.winner == nil && !lastGame.gameEnded && lastGame.gameMode == .multiplayer {
-                if lastGame.players.first?.user.points == currentUser.points {
+                if lastGame.players.first?.user.points == storage.currentUser.points {
                     lastGame.surrender(for: .player1)
-                    currentUser.addPoints(lastGame.players.first!.pointsForGame)
-                    storage.saveUser(currentUser)
+                    storage.currentUser.addPoints(lastGame.players.first!.pointsForGame)
                     makeErrorAlert(with: "You lost last game")
                 }
             }
@@ -149,10 +148,8 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     private typealias constants = MainMenuVC_Constants
     
-    private let storage = Storage()
+    private let storage = Storage.sharedInstance
     private let audioPlayer = AudioPlayer.sharedInstance
-    
-    var currentUser: User!
     
     //checks connection to the server
     private var pingTimer: Timer?
@@ -182,10 +179,10 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
         storage.removeMultiplayerGamesObservers()
-        let createButton = makeMainMenuButtonView(with: UIImage(named: "misc/createButtonBG"), buttonImage: nil, buttontext: "Create", and: #selector(showCreateGameVC))
-        let joinButton = makeMainMenuButtonView(with: UIImage(named: "misc/joinButtonBG"), buttonImage: nil, buttontext: "Join", and: #selector(makeMultiplayerGamesList))
-        let loadButton = makeMainMenuButtonView(with: UIImage(named: "misc/loadButtonBG"), buttonImage: nil, buttontext: "Load", and: #selector(makeUserGamesList))
-        if currentUser.guestMode {
+        let createButton = makeMainMenuButtonView(with: MiscImages.createButtonBG, buttonImageItem: nil, buttontext: "Create", and: #selector(showCreateGameVC))
+        let joinButton = makeMainMenuButtonView(with: MiscImages.joinButtonBG, buttonImageItem: nil, buttontext: "Join", and: #selector(makeMultiplayerGamesList))
+        let loadButton = makeMainMenuButtonView(with: MiscImages.loadButtonBG, buttonImageItem: nil, buttontext: "Load", and: #selector(makeUserGamesList))
+        if storage.currentUser.guestMode {
             (joinButton.subviews.first as! UIButton).isEnabled = false
         }
         updateButtonsStack(with: [createButton, joinButton, loadButton], addBackButton: true, distribution: .fillEqually)
@@ -207,33 +204,33 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         var buttons = [UIView]()
         if let sender = sender {
             if let isShopButtons = sender.superview?.layer.value(forKey: constants.keyForIsShopButton) as? Bool {
-                if let items = sender.superview?.layer.value(forKey: constants.keyForItems) as? [Item], items.count > 0 {
+                if let items = sender.superview?.layer.value(forKey: constants.keyForItems) as? [GameItem], items.count > 0 {
                     switch items.first!.type {
-                    case .squaresTheme:
+                    case .squaresThemes:
                         if let squaresThemes = sender.superview?.layer.value(forKey: constants.keyForItems) as? [SquaresThemes] {
                             buttons = makeSquaresThemesView(squaresThemes: squaresThemes, isShopButtons: isShopButtons)
                         }
-                    case .figuresTheme:
+                    case .figuresThemes:
                         if let figuresThemes = sender.superview?.layer.value(forKey: constants.keyForItems) as? [FiguresThemes] {
                             buttons = makeFiguresView(figuresThemes: figuresThemes, isShopButtons: isShopButtons)
                         }
-                    case .boardTheme:
+                    case .boardThemes:
                         if let boardThemes = sender.superview?.layer.value(forKey: constants.keyForItems) as? [BoardThemes] {
                             buttons = makeBoardThemesView(boardThemes: boardThemes, isShopButtons: isShopButtons)
                         }
-                    case .frame:
+                    case .frames:
                         if let frames = sender.superview?.layer.value(forKey: constants.keyForItems) as? [Frames] {
                             buttons = makeFramesView(frames: frames, isShopButtons: isShopButtons)
                         }
-                    case .background:
+                    case .backgrounds:
                         if let backgroundThemes = sender.superview?.layer.value(forKey: constants.keyForItems) as? [Backgrounds] {
                             buttons = makeBackgroundThemesView(backgroundThemes: backgroundThemes, isShopButtons: isShopButtons)
                         }
-                    case .title:
+                    case .titles:
                         if let titles = sender.superview?.layer.value(forKey: constants.keyForItems) as? [Titles] {
                             buttons = makeTitlesView(titles: titles, isShopButtons: isShopButtons)
                         }
-                    case .avatar:
+                    case .avatars:
                         if let avatars = sender.superview?.layer.value(forKey: constants.keyForItems) as? [Avatars] {
                             buttons = makeAvatarsViews(avatars: avatars)
                         }
@@ -250,11 +247,10 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     //change current value of item of user
     @objc private func chooseItemInInventory(_ sender: UIButton? = nil) {
         if let sender = sender {
-            if let item = sender.superview?.superview?.layer.value(forKey: constants.keyForItem) as? Item {
+            if let item = sender.superview?.superview?.layer.value(forKey: constants.keyForItem) as? GameItem {
                 audioPlayer.playSound(Sounds.chooseItemSound)
-                currentUser.setValue(with: item)
+                storage.currentUser.setValue(with: item)
                 updateItemsColor(inShop: false)
-                storage.saveUser(currentUser)
             }
         }
     }
@@ -263,9 +259,9 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     @objc private func pickitem(_ sender: UITapGestureRecognizer? = nil) {
         if let sender = sender {
             if let mainMenuButton = sender.view?.superview {
-                if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? Item {
+                if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? GameItem {
                     audioPlayer.playSound(Sounds.pickItemSound)
-                    currentUser.addSeenItem(item)
+                    storage.currentUser.addSeenItem(item)
                     for button in buttonsStack.arrangedSubviews {
                         if let viewWithNotif = button as? ViewWithNotifIcon {
                             viewWithNotif.mainView.layer.borderColor = defaultTextColor.cgColor
@@ -275,7 +271,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                         }
                     }
                     mainMenuButton.layer.borderColor = constants.pickItemBorderColor
-                    storage.saveUser(currentUser)
                     if let viewWithNotif = mainMenuButton.superview as? ViewWithNotifIcon {
                         viewWithNotif.removeNotificationIcon()
                     }
@@ -284,7 +279,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                         frame.setNeedsDisplay()
                     }
                     if let userProfileVC = presentedViewController as? UserProfileVC {
-                        userProfileVC.currentUser = currentUser
                         userProfileVC.removeNotificationIconsIfNeeded()
                     }
                 }
@@ -305,18 +299,17 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     @objc private func buyItem(_ sender: UIButton? = nil) {
         if let mainMenuButton = sender?.superview?.superview {
-            if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? Item {
-                let itemName = item.name.replacingOccurrences(of: "_", with: " ").capitalizingFirstLetter()
+            if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? GameItem {
+                let itemName = item.getHumanReadableName()
                 let alert = UIAlertController(title: "Buy \(itemName)", message: "Are you sure?", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: "No", style: .cancel, handler: nil))
                 alert.addAction(UIAlertAction(title: "Yes", style: .default, handler: {[weak self] _ in
                     if let self = self {
                         self.audioPlayer.playSound(Sounds.buyItemSound)
-                        self.currentUser.addAvailableItem(item)
-                        var startCoins = self.currentUser.coins
-                        self.currentUser.addCoins(-item.cost)
-                        let endCoins = self.currentUser.coins
-                        self.storage.saveUser(self.currentUser)
+                        self.storage.currentUser.addAvailableItem(item)
+                        var startCoins = self.storage.currentUser.coins
+                        self.storage.currentUser.addCoins(-item.cost)
+                        let endCoins = self.storage.currentUser.coins
                         let snapshotOfShopitem = mainMenuButton.subviews.second!.snapshotView(afterScreenUpdates: true)!
                         self.view.addSubview(snapshotOfShopitem)
                         let snapshotConstraints = [snapshotOfShopitem.leadingAnchor.constraint(equalTo: snapshotOfShopitem.superview!.leadingAnchor), snapshotOfShopitem.topAnchor.constraint(equalTo: snapshotOfShopitem.superview!.topAnchor)]
@@ -353,41 +346,11 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     }
     
     @objc private func makeMainMenu(_ sender: UIButton? = nil) {
-        var haveNewInventoryItem = false
-        var haveNewShopItem = false
-        if !currentUser.guestMode {
-            //right now only titles can be different in shop and inventory, but it might change in future
-            for itemType in ItemTypes.allCases {
-                switch itemType {
-                case .squaresTheme:
-                    haveNewInventoryItem = currentUser.haveNewSquaresThemesInInventory()
-                    haveNewShopItem = currentUser.haveNewSquaresThemesInShop()
-                case .figuresTheme:
-                    haveNewInventoryItem = currentUser.haveNewFiguresThemesInInventory()
-                    haveNewShopItem = currentUser.haveNewFiguresThemesInShop()
-                case .boardTheme:
-                    haveNewInventoryItem = currentUser.haveNewBoardThemesInInventory()
-                    haveNewShopItem = currentUser.haveNewBoardThemesInShop()
-                case .frame:
-                    haveNewInventoryItem = currentUser.haveNewFramesInInventory()
-                    haveNewShopItem = currentUser.haveNewFramesInShop()
-                case .background:
-                    haveNewInventoryItem = currentUser.haveNewBackgroundsInInventory()
-                    haveNewShopItem = currentUser.haveNewBackgroundsInShop()
-                case .title:
-                    haveNewInventoryItem = currentUser.haveNewTitlesInInventory()
-                    haveNewShopItem = currentUser.haveNewTitlesInShop()
-                case .avatar:
-                    haveNewShopItem = currentUser.haveNewAvatarsInShop()
-                }
-                if haveNewInventoryItem && haveNewShopItem {
-                    break
-                }
-            }
-        }
-        let gameButton = makeMainMenuButtonView(with: UIImage(named: "misc/gameButtonBG"), buttonImage: nil, buttontext: "Game", and: #selector(makeGameMenu))
-        let inventoryButton = makeMainMenuButtonView(with: UIImage(named: "misc/inventoryButtonBG"), buttonImage: nil, buttontext: "Inventory", and: #selector(makeInventoryMenu), addNotificationIcon: haveNewInventoryItem)
-        let shopButton = makeMainMenuButtonView(with: UIImage(named: "misc/shopButtonBG"), buttonImage: nil, buttontext: "Shop", and: #selector(makeShopMenu), addNotificationIcon: haveNewShopItem)
+        let haveNewInventoryItem = storage.currentUser.haveNewItemsInInventory()
+        let haveNewShopItem = storage.currentUser.haveNewItemsInShop()
+        let gameButton = makeMainMenuButtonView(with: MiscImages.gameButtonBG, buttonImageItem: nil, buttontext: "Game", and: #selector(makeGameMenu))
+        let inventoryButton = makeMainMenuButtonView(with: MiscImages.inventoryButtonBG, buttonImageItem: nil, buttontext: "Inventory", and: #selector(makeInventoryMenu), addNotificationIcon: haveNewInventoryItem)
+        let shopButton = makeMainMenuButtonView(with: MiscImages.shopButtonBG, buttonImageItem: nil, buttontext: "Shop", and: #selector(makeShopMenu), addNotificationIcon: haveNewShopItem)
         updateButtonsStack(with: [gameButton, inventoryButton, shopButton], addBackButton: false, distribution: .fillEqually)
         animateButtonsStack(reversed: true)
     }
@@ -428,7 +391,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     //creates games for load, if they ended or in oneScreen mode
     @objc private func makeUserGamesList(_ sender: UIButton? = nil) {
-        makeGamesList(with: currentUser.games)
+        makeGamesList(with: storage.currentUser.games)
     }
     
     @objc private func makeMultiplayerGamesList(_ sender: UIButton? = nil) {
@@ -511,19 +474,18 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     @objc private func loadGame(_ sender: UIButton? = nil) {
         if let sender = sender {
             if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
-                if game.gameMode == .multiplayer {
+                if game.gameMode == .multiplayer && !game.gameEnded {
                     if isConnected && presentedViewController == nil {
-                        game.addSecondPlayer(user: currentUser)
+                        game.addSecondPlayer(user: storage.currentUser)
                         if let gameJson = try? JSONEncoder().encode(game) {
                             socket.write(data: gameJson)
                         }
                         //opponent on top
                         game.switchPlayers()
-                        currentUser.addGame(game)
                         //we are saving game at the start for the case, where game will not be ended and
                         //to be able to take into account points from that game
                         //for example, if player will disconnect
-                        storage.saveUser(currentUser)
+                        storage.addGameToCurrentUserAndSave(game)
                     }
                     else if !isConnected {
                         makeErrorAlert(with: "You are not connected to the server, will try to reconnect")
@@ -559,8 +521,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
             if let self = self {
                 if let sender = sender {
                     if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
-                        self.currentUser.removeGame(game)
-                        self.storage.saveUser(self.currentUser)
+                        self.storage.currentUser.removeGame(game)
                         if let gameInfo = sender.superview?.superview?.superview {
                             UIView.animate(withDuration: constants.animationDuration, animations: {
                                 gameInfo.isHidden = true
@@ -580,7 +541,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     // MARK: - Local Methods
     
     private func makeGamesList(with games: [GameLogic]) {
-        let backButton = makeMainMenuButtonView(with: UIImage(systemName: "arrow.left"), buttonImage: nil, buttontext: "Back", and: #selector(makeGameMenu))
+        let backButton = makeMainMenuButtonView(with: SystemImages.backImage, buttonImageItem: nil, buttontext: "Back", and: #selector(makeGameMenu))
         makeAdditionalButtons(with: [backButton])
         updateButtonsStack(with: games.sorted(by: {$0.startDate > $1.startDate}).map({makeInfoView(of: $0)}), addBackButton: false, distribution: .fill)
         animateButtonsStack(reversed: Bool.random(), addAdditionalButtons: true)
@@ -634,7 +595,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     //makes view for redacting user profile
     private func makeUserProfileVC() {
         let userProfileVC = UserProfileVC()
-        userProfileVC.currentUser = currentUser
         configureSheetController(of: userProfileVC)
         present(userProfileVC, animated: true)
         audioPlayer.playSound(Sounds.openPopUpSound)
@@ -645,7 +605,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         let createGameVC = CreateGameVC()
         createGameVC.socket = socket
         createGameVC.isConnected = isConnected
-        createGameVC.currentUser = currentUser
         configureSheetController(of: createGameVC)
         present(createGameVC, animated: true)
         audioPlayer.playSound(Sounds.openPopUpSound)
@@ -656,7 +615,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         let gameVC = GameViewController()
         gameVC.socket = socket
         gameVC.isConnected = isConnected
-        gameVC.currentUser = currentUser
         gameVC.gameLogic = game
         gameVC.modalPresentationStyle = .fullScreen
         present(gameVC, animated: true)
@@ -744,7 +702,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     private func makeBackground() {
         let background = UIImageView()
         background.translatesAutoresizingMaskIntoConstraints = false
-        background.image = UIImage(named: "misc/defaultBG")
+        background.setImage(with: MiscImages.defaultBG)
         background.contentMode = .scaleAspectFill
         background.layer.masksToBounds = true
         view.addSubview(background)
@@ -793,18 +751,20 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     }
     
     //makes big round buttons to navigate through main menu
-    private func makeMainMenuButtonView(with backgroundImage: UIImage?, buttonImage: UIImage?, buttontext: String, and action: Selector?, addNotificationIcon: Bool = false, needHeightConstraint: Bool = true) -> UIImageView {
+    private func makeMainMenuButtonView(with backgroundImageItem: ImageItem?, buttonImageItem: ImageItem?, buttontext: String, and action: Selector?, addNotificationIcon: Bool = false, needHeightConstraint: Bool = true) -> UIImageView {
         let buttonBG = UIImageView()
         buttonBG.defaultSettings()
         buttonBG.settingsForBackgroundOfTheButton(cornerRadius: fontSize * constants.multiplierForButtonSize / constants.optimalDividerForCornerRadius)
-        buttonBG.image = backgroundImage
+        if let backgroundImageItem {
+            buttonBG.setImage(with: backgroundImageItem)
+        }
         var buttonConstraints = [NSLayoutConstraint]()
         if let action = action {
             let button = MainMenuButton(type: .system)
-            button.buttonWith(image: buttonImage, text: buttontext, font: defaultFont, and: action)
+            button.buttonWith(imageItem: buttonImageItem, text: buttontext, font: defaultFont, and: action)
             buttonBG.addSubview(button)
             buttonConstraints += [button.widthAnchor.constraint(equalTo: buttonBG.widthAnchor), button.heightAnchor.constraint(equalTo: buttonBG.heightAnchor), button.centerXAnchor.constraint(equalTo: buttonBG.centerXAnchor), button.centerYAnchor.constraint(equalTo: buttonBG.centerYAnchor)]
-            if buttonImage != nil {
+            if buttonImageItem != nil {
                 button.contentEdgeInsets = constants.insetsForCircleButton
             }
         }
@@ -842,7 +802,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         additionalInfo.alpha = 0
         let helperButtons = makeHelperButtonsView(game: game)
         if game.gameEnded {
-            if game.winner?.user.nickname == currentUser.nickname {
+            if game.winner?.user.nickname == storage.currentUser.nickname {
                 infoView.backgroundColor = constants.gameWinnerColor
             }
             else if game.winner != nil {
@@ -889,12 +849,12 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         let helperButtonsStack = UIStackView()
         helperButtonsStack.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.spacingForHelperButtons)
         let deleteButton = UIButton()
-        deleteButton.buttonWith(image: UIImage(systemName: "trash"), and: #selector(deleteGame))
+        deleteButton.buttonWith(imageItem: SystemImages.deleteImage, and: #selector(deleteGame))
         deleteButton.isEnabled = game.gameMode == .oneScreen || game.gameEnded
         let expandButton = UIButton()
-        expandButton.buttonWith(image: UIImage(systemName: "menubar.arrow.down.rectangle"), and: #selector(toggleGameInfo))
+        expandButton.buttonWith(imageItem: SystemImages.expandImage, and: #selector(toggleGameInfo))
         let enterButton = UIButton()
-        enterButton.buttonWith(image: UIImage(systemName: "arrow.right.to.line"), and: #selector(loadGame))
+        enterButton.buttonWith(imageItem: SystemImages.enterImage, and: #selector(loadGame))
         enterButton.layer.setValue(game, forKey: constants.keyForGame)
         deleteButton.layer.setValue(game, forKey: constants.keyForGame)
         helperButtonsStack.addArrangedSubviews([deleteButton, expandButton, enterButton])
@@ -909,17 +869,17 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         buttonsStack.setup(axis: .vertical, alignment: .fill, distribution: distribution, spacing: constants.optimalSpacing)
         buttonsStack.addArrangedSubviews(views)
         if addBackButton {
-            let backButton = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "Back", and: #selector(makeMainMenu))
+            let backButton = makeMainMenuButtonView(with: nil, buttonImageItem: nil, buttontext: "Back", and: #selector(makeMainMenu))
             addBackButtonSFImageTo(view: backButton)
             buttonsStack.addArrangedSubview(backButton)
         }
     }
     
-    private func makeShopItemButton(with view: UIView, shopItem: Item, inInventory: Bool) -> UIImageView {
-        let addNotificationIcon = currentUser.containsNewItemIn(items: [shopItem])
-        let buttonView = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "", and: nil, addNotificationIcon: addNotificationIcon)
+    private func makeShopItemButton(with view: UIView, shopItem: GameItem, inInventory: Bool) -> UIImageView {
+        let addNotificationIcon = storage.currentUser.containsNewItemIn(items: [shopItem])
+        let buttonView = makeMainMenuButtonView(with: nil, buttonImageItem: nil, buttontext: "", and: nil, addNotificationIcon: addNotificationIcon)
         let buttonBG = addNotificationIcon ? buttonView.subviews.first as! UIImageView : buttonView
-        let buyButton = makeMainMenuButtonView(with: UIImage(named: "misc/coinsBG"), buttonImage: nil, buttontext: String(shopItem.cost), and: #selector(buyItem))
+        let buyButton = makeMainMenuButtonView(with: MiscImages.coinsBG, buttonImageItem: nil, buttontext: String(shopItem.cost), and: #selector(buyItem))
         buttonBG.addSubview(buyButton)
         buttonBG.addSubview(view)
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(pickitem))
@@ -932,8 +892,8 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         return buttonBG.superview as? UIImageView ?? buttonBG
     }
     
-    private func makeInventoryItemButton(with view: UIView, inventoryItem: Item, inInventory: Bool) -> UIImageView {
-        let addNotificationIcon = currentUser.containsNewItemIn(items: [inventoryItem])
+    private func makeInventoryItemButton(with view: UIView, inventoryItem: GameItem, inInventory: Bool) -> UIImageView {
+        let addNotificationIcon = storage.currentUser.containsNewItemIn(items: [inventoryItem])
         let descriptionScrollView = UIScrollView()
         descriptionScrollView.translatesAutoresizingMaskIntoConstraints = false
         descriptionScrollView.delaysContentTouches = false
@@ -949,10 +909,10 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         itemDescriptionCenterX.priority = .defaultLow
         let itemDescriptionCenterY = itemDescription.centerYAnchor.constraint(equalTo: descriptionScrollView.centerYAnchor)
         itemDescriptionCenterY.priority = .defaultLow
-        let buttonView = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "", and: nil, addNotificationIcon: addNotificationIcon)
+        let buttonView = makeMainMenuButtonView(with: nil, buttonImageItem: nil, buttontext: "", and: nil, addNotificationIcon: addNotificationIcon)
         let buttonBG = addNotificationIcon ? buttonView.subviews.first as! UIImageView : buttonView
-        let chooseButton = makeMainMenuButtonView(with: nil, buttonImage: UIImage(systemName: "checkmark"), buttontext: "", and: #selector(chooseItemInInventory), needHeightConstraint: false)
-        let descriptionButton = makeMainMenuButtonView(with: nil, buttonImage: UIImage(systemName: "info"), buttontext: "", and: #selector(showDescriptionForItemInInventory), needHeightConstraint: false)
+        let chooseButton = makeMainMenuButtonView(with: nil, buttonImageItem: SystemImages.chooseImage, buttontext: "", and: #selector(chooseItemInInventory), needHeightConstraint: false)
+        let descriptionButton = makeMainMenuButtonView(with: nil, buttonImageItem: SystemImages.descriptionImage, buttontext: "", and: #selector(showDescriptionForItemInInventory), needHeightConstraint: false)
         buttonBG.addSubview(chooseButton)
         buttonBG.addSubview(descriptionButton)
         buttonBG.addSubview(view)
@@ -970,7 +930,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         return buttonBG.superview as? UIImageView ?? buttonBG
     }
     
-    private func makeShowcase(items: UIStackView, item: Item, inInventory: Bool, axis: NSLayoutConstraint.Axis, isShopButton: Bool) -> UIImageView {
+    private func makeShowcase(items: UIStackView, item: GameItem, inInventory: Bool, axis: NSLayoutConstraint.Axis, isShopButton: Bool) -> UIImageView {
         let showcaseScrollView = UIScrollView()
         showcaseScrollView.translatesAutoresizingMaskIntoConstraints = false
         showcaseScrollView.addSubview(items)
@@ -1005,23 +965,23 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     }
     
     private func makeInventoryOrShopButtons(isShopButtons: Bool) -> [UIView] {
-        let figuresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? FiguresThemes.purchasable : FiguresThemes.allCases, backgroundImage: UIImage(named: "misc/figuresBG"), buttonText: "Figures")
-        let backgroundButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Backgrounds.purchasable : Backgrounds.allCases, backgroundImage: UIImage(named: "backgrounds/\(currentUser.playerBackground.rawValue)"), buttonText: "Background")
-        let titleButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Titles.purchasable : Titles.allCases, backgroundImage: nil, buttonText: "Title")
-        let boardButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? BoardThemes.purchasable : BoardThemes.allCases, backgroundImage: UIImage(named: "misc/boardBG"), buttonText: "Board")
-        let frameButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Frames.purchasable : Frames.allCases, backgroundImage: UIImage(named: "misc/frameBG"), buttonText: "Frame")
-        let squaresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? SquaresThemes.purchasable : SquaresThemes.allCases, backgroundImage: UIImage(named: "misc/squaresBG"), buttonText: "Squares")
+        let figuresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? FiguresThemes.purchasable : FiguresThemes.allCases, backgroundImageItem: MiscImages.figuresButtonBG, buttonText: "Figures")
+        let backgroundButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Backgrounds.purchasable : Backgrounds.allCases, backgroundImageItem: storage.currentUser.playerBackground, buttonText: "Background")
+        let titleButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Titles.purchasable : Titles.allCases, backgroundImageItem: nil, buttonText: "Title")
+        let boardButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? BoardThemes.purchasable : BoardThemes.allCases, backgroundImageItem: MiscImages.boardsButtonBG, buttonText: "Board")
+        let frameButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? Frames.purchasable : Frames.allCases, backgroundImageItem: MiscImages.framesButtonBG, buttonText: "Frame")
+        let squaresButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: isShopButtons ? SquaresThemes.purchasable : SquaresThemes.allCases, backgroundImageItem: MiscImages.squaresButtonBG, buttonText: "Squares")
         var buttons = [figuresButton, backgroundButton, titleButton, boardButton, frameButton, squaresButton]
         if isShopButtons {
-            let avatarsButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: Avatars.purchasable, backgroundImage: UIImage(named: "avatars/\(currentUser.playerAvatar.rawValue)"), buttonText: "Avatars")
+            let avatarsButton = makeInventoryOrShopButton(isShopButton: isShopButtons, items: Avatars.purchasable, backgroundImageItem: storage.currentUser.playerAvatar, buttonText: "Avatars")
             buttons.append(avatarsButton)
         }
         return buttons
     }
     
-    private func makeInventoryOrShopButton(isShopButton: Bool, items: [Item], backgroundImage: UIImage?, buttonText: String) -> UIView {
-        let addNotificationIcon = currentUser.containsNewItemIn(items: items)
-        let buttonView = makeMainMenuButtonView(with: backgroundImage, buttonImage: nil, buttontext: buttonText, and: #selector(makeListOfItems), addNotificationIcon: addNotificationIcon)
+    private func makeInventoryOrShopButton(isShopButton: Bool, items: [GameItem], backgroundImageItem: ImageItem?, buttonText: String) -> UIView {
+        let addNotificationIcon = storage.currentUser.containsNewItemIn(items: items)
+        let buttonView = makeMainMenuButtonView(with: backgroundImageItem, buttonImageItem: nil, buttontext: buttonText, and: #selector(makeListOfItems), addNotificationIcon: addNotificationIcon)
         let button = addNotificationIcon ? buttonView.subviews.first as! UIImageView : buttonView
         button.layer.setValue(items, forKey: constants.keyForItems)
         button.layer.setValue(isShopButton, forKey: constants.keyForIsShopButton)
@@ -1033,14 +993,13 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         for figuresTheme in figuresThemes {
             let figuresStack = UIStackView()
             figuresStack.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-            for figureName in Figures.allCases {
+            for figureType in Figures.allCases {
                 for color in [GameColors.white, GameColors.black] {
-                    let figureImage = UIImage(named: "figuresThemes/\(figuresTheme.rawValue)/\(color.rawValue)_\(figureName.rawValue)")
-                    let figureView = makeSquareView(with: figureImage)
+                    let figureView = makeSquareView(with: figuresTheme.getSkinedFigure(from: Figure(type: figureType, color: color)))
                     figuresStack.addArrangedSubview(figureView)
                 }
             }
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? FiguresThemes == figuresTheme})
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? FiguresThemes == figuresTheme})
             let figuresThemeView = makeShowcase(items: figuresStack, item: figuresTheme, inInventory: inInventory, axis: .vertical, isShopButton: isShopButtons)
             figuresViews.append(figuresThemeView)
         }
@@ -1052,20 +1011,17 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         for boardTheme in boardThemes {
             let boardItems = UIStackView()
             boardItems.setup(axis: .horizontal, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-            let emptySquare = makeSquareView(with: UIImage(named: "boardThemes/\(boardTheme.rawValue)/letter"))
+            let emptySquare = makeSquareView(with: boardTheme.emptySquareItem)
             boardItems.addArrangedSubview(emptySquare)
             for file in BoardFiles.allCases {
-                let fileImage = UIImage(named: "boardThemes/\(boardTheme.rawValue)/letter_\(file.rawValue)")
-                let fileView = makeSquareView(with: fileImage)
+                let fileView = makeSquareView(with: boardTheme.getSkinedLetter(from: file))
                 boardItems.addArrangedSubview(fileView)
             }
-            for number in GameBoard.availableRows {
-                let emptySquareImage = UIImage(named: "boardThemes/\(boardTheme.rawValue)/letter")
-                let numberImage = UIImage(named: "boardThemes/\(boardTheme.rawValue)/number_\(number)")
-                let numberSquare = makeSpecialSquareView(with: emptySquareImage, and: numberImage)
+            for number in BoardNumberItems.allCases {
+                let numberSquare = makeSpecialSquareView(with: boardTheme.emptySquareItem, and: boardTheme.getSkinedNumber(from: number))
                 boardItems.addArrangedSubview(numberSquare)
             }
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? BoardThemes == boardTheme})
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? BoardThemes == boardTheme})
             let boardThemeView = makeShowcase(items: boardItems, item: boardTheme, inInventory: inInventory, axis: .vertical, isShopButton: isShopButtons)
             boardThemesViews.append(boardThemeView)
         }
@@ -1077,14 +1033,14 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         for backgroundTheme in backgroundThemes {
             let backgroundView = UIImageView()
             backgroundView.defaultSettings()
-            backgroundView.image = UIImage(named: "backgrounds/\(backgroundTheme)")
+            backgroundView.setImage(with: backgroundTheme)
             let backgroundLabel = UILabel()
-            backgroundLabel.setup(text: backgroundTheme.rawValue.replacingOccurrences(of: "_", with: " ").capitalizingFirstLetter(), alignment: .center, font: defaultFont)
+            backgroundLabel.setup(text: backgroundTheme.getHumanReadableName(), alignment: .center, font: defaultFont)
             backgroundView.addSubview(backgroundLabel)
             backgroundLabel.backgroundColor = backgroundView.backgroundColor?.withAlphaComponent(constants.optimalAlpha)
             let backgroundLabelConstraints = [backgroundLabel.leadingAnchor.constraint(equalTo: backgroundView.leadingAnchor), backgroundLabel.trailingAnchor.constraint(equalTo: backgroundView.trailingAnchor), backgroundLabel.topAnchor.constraint(equalTo: backgroundView.topAnchor), backgroundLabel.bottomAnchor.constraint(equalTo: backgroundView.bottomAnchor)]
             NSLayoutConstraint.activate(backgroundLabelConstraints)
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? Backgrounds == backgroundTheme})
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Backgrounds == backgroundTheme})
             let backgroundThemeView = isShopButtons ? makeShopItemButton(with: backgroundView, shopItem: backgroundTheme, inInventory: inInventory) : makeInventoryItemButton(with: backgroundView, inventoryItem: backgroundTheme, inInventory: inInventory)
             backgroundThemesViews.append(backgroundThemeView)
         }
@@ -1096,11 +1052,11 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         for avatar in avatars {
             let avatarData = UIStackView()
             avatarData.setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
-            let avatarImage = makeSquareView(with: UIImage(named: "avatars/\(avatar.rawValue)"))
+            let avatarImage = makeSquareView(with: avatar)
             let avatarName = UILabel()
-            avatarName.setup(text: avatar.rawValue.replacingOccurrences(of: "_", with: " ").capitalizingFirstLetter(), alignment: .center, font: defaultFont)
+            avatarName.setup(text: avatar.getHumanReadableName(), alignment: .center, font: defaultFont)
             avatarData.addArrangedSubviews([avatarImage, avatarName])
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? Avatars == avatar})
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Avatars == avatar})
             let avatarView = makeShopItemButton(with: avatarData, shopItem: avatar, inInventory: inInventory)
             avatarsViews.append(avatarView)
         }
@@ -1111,8 +1067,8 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         var titlesViews = [UIView]()
         for title in titles {
             let titleLabel = UILabel()
-            titleLabel.setup(text: title.rawValue.replacingOccurrences(of: "_", with: " ").capitalizingFirstLetter(), alignment: .center, font: defaultFont)
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? Titles == title})
+            titleLabel.setup(text: title.getHumanReadableName().capitalizingFirstLetter(), alignment: .center, font: defaultFont)
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Titles == title})
             let titleView = isShopButtons ? makeShopItemButton(with: titleLabel, shopItem: title, inInventory: inInventory) : makeInventoryItemButton(with: titleLabel, inventoryItem: title, inInventory: inInventory)
             titlesViews.append(titleView)
         }
@@ -1123,9 +1079,9 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         var framesViews = [UIView]()
         for frame in frames {
             let frameLabel = UILabel()
-            frameLabel.setup(text: frame.rawValue.replacingOccurrences(of: "_", with: " ").capitalizingFirstLetter(), alignment: .center, font: defaultFont)
-            let frameView = PlayerFrame(background: currentUser.playerBackground, playerFrame: frame, data: frameLabel)
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? Frames == frame})
+            frameLabel.setup(text: frame.getHumanReadableName(), alignment: .center, font: defaultFont)
+            let frameView = PlayerFrame(background: storage.currentUser.playerBackground, playerFrame: frame, data: frameLabel)
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Frames == frame})
             let itemView = isShopButtons ? makeShopItemButton(with: frameView, shopItem: frame, inInventory: inInventory) : makeInventoryItemButton(with: frameView, inventoryItem: frame, inInventory: inInventory)
             framesViews.append(itemView)
         }
@@ -1144,17 +1100,19 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
             dataStack.addArrangedSubview(makeColorData(text: "Available squares Color", color: squareTheme.availableSquaresColor))
             dataStack.addArrangedSubview(makeColorData(text: "Pick Color", color: squareTheme.pickColor))
             dataStack.addArrangedSubview(makeColorData(text: "Check Color", color: squareTheme.checkColor))
-            let inInventory = currentUser.availableItems.contains(where: {$0 as? SquaresThemes == squaresThemeName})
+            let inInventory = storage.currentUser.availableItems.contains(where: {$0 as? SquaresThemes == squaresThemeName})
             let itemView = makeShowcase(items: dataStack, item: squaresThemeName, inInventory: inInventory, axis: .horizontal, isShopButton: isShopButtons)
             squaresThemesView.append(itemView)
         }
         return squaresThemesView
     }
     
-    private func makeSquareView(with image: UIImage?) -> UIView {
+    private func makeSquareView(with imageItem: ImageItem?) -> UIView {
         let squareView = UIImageView()
         squareView.translatesAutoresizingMaskIntoConstraints = false
-        squareView.image = image
+        if let imageItem {
+            squareView.setImage(with: imageItem)
+        }
         let squareViewConstraints = [squareView.widthAnchor.constraint(equalTo: squareView.heightAnchor)]
         NSLayoutConstraint.activate(squareViewConstraints)
         return squareView
@@ -1162,9 +1120,9 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     //in case if square and element in square is 2 different images
     //right now only used for gameBoard showcase, cuz default numbers is not part of square image
-    private func makeSpecialSquareView(with firstImage: UIImage?, and secondImage: UIImage?) -> UIView {
-        let firstView = makeSquareView(with: firstImage)
-        let secondView = makeSquareView(with: secondImage)
+    private func makeSpecialSquareView(with firstItem: ImageItem, and secondItem: ImageItem) -> UIView {
+        let firstView = makeSquareView(with: firstItem)
+        let secondView = makeSquareView(with: secondItem)
         firstView.addSubview(secondView)
         let secondViewConstraints = [secondView.centerXAnchor.constraint(equalTo: firstView.centerXAnchor), secondView.centerYAnchor.constraint(equalTo: firstView.centerYAnchor), secondView.widthAnchor.constraint(equalTo: firstView.widthAnchor, multiplier: constants.multiplierForSpecialSquareViewSize), secondView.heightAnchor.constraint(equalTo: firstView.heightAnchor, multiplier: constants.multiplierForSpecialSquareViewSize)]
         NSLayoutConstraint.activate(secondViewConstraints)
@@ -1172,13 +1130,13 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     }
     
     private func makeAdditionalButtonsForShopOrInventory(isShopButtons: Bool) {
-        let coinsView = makeMainMenuButtonView(with: UIImage(named: "misc/coinsBG"), buttonImage: nil, buttontext: "", and: nil)
-        coinsText.setup(text: String(currentUser.coins), alignment: .center, font: defaultFont)
+        let coinsView = makeMainMenuButtonView(with: MiscImages.coinsBG, buttonImageItem: nil, buttontext: "", and: nil)
+        coinsText.setup(text: String(storage.currentUser.coins), alignment: .center, font: defaultFont)
         coinsText.backgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         coinsView.addSubview(coinsText)
         let coinsTextConstraints = [coinsText.topAnchor.constraint(equalTo: coinsView.topAnchor), coinsText.bottomAnchor.constraint(equalTo: coinsView.bottomAnchor), coinsText.leadingAnchor.constraint(equalTo: coinsView.leadingAnchor), coinsText.trailingAnchor.constraint(equalTo: coinsView.trailingAnchor)]
         NSLayoutConstraint.activate(coinsTextConstraints)
-        let backButton = makeMainMenuButtonView(with: nil, buttonImage: nil, buttontext: "Back", and: isShopButtons ? #selector(makeShopMenu) : #selector(makeInventoryMenu))
+        let backButton = makeMainMenuButtonView(with: nil, buttonImageItem: nil, buttontext: "Back", and: isShopButtons ? #selector(makeShopMenu) : #selector(makeInventoryMenu))
         addBackButtonSFImageTo(view: backButton)
         makeAdditionalButtons(with: [backButton, coinsView])
     }
@@ -1189,7 +1147,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         let backButtonView = UIImageView()
         backButtonView.translatesAutoresizingMaskIntoConstraints = false
         backButtonView.contentMode = view.contentMode
-        backButtonView.image = UIImage(systemName: "arrow.left")
+        backButtonView.setImage(with: SystemImages.backImage)
         view.addSubview(backButtonView)
         view.sendSubviewToBack(backButtonView)
         let backButtonViewConstraints = [backButtonView.topAnchor.constraint(equalTo: view.topAnchor), backButtonView.bottomAnchor.constraint(equalTo: view.bottomAnchor), backButtonView.leadingAnchor.constraint(equalTo: view.leadingAnchor), backButtonView.trailingAnchor.constraint(equalTo: view.trailingAnchor)]
@@ -1211,45 +1169,45 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
             if let viewWithNotif = button as? ViewWithNotifIcon {
                 actualButton = viewWithNotif.mainView
             }
-            if let shopItem = actualButton.layer.value(forKey: constants.keyForItem) as? Item {
+            if let shopItem = actualButton.layer.value(forKey: constants.keyForItem) as? GameItem {
                 var inInventory = false
                 var chosen = false
-                let available = shopItem.cost < currentUser.coins
+                let available = shopItem.cost < storage.currentUser.coins
                 switch shopItem.type {
-                case .squaresTheme:
+                case .squaresThemes:
                     if let squaresTheme = shopItem as? SquaresThemes {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? SquaresThemes == squaresTheme})
-                        chosen = squaresTheme == currentUser.squaresTheme
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? SquaresThemes == squaresTheme})
+                        chosen = squaresTheme == storage.currentUser.squaresTheme
                     }
-                case .figuresTheme:
+                case .figuresThemes:
                     if let figuresTheme = shopItem as? FiguresThemes {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? FiguresThemes == figuresTheme})
-                        chosen = figuresTheme == currentUser.figuresTheme
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? FiguresThemes == figuresTheme})
+                        chosen = figuresTheme == storage.currentUser.figuresTheme
                     }
-                case .boardTheme:
+                case .boardThemes:
                     if let boardTheme = shopItem as? BoardThemes {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? BoardThemes == boardTheme})
-                        chosen = boardTheme == currentUser.boardTheme
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? BoardThemes == boardTheme})
+                        chosen = boardTheme == storage.currentUser.boardTheme
                     }
-                case .frame:
+                case .frames:
                     if let frame = shopItem as? Frames {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? Frames == frame})
-                        chosen = frame == currentUser.frame
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Frames == frame})
+                        chosen = frame == storage.currentUser.frame
                     }
-                case .background:
+                case .backgrounds:
                     if let background = shopItem as? Backgrounds {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? Backgrounds == background})
-                        chosen = background == currentUser.playerBackground
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Backgrounds == background})
+                        chosen = background == storage.currentUser.playerBackground
                     }
-                case .title:
+                case .titles:
                     if let title = shopItem as? Titles {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? Titles == title})
-                        chosen = title == currentUser.title
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Titles == title})
+                        chosen = title == storage.currentUser.title
                     }
-                case .avatar:
+                case .avatars:
                     if let avatar = shopItem as? Avatars {
-                        inInventory = currentUser.availableItems.contains(where: {$0 as? Avatars == avatar})
-                        chosen = avatar == currentUser.playerAvatar
+                        inInventory = storage.currentUser.availableItems.contains(where: {$0 as? Avatars == avatar})
+                        chosen = avatar == storage.currentUser.playerAvatar
                     }
                 }
                 var color = defaultBackgroundColor
@@ -1298,20 +1256,20 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         userAvatar.rectangleView(width: widthForAvatar)
         userAvatar.contentMode = .scaleAspectFill
         userAvatar.layer.masksToBounds = true
-        userAvatar.image = UIImage(named: "avatars/\(currentUser.playerAvatar.rawValue)")
+        userAvatar.setImage(with: storage.currentUser.playerAvatar)
         userAvatar.addGestureRecognizer(tapGesture)
         let userName = UILabel()
-        userName.setup(text: currentUser.nickname, alignment: .center, font: defaultFont)
+        userName.setup(text: storage.currentUser.nickname, alignment: .center, font: defaultFont)
         let exitButton = UIButton()
         if #available(iOS 15.0, *) {
-            exitButton.buttonWith(image: UIImage(systemName: "rectangle.portrait.and.arrow.right"), and: #selector(signOut))
+            exitButton.buttonWith(imageItem: SystemImages.exitImageiOS15, and: #selector(signOut))
         }
         else {
-            exitButton.buttonWith(image: UIImage(systemName: "arrow.left.square"), and: #selector(signOut))
+            exitButton.buttonWith(imageItem: SystemImages.exitImage, and: #selector(signOut))
         }
         userData.addArrangedSubviews([userAvatar, userName, exitButton])
         var userDataConstraints = [NSLayoutConstraint]()
-        if (currentUser.haveNewAvatarsInInventory() || currentUser.nickname.isEmpty) && !currentUser.guestMode {
+        if (storage.currentUser.haveNewAvatarsInInventory() || storage.currentUser.nickname.isEmpty) && !storage.currentUser.guestMode {
             userDataView = ViewWithNotifIcon(mainView: userData, cornerRadius: widthForAvatar / constants.optimalDividerForCornerRadius)
         }
         else {
@@ -1327,14 +1285,14 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         if let userAvatar = (userDataView.subviews.first as? UIStackView)?.arrangedSubviews.first as? UIImageView {
             UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
                 if let self = self {
-                    userAvatar.image = UIImage(named: "avatars/\(self.currentUser.playerAvatar.rawValue)")
+                    userAvatar.setImage(with: self.storage.currentUser.playerAvatar)
                 }
             })
         }
         if let userName = (userDataView.subviews.first as? UIStackView)?.arrangedSubviews.second as? UILabel {
             UIView.transition(with: userName, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
                 if let self = self {
-                    userName.text = self.currentUser.nickname
+                    userName.text = self.storage.currentUser.nickname
                     self.userDataView.layoutIfNeeded()
                 }
             })
@@ -1342,10 +1300,10 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     }
     
     func removeNotificationIconsIfNeeded() {
-        if !currentUser.haveNewAvatarsInInventory() && !currentUser.nickname.isEmpty {
+        if !storage.currentUser.haveNewAvatarsInInventory() && !storage.currentUser.nickname.isEmpty {
             userDataView.removeNotificationIcon()
         }
-        if !currentUser.haveNewAvatarsInShop() {
+        if !storage.currentUser.haveNewItemsInShop() {
             if buttonsStack.arrangedSubviews.count == 3 {
                 if let viewWithNotif = buttonsStack.arrangedSubviews.third as? ViewWithNotifIcon {
                     viewWithNotif.removeNotificationIcon()
@@ -1354,13 +1312,13 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         }
         for button in buttonsStack.arrangedSubviews {
             if let viewWithNotif = button as? ViewWithNotifIcon {
-                if let item = viewWithNotif.mainView.layer.value(forKey: constants.keyForItem) as? Item {
-                    if !currentUser.containsNewItemIn(items: [item]) {
+                if let item = viewWithNotif.mainView.layer.value(forKey: constants.keyForItem) as? GameItem {
+                    if !storage.currentUser.containsNewItemIn(items: [item]) {
                         viewWithNotif.removeNotificationIcon()
                     }
                 }
-                else if let items = viewWithNotif.mainView.layer.value(forKey: constants.keyForItems) as? [Item] {
-                    if !currentUser.containsNewItemIn(items: items) {
+                else if let items = viewWithNotif.mainView.layer.value(forKey: constants.keyForItems) as? [GameItem] {
+                    if !storage.currentUser.containsNewItemIn(items: items) {
                         viewWithNotif.removeNotificationIcon()
                     }
                 }

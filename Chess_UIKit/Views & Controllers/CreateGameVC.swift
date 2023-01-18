@@ -21,7 +21,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         case .connected(let headers):
             isConnected = true
             print("websocket is connected: \(headers)")
-            socket.write(string: currentUser.email + Date().toStringDateHMS + "CreateGameVC")
+            socket.write(string: storage.currentUser.email + Date().toStringDateHMS + "CreateGameVC")
         case .disconnected(let reason, let code):
             isConnected = false
             print("websocket is disconnected: \(reason) with code: \(code)")
@@ -32,16 +32,14 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
             if let game = try? JSONDecoder().decode(GameLogic.self, from: data), game.gameID == gameID {
                 audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
-                currentUser.addGame(game)
                 //we are saving game at the start for the case, where game will not be ended and
                 //to be able to take into account points from that game
                 //for example, if player will disconnect
-                storage.saveUser(currentUser)
+                storage.addGameToCurrentUserAndSave(game)
                 let gameVC = GameViewController()
                 gameVC.socket = socket
                 gameVC.isConnected = isConnected
                 gameVC.gameLogic = game
-                gameVC.currentUser = currentUser
                 gameVC.modalPresentationStyle = .fullScreen
                 dismiss(animated: true) {
                     UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
@@ -107,9 +105,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     
     private typealias constants = CreateGameVC_Constants
     
-    var currentUser: User!
-    
-    private let storage = Storage()
+    private let storage = Storage.sharedInstance
     private let audioPlayer = AudioPlayer.sharedInstance
     
     //checks connection to the server
@@ -156,11 +152,10 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
                 audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
                 let secondUser = User(email: "Player2", nickname: "Player2")
-                let gameLogic = GameLogic(firstUser: currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindSwitch.isOn, totalTime: totalTime, additionalTime: additionalTime)
+                let gameLogic = GameLogic(firstUser: storage.currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindSwitch.isOn, totalTime: totalTime, additionalTime: additionalTime)
                 let gameVC = GameViewController()
                 gameVC.isConnected = isConnected
                 gameVC.gameLogic = gameLogic
-                gameVC.currentUser = currentUser
                 gameVC.modalPresentationStyle = .fullScreen
                 dismiss(animated: true) {
                     UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
@@ -178,7 +173,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
                     //and create new game. In this case, opponent won`t know, that game was ended and
                     //gameId of both of this games will be equal, cuz gameId == device uuid of game creator, so we adding date to it,
                     //cuz obv it is not possible to create 2 games with same date on same device
-                    let gameLogic = GameLogic(firstUser: currentUser, secondUser: nil, gameMode: .multiplayer, firstPlayerColor: colorPicker.pickedData!, totalTime: totalTime, additionalTime: additionalTime, gameID: deviceID + Date().toStringDateHMS)
+                    let gameLogic = GameLogic(firstUser: storage.currentUser, secondUser: nil, gameMode: .multiplayer, firstPlayerColor: colorPicker.pickedData!, totalTime: totalTime, additionalTime: additionalTime, gameID: deviceID + Date().toStringDateHMS)
                     storage.saveGameForMultiplayer(gameLogic)
                     pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
                         if let jsonData = try? JSONEncoder().encode("Hello") {
@@ -255,7 +250,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     // MARK: - UI Properties
     
     private lazy var font = UIFont.systemFont(ofSize: min(view.frame.width, view.frame.height) / constants.dividerForFont)
-    private lazy var modePicker = Picker(placeholder: "Pick mode", font: font, data: currentUser.guestMode ? [GameModes.oneScreen] : GameModes.allCases, doneAction: doneModePicker)
+    private lazy var modePicker = Picker(placeholder: "Pick mode", font: font, data: storage.currentUser.guestMode ? [GameModes.oneScreen] : GameModes.allCases, doneAction: doneModePicker)
     private lazy var colorPicker = Picker(placeholder: "Pick color", font: font, data: GameColors.allCases)
     
     private var rewindLine = UIStackView()

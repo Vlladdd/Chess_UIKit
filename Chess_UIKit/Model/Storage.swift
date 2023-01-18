@@ -12,12 +12,15 @@ import FirebaseDatabaseSwift
 import FirebaseAuth
 import GoogleSignIn
 
-//struct that represents storage(currently only FIrebase)
-struct Storage {
+//class that represents storage(currently only Firebase)
+class Storage {
     
     // MARK: - Properties
     
-    private var firebaseDatabase = Database.database().reference()
+    static let sharedInstance = Storage()
+    
+    private let firebaseDatabase = Database.database().reference()
+    
     private var chatHistory = [ChatMessage]()
     
     private typealias constants = Storage_Constants
@@ -26,9 +29,43 @@ struct Storage {
         FirebaseApp.app()?.options.clientID
     }
     
+    var currentUser: User! {
+        didSet {
+            saveCurrentUser()
+        }
+    }
+    
+    private enum ExtraFirebaseErrors: Error, LocalizedError {
+        
+        case userNotLoggedIn
+        case authResultIsEmpty
+        case snapshotNotExist
+        
+        var errorDescription: String? {
+            switch self {
+            case .userNotLoggedIn:
+                return NSLocalizedString("Current user in Firebase is not valid", comment: "ExtraFirebaseErrors")
+            case .authResultIsEmpty:
+                return NSLocalizedString("Authorization result from sign in method of Firebase is not valid", comment: "ExtraFirebaseErrors")
+            case .snapshotNotExist:
+                return NSLocalizedString("Data in Firebase not found", comment: "ExtraFirebaseErrors")
+            }
+        }
+        
+    }
+    
+    // MARK: - Inits
+    
+    //singleton
+    private init() {}
+    
     // MARK: - Methods
     
-    mutating func addChatMessageToHistory(_ chatMessage: ChatMessage) {
+    func signInAsGuest() {
+        currentUser = User(email: "", nickname: constants.defaultNickname, guestMode: true)
+    }
+    
+    func addChatMessageToHistory(_ chatMessage: ChatMessage) {
         if !chatHistory.contains(chatMessage) {
             chatHistory.append(chatMessage)
         }
@@ -39,20 +76,20 @@ struct Storage {
     }
     
     //signs ins user with google account and gets his data from database
-    func signInWith(idToken: String, and accessToken: String, callback:  @escaping (Error?, User?, MultiFactorResolver?, String?) -> Void) {
+    func signInWith(idToken: String, and accessToken: String, callback:  @escaping (Error?, MultiFactorResolver?, String?) -> Void) {
         let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
-        Auth.auth().signIn(with: credential) { authResult, error in
-            callbackForSignIn(error: error, authResult: authResult, callback: { error, user, resolver, displayNameString in
-                callback(error, user, resolver, displayNameString)
+        Auth.auth().signIn(with: credential) { [weak self] authResult, error in
+            self?.callbackForSignIn(error: error, authResult: authResult, callback: { error, resolver, displayNameString in
+                callback(error, resolver, displayNameString)
             })
         }
     }
     
     //signs ins user with email and password and gets his data from database
-    func signInWith(email: String, and password: String, callback:  @escaping (Error?, User?, MultiFactorResolver?, String?) -> Void) {
-        Auth.auth().signIn(withEmail: email, password: password) { authResult, error in
-            callbackForSignIn(error: error, authResult: authResult, callback: { error, user, resolver, displayNameString in
-                callback(error, user, resolver, displayNameString)
+    func signInWith(email: String, and password: String, callback:  @escaping (Error?, MultiFactorResolver?, String?) -> Void) {
+        Auth.auth().signIn(withEmail: email, password: password) { [weak self] authResult, error in
+            self?.callbackForSignIn(error: error, authResult: authResult, callback: { error, resolver, displayNameString in
+                callback(error, resolver, displayNameString)
             })
         }
     }
@@ -64,16 +101,17 @@ struct Storage {
         catch {
             print(error.localizedDescription)
         }
+        currentUser = nil
     }
     
-    func checkIfUserIsLoggedIn(callback: @escaping (Bool, Error?, User?) -> Void) {
+    func checkIfUserIsLoggedIn(callback: @escaping (Bool, Error?) -> Void) {
         if Auth.auth().currentUser != nil {
-            findUser(callback: { error, user in
-                callback(true, error, user)
+            findUser(callback: { error in
+                callback(true, error)
             })
         }
         else {
-            callback(false, nil, nil)
+            callback(false, ExtraFirebaseErrors.userNotLoggedIn)
         }
     }
     
@@ -82,38 +120,37 @@ struct Storage {
     }
     
     //creates new user for authentication and then new user object in database
-    func createUser(with email: String, and password: String, callback:  @escaping (Error?, User?) -> Void) {
-        Auth.auth().createUser(withEmail: email, password: password) { authResult, error in
+    func createUser(with email: String, and password: String, callback:  @escaping (Error?) -> Void) {
+        Auth.auth().createUser(withEmail: email, password: password) { [weak self] authResult, error in
             guard error == nil else {
                 print(error!.localizedDescription)
-                callback(error, nil)
+                callback(error)
                 return
             }
             if authResult != nil {
-                let newUser = User(email: email)
-                saveUser(newUser)
-                callback(nil, newUser)
+                self?.currentUser = User(email: email)
+                callback(nil)
                 return
             }
-            callback(nil, nil)
+            callback(ExtraFirebaseErrors.authResultIsEmpty)
         }
     }
     
     //checks if MFA required and tries to get user`s data, if not
-    private func callbackForSignIn(error: Error?, authResult: AuthDataResult?, callback:  @escaping (Error?, User?, MultiFactorResolver?, String?) -> Void) {
+    private func callbackForSignIn(error: Error?, authResult: AuthDataResult?, callback:  @escaping (Error?, MultiFactorResolver?, String?) -> Void) {
         guard error == nil else {
             let multifactorRequired = checkIfMultifactorRequired(error: error!)
             print(error!.localizedDescription)
-            callback(error, nil, multifactorRequired.resolver, multifactorRequired.displayNameString)
+            callback(error, multifactorRequired.resolver, multifactorRequired.displayNameString)
             return
         }
         if let authResult = authResult {
-            getCurrentUser(authResult: authResult, callback: { error, user in
-                callback(error, user, nil, nil)
+            getCurrentUser(authResult: authResult, callback: { error in
+                callback(error, nil, nil)
             })
         }
         else {
-            callback(nil, nil, nil, nil)
+            callback(ExtraFirebaseErrors.authResultIsEmpty, nil, nil)
         }
     }
     
@@ -156,11 +193,19 @@ struct Storage {
         })
     }
     
+    func addGameToCurrentUserAndSave(_ game: GameLogic) {
+        //if game was already in games array, saveCurrentUser() will not be trigered, so we have to do it
+        //manually, to be sure, that it is saved
+        if !currentUser.addGame(game) {
+            saveCurrentUser()
+        }
+    }
+    
     //we are using uid of the user as child name in users node
-    func saveUser(_ user: User) {
+    func saveCurrentUser() {
         do {
             if let key = Auth.auth().currentUser?.uid {
-                try firebaseDatabase.child(constants.keyForUsers).child(key).setValue(from: user)
+                try firebaseDatabase.child(constants.keyForUsers).child(key).setValue(from: currentUser)
             }
         }
         catch {
@@ -206,7 +251,7 @@ struct Storage {
                 }
             }
             else {
-                callback(nil, nil)
+                callback(ExtraFirebaseErrors.snapshotNotExist, nil)
             }
         })
     }
@@ -227,74 +272,72 @@ struct Storage {
         }
     }
     
-    func checkVerificationCode(with resolver: MultiFactorResolver, verificationID: String, verificationCode: String, callback:  @escaping (Error?, User?) -> Void) {
+    func checkVerificationCode(with resolver: MultiFactorResolver, verificationID: String, verificationCode: String, callback:  @escaping (Error?) -> Void) {
         let credential: PhoneAuthCredential? = PhoneAuthProvider.provider().credential(withVerificationID: verificationID, verificationCode: verificationCode)
         let assertion: MultiFactorAssertion? = PhoneMultiFactorGenerator.assertion(with: credential!)
-        resolver.resolveSignIn(with: assertion!) { authResult, error in
+        resolver.resolveSignIn(with: assertion!) { [weak self] authResult, error in
             guard error == nil else {
-                callback(error, nil)
+                callback(error)
                 return
             }
             if let authResult = authResult {
-                getCurrentUser(authResult: authResult, callback: { error, user in
-                    callback(error, user)
+                self?.getCurrentUser(authResult: authResult, callback: { error in
+                    callback(error)
                 })
             }
             else {
-                callback(nil, nil)
+                callback(ExtraFirebaseErrors.authResultIsEmpty)
             }
         }
     }
     
     //looking for an associated data for user uid in a database
-    private func findUser(callback: @escaping (Error?, User?) -> ()) {
+    private func findUser(callback: @escaping (Error?) -> ()) {
         if let key = Auth.auth().currentUser?.uid {
             let user = firebaseDatabase.child(constants.keyForUsers).child(key)
-            user.getData(completion: { error, snapshot in
+            user.getData(completion: { [weak self] error, snapshot in
                 guard error == nil else {
                     print(error!.localizedDescription)
-                    callback(error, nil)
+                    callback(error)
                     return
                 }
                 if let snapshot, snapshot.exists() {
                     do {
-                        let findedUser = try snapshot.data(as: User.self)
-                        callback(nil, findedUser)
+                        self?.currentUser = try snapshot.data(as: User.self)
+                        callback(nil)
                         return
                     }
                     catch {
                         print(error.localizedDescription)
-                        callback(error, nil)
+                        callback(error)
                         return
                     }
                 }
                 else {
-                    callback(nil, nil)
+                    callback(ExtraFirebaseErrors.snapshotNotExist)
                 }
             })
         }
         else {
-            callback(nil, nil)
+            callback(ExtraFirebaseErrors.userNotLoggedIn)
         }
     }
     
-    private func getCurrentUser(authResult: AuthDataResult, callback: @escaping (Error?, User?) -> ()) {
-        findUser(callback: {error, user in
+    private func getCurrentUser(authResult: AuthDataResult, callback: @escaping (Error?) -> ()) {
+        findUser(callback: { [weak self] error in
             guard error == nil else {
-                print(error!.localizedDescription)
-                callback(error, nil)
-                return
+                if error as? ExtraFirebaseErrors == .snapshotNotExist {
+                    self?.currentUser = User(email: authResult.user.email ?? "")
+                    callback(nil)
+                    return
+                }
+                else {
+                    print(error!.localizedDescription)
+                    callback(error)
+                    return
+                }
             }
-            if let user = user {
-                callback(nil, user)
-                return
-            }
-            else {
-                let newUser = User(email: authResult.user.email ?? "")
-                saveUser(newUser)
-                callback(nil, newUser)
-                return
-            }
+            callback(nil)
         })
     }
     
@@ -306,4 +349,5 @@ private struct Storage_Constants {
     static let keyForUsers = "users"
     static let keyForMultiplayerGames = "multiplayerGames"
     static let googleProviderID = "google.com"
+    static let defaultNickname = "Player1"
 }
