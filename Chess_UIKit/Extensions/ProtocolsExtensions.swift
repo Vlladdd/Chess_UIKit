@@ -111,3 +111,31 @@ extension StorageItem where Self: GameItem {
         type
     }
 }
+
+extension WSManagerDelegate {
+    
+    func socketConnected(with headers: [String: String]) {
+        print("websocket is connected: \(headers)")
+    }
+    
+    func socketDisconnected(with reason: String, and code: UInt16) {
+        print("websocket is disconnected: \(reason) with code: \(code)")
+    }
+    
+    func socketReceivedData(_ data: Data) {
+        print("Received data: \(data.count)")
+    }
+    
+    func socketReceivedText(_ text: String) {
+        print("Received text: \(text)")
+    }
+    
+    func webSocketError(with message: String) {
+        print(message)
+    }
+    
+    func lostInternet() {
+        print("Lost internet connection")
+    }
+    
+}

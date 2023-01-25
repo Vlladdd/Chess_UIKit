@@ -133,25 +133,27 @@ wsServer.on('request', function (request) {
             for(var key in clients) {
                 var value = clients[key];
                 if(gameID != undefined && JSON.parse(message.binaryData).requestLastAction == true) {
-                    var lastTurn = gamesInfo[gameID].lastTurn;
-                    var pawnTransform = gamesInfo[gameID].pawnTransform;
-                    var creatorMessage = gamesInfo[gameID].creator;
-                    var joinerMessage = gamesInfo[gameID].joiner;
-                    var chatHistory = gamesInfo[gameID].chatHistory;
-                    if (lastTurn != undefined) {
-                        value.connection.sendBytes(Buffer.from(lastTurn));
-                    }
-                    if (pawnTransform != undefined) {
-                        value.connection.sendBytes(Buffer.from(pawnTransform));
-                    }
-                    if (chatHistory != undefined) {
-                        value.connection.sendBytes(Buffer.from(JSON.stringify(chatHistory)));
-                    }
-                    if (creatorMessage != undefined && creatorMessage != message.binaryData) {
-                        value.connection.sendBytes(Buffer.from(creatorMessage));
-                    }
-                    if (joinerMessage != undefined && joinerMessage != message.binaryData) {
-                        value.connection.sendBytes(Buffer.from(joinerMessage));
+                    if (gamesInfo[gameID] != undefined) {
+                        var lastTurn = gamesInfo[gameID].lastTurn;
+                        var pawnTransform = gamesInfo[gameID].pawnTransform;
+                        var creatorMessage = gamesInfo[gameID].creator;
+                        var joinerMessage = gamesInfo[gameID].joiner;
+                        var chatHistory = gamesInfo[gameID].chatHistory;
+                        if (lastTurn != undefined) {
+                            value.connection.sendBytes(Buffer.from(lastTurn));
+                        }
+                        if (pawnTransform != undefined) {
+                            value.connection.sendBytes(Buffer.from(pawnTransform));
+                        }
+                        if (chatHistory != undefined) {
+                            value.connection.sendBytes(Buffer.from(JSON.stringify(chatHistory)));
+                        }
+                        if (creatorMessage != undefined && creatorMessage != message.binaryData) {
+                            value.connection.sendBytes(Buffer.from(creatorMessage));
+                        }
+                        if (joinerMessage != undefined && joinerMessage != message.binaryData) {
+                            value.connection.sendBytes(Buffer.from(joinerMessage));
+                        }
                     }
                 }
                 else {

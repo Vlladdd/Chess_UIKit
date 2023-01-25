@@ -6,100 +6,104 @@
 //
 
 import UIKit
-import Starscream
-import Network
 
 //VC that represents game view
-class GameViewController: UIViewController, WebSocketDelegate {
+class GameViewController: UIViewController, WSManagerDelegate {
     
-    // MARK: - WebSocketDelegate
+    // MARK: - WSManagerDelegate
     
-    var socket: Starscream.WebSocket!
-    var isConnected = false
+    func lostInternet() {
+        if gameLogic.gameMode == .multiplayer {
+            if gameLogic.currentPlayer.type == .player2 {
+                enemyAfkTimer?.invalidate()
+            }
+            makeReconnectTimer()
+            needToRequestLastAction = true
+        }
+    }
     
-    func didReceive(event: WebSocketEvent, client: WebSocket) {
-        switch event {
-        case .connected(let headers):
-            print("websocket is connected: \(headers)")
-            socket.write(string: storage.currentUser.email + Date().toStringDateHMS + "GameVC")
-            if !finalError {
-                websocketDidConnect()
+    func socketConnected(with headers: [String:String]) {
+        wsManager?.writeText(storage.currentUser.email + Date().toStringDateHMS + "GameVC")
+        if !finalError {
+            websocketDidConnect()
+        }
+    }
+    
+    func socketDisconnected(with reason: String, and code: UInt16) {
+        makeErrorAlert(with: "websocket is disconnected: \(reason) with code: \(code)", addReconnectButton: true)
+    }
+    
+    func socketReceivedData(_ data: Data) {
+        if let playerMessage = try? JSONDecoder().decode(PlayerMessage.self, from: data) {
+            if playerMessage.gameID == gameLogic.gameID {
+                websocketDidReceive(playerMessage: playerMessage)
             }
-        case .disconnected(let reason, let code):
-            isConnected = false
-            print("websocket is disconnected: \(reason) with code: \(code)")
-            makeErrorAlert(with: "websocket is disconnected: \(reason) with code: \(code)")
-        case .text(let string):
-            print("Received text: \(string)")
-        case .binary(let data):
-            print("Received data: \(data.count)")
-            if let playerMessage = try? JSONDecoder().decode(PlayerMessage.self, from: data) {
-                if playerMessage.gameID == gameLogic.gameID {
-                    websocketDidReceive(playerMessage: playerMessage)
-                }
+        }
+        if let turn = try? JSONDecoder().decode(Turn.self, from: data) {
+            if turn.gameID == gameLogic.gameID {
+                websocketDidReceive(turn: turn)
             }
-            if let turn = try? JSONDecoder().decode(Turn.self, from: data) {
-                if turn.gameID == gameLogic.gameID {
-                    websocketDidReceive(turn: turn)
-                }
+        }
+        if let square = try? JSONDecoder().decode(Square.self, from: data) {
+            if square.gameID == gameLogic.gameID {
+                websocketDidReceive(square: square)
             }
-            if let square = try? JSONDecoder().decode(Square.self, from: data) {
-                if square.gameID == gameLogic.gameID {
-                    websocketDidReceive(square: square)
-                }
+        }
+        if let chatMessage = try? JSONDecoder().decode(ChatMessage.self, from: data) {
+            if chatMessage.gameID == gameLogic.gameID && chatMessage.playerType != gameLogic.players.first!.multiplayerType {
+                addMessageToChat(chatMessage)
             }
-            if let chatMessage = try? JSONDecoder().decode(ChatMessage.self, from: data) {
-                if chatMessage.gameID == gameLogic.gameID && chatMessage.playerType != gameLogic.players.first!.multiplayerType {
-                    addMessageToChat(chatMessage)
-                }
-            }
-            if let chatHistory = try? JSONDecoder().decode([ChatMessage].self, from: data) {
-                if !chatHistory.isEmpty {
-                    if chatHistory.first!.gameID == gameLogic.gameID {
-                        for chatMessage in chatHistory.filter({$0.playerType != gameLogic.players.first!.multiplayerType}) {
-                            if !storage.checkIfChatMessageInHistory(chatMessage) {
-                                addMessageToChat(chatMessage)
-                            }
+        }
+        if let chatHistory = try? JSONDecoder().decode([ChatMessage].self, from: data) {
+            if !chatHistory.isEmpty {
+                if chatHistory.first!.gameID == gameLogic.gameID {
+                    for chatMessage in chatHistory.filter({$0.playerType != gameLogic.players.first!.multiplayerType}) {
+                        if !storage.checkIfChatMessageInHistory(chatMessage) {
+                            addMessageToChat(chatMessage)
                         }
                     }
                 }
             }
-        case .ping(_):
-            break
-        case .pong(_):
-            break
-        case .viabilityChanged(_):
-            break
-        case .reconnectSuggested(_):
-            break
-        case .cancelled:
-            isConnected = false
-            break
-        case .error(let error):
-            if !suspendedState {
-                serverError = true
-                needToRequestLastAction = true
-                afkTimer?.invalidate()
-                afkTimer = makeAfkTimer(for: .player1)
-                enemyAfkTimer?.invalidate()
+        }
+    }
+    
+    func webSocketError(with message: String) {
+        if !suspendedState {
+            serverError = true
+            needToRequestLastAction = true
+            afkTimer?.invalidate()
+            afkTimer = makeAfkTimer(for: .player1)
+            enemyAfkTimer?.invalidate()
+            //if server encountered a problem, user shouldn`t lose points
+            if !gameLogic.gameEnded && wsManager!.connectedToTheInternet {
+                storage.currentUser.removeGame(gameLogic)
             }
-            isConnected = false
-            handleWebSocketError(error)
+            makeErrorAlert(with: message, addReconnectButton: true)
         }
     }
     
     private func websocketDidConnect() {
+        //only for case after restored internet connection
+        if gameLogic.currentPlayer.type == .player2 && !serverError {
+            if let enemyAfkTimer = enemyAfkTimer, !enemyAfkTimer.isValid {
+                var timeElapsed = Date().timeIntervalSince(gameLogic.turns.last?.time ?? gameLogic.startDate)
+                if timeElapsed > constants.maxTimeForAFK {
+                    timeElapsed = constants.maxTimeForAFK
+                }
+                self.enemyAfkTimer = makeAfkTimer(for: .player2, timeElapsed: timeElapsed)
+            }
+        }
         if serverError {
             afkTimer?.invalidate()
             serverError = false
         }
         if gameLogic.players.first!.figuresColor == .white {
-            if !(afkTimer?.isValid ?? false) || afkTimer == nil {
+            if !(afkTimer?.isValid ?? false) {
                 afkTimer = makeAfkTimer(for: .player1)
             }
         }
         else {
-            if !(enemyAfkTimer?.isValid ?? false) || enemyAfkTimer == nil {
+            if !(enemyAfkTimer?.isValid ?? false) {
                 enemyAfkTimer = makeAfkTimer(for: .player2)
             }
         }
@@ -107,20 +111,15 @@ class GameViewController: UIViewController, WebSocketDelegate {
             activatePlayerTime(continueTimer: true)
         }
         storage.addGameToCurrentUserAndSave(gameLogic)
-        isConnected = true
         reconnectTimer?.fire()
         //to be sure, that both players are connected
         //first player is always current user
         if !needToRequestLastAction {
-            if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, playerReady: true)) {
-                socket.write(data: playerMessage)
-            }
+            wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, playerReady: true))
         }
         //if app was in suspended state for too long, we need to request last action from opponent, or when start of the game,
         //to be sure, that both players are ready
-        if let playerMessage = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true)) {
-            socket.write(data: playerMessage)
-        }
+        wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true))
     }
     
     private func websocketDidReceive(playerMessage: PlayerMessage) {
@@ -226,31 +225,11 @@ class GameViewController: UIViewController, WebSocketDelegate {
         }
     }
     
-    private func handleWebSocketError(_ error: Error?) {
-        if let error = error as? WSError {
-            if !gameLogic.gameEnded && connectedToTheInternet {
-                storage.currentUser.removeGame(gameLogic)
-            }
-            makeErrorAlert(with: "websocket encountered an error: \(error.message)", addReconnectButton: true)
-        }
-        else if let error = error {
-            if let error = error as? NWError {
-                //if server encountered a problem, user shouldn`t lose points
-                if error._code == 0 && !gameLogic.gameEnded && connectedToTheInternet {
-                    storage.currentUser.removeGame(gameLogic)
-                }
-            }
-            makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)", addReconnectButton: true)
-        }
-        else {
-            makeErrorAlert(with: "websocket encountered an error", addReconnectButton: true)
-        }
-    }
-    
     // MARK: - View Functions
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        wsManager?.delegate = self
         audioPlayer.playSound(Music.gameBackgroundMusic, volume: constants.volumeForBackgroundMusic)
         makeUI()
         if !gameLogic.turns.isEmpty && gameLogic.storedTurns.isEmpty {
@@ -306,9 +285,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
         audioPlayer.pauseSound(Music.gameBackgroundMusic)
         deactivateMultiplayerTImers()
         if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
-            mainMenuVC.socket.delegate = mainMenuVC
-            mainMenuVC.isConnected = isConnected
+            wsManager?.delegate = mainMenuVC
         }
+        wsManager?.activatePingTimer()
     }
     
     // MARK: - Properties
@@ -322,7 +301,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private var serverError = false
     //when game will end and we will send last turn, this will become false
     private var shouldSendTurn = true
-    private var connectedToTheInternet = true
     //when user left the app, but it is still in apps list
     private var suspendedState = false
     private var needToRequestLastAction = false
@@ -330,7 +308,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
     private var opponentWantsDraw = false
     private var afkTimer: Timer?
     private var enemyAfkTimer: Timer?
-    private var pingTimer: Timer?
     //if second player didn`t connect in time at the start of the game
     private var cancelGameTimer: Timer?
     private var reconnectTimer: Timer?
@@ -359,10 +336,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
     //to rotate gameBoard after currentPlayer changed
     private var gameBoardAutoRotate = false
     
-    //to check internet connection
-    private let monitor = NWPathMonitor()
     private let audioPlayer = AudioPlayer.sharedInstance
     private let storage = Storage.sharedInstance
+    private let wsManager = WSManager.getSharedInstance()
     
     private typealias constants = GameVC_Constants
     
@@ -371,9 +347,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
     @objc private func sendMessageToChat(_ sender: UIButton? = nil) {
         let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, timeLeft: gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft, userNickname: storage.currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: storage.currentUser.playerAvatar, userFrame: storage.currentUser.frame, message: chatMessageField.text!)
         addMessageToChat(chatMessage)
-        if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
-            socket.write(data: chatMessageJson)
-        }
+        wsManager?.writeObject(chatMessage)
         chatMessageField.text?.removeAll()
         //we can`t send empty messages
         sender?.isEnabled = false
@@ -487,12 +461,8 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     shouldSendTurn = false
                 }
                 square.updateTimeLeft(newValue: gameLogic.timeLeft)
-                if let turnJson = try? JSONEncoder().encode(gameLogic.turns.last!) {
-                    socket.write(data: turnJson)
-                }
-                if let squareJson = try? JSONEncoder().encode(square) {
-                    socket.write(data: squareJson)
-                }
+                wsManager?.writeObject(gameLogic.turns.last!)
+                wsManager?.writeObject(square)
                 afkTimer?.invalidate()
                 enemyAfkTimer = makeAfkTimer(for: .player2)
             }
@@ -617,9 +587,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     sender?.isEnabled = false
                     if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
                         self.gameLogic.surrender(for: .player1)
-                        if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true)) {
-                            self.socket.write(data: gameStatusJson)
-                        }
+                        self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
                     }
                     else {
                         self.gameLogic.surrender()
@@ -654,9 +622,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                             })
                             let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.storage.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.storage.currentUser.playerAvatar, userFrame: self.storage.currentUser.frame, message: "Wanna draw?")
                             self.addMessageToChat(chatMessage)
-                            if let chatMessageJson = try? JSONEncoder().encode(chatMessage) {
-                                self.socket.write(data: chatMessageJson)
-                            }
+                            self.wsManager?.writeObject(chatMessage)
                             Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
                                 self.currentUserWantsDraw = false
                                 self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
@@ -666,9 +632,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                                 })
                             })
                         }
-                        if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true)) {
-                            self.socket.write(data: gameStatusJson)
-                        }
+                        self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true))
                     }
                 }
             }))
@@ -699,9 +663,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     self.gameLogic.surrender(for: .player1)
                     //gameLogic is a class, saveCurrentUser() will not triger, so we have to do it manually
                     self.storage.saveCurrentUser()
-                    if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true)) {
-                        self.socket.write(data: gameStatusJson)
-                    }
+                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
                 }
                 self.dismiss(animated: true)
             }
@@ -941,7 +903,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func makeReconnectTimer() {
-        chatMessageField.isConnectedToTheServer = isConnected
         sendMessageToChatButton.isEnabled = false
         pawnPicker.isUserInteractionEnabled = false
         toggleTurnButtons(disable: true)
@@ -949,7 +910,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
         makeLoadingSpinner()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
             if let self = self {
-                self.chatMessageField.isConnectedToTheServer = self.isConnected
                 if !self.chatMessageField.text!.isEmpty {
                     self.sendMessageToChatButton.isEnabled = true
                 }
@@ -962,38 +922,33 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     self.exitButton.isEnabled = true
                 }
                 self.loadingSpinner.removeFromSuperview()
-                if (!self.isConnected || !self.connectedToTheInternet) && !self.finalError {
-                    self.makeErrorAlert(with: "You are not connected to the server", addReconnectButton: true)
+                if !self.finalError {
+                    if !self.wsManager!.connectedToTheInternet {
+                        self.makeErrorAlert(with: "You are not connected to the internet", addReconnectButton: true)
+                    }
+                    else if !self.wsManager!.connectedToWSServer {
+                        self.webSocketError(with: "You are not connected to the server, maybe server is not working")
+                    }
                 }
             }
         })
-        socket.connect()
+        wsManager?.connectToWebSocketServer()
     }
     
     private func deactivateMultiplayerTImers() {
         afkTimer?.invalidate()
         enemyAfkTimer?.invalidate()
-        pingTimer?.invalidate()
         cancelGameTimer?.invalidate()
         reconnectTimer?.invalidate()
-        monitor.pathUpdateHandler = nil
     }
     
     private func configureForMultiplayer() {
-        configureNWPathMonitor()
-        let queue = DispatchQueue(label: "Monitor")
-        monitor.start(queue: queue)
         toggleTurnButtons(disable: true)
         surrenderButton.isEnabled = false
         exitButton.isEnabled = false
         makeLoadingSpinner()
-        socket.delegate = self
+        wsManager?.activatePingTimer()
         websocketDidConnect()
-        pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
-            if let jsonData = try? JSONEncoder().encode("Hello") {
-                self?.socket.write(ping: jsonData)
-            }
-        })
         cancelGameTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
             if let self = self {
                 self.makeErrorAlert(with: "Game was cancelled")
@@ -1001,39 +956,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
             }
         })
     }
-    
-    //TODO: - Need to be tested on real devices with real server
-    //not working properly on simulators
-    private func configureNWPathMonitor() {
-        monitor.pathUpdateHandler = { [weak self] path in
-            if let self = self {
-                DispatchQueue.main.sync {
-                    if path.status == .satisfied {
-                        self.connectedToTheInternet = true
-                        if self.gameLogic.currentPlayer.type == .player2 {
-                            if let enemyAfkTimer = self.enemyAfkTimer, !enemyAfkTimer.isValid {
-                                var timeElapsed = Date().timeIntervalSince(self.gameLogic.turns.last?.time ?? self.gameLogic.startDate)
-                                if timeElapsed > constants.maxTimeForAFK {
-                                    timeElapsed = constants.maxTimeForAFK
-                                }
-                                self.enemyAfkTimer? = self.makeAfkTimer(for: .player2, timeElapsed: timeElapsed)
-                            }
-                        }
-                    }
-                    else {
-                        if self.gameLogic.currentPlayer.type == .player2 {
-                            self.enemyAfkTimer?.invalidate()
-                        }
-                        self.isConnected = false
-                        self.connectedToTheInternet = false
-                        self.makeReconnectTimer()
-                        self.needToRequestLastAction = true
-                    }
-                }
-            }
-        }
-    }
-    //
     
     func switchToSuspendedState() {
         if !gameLogic.gameEnded {
@@ -1067,7 +989,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 else {
                     interval = floor(interval) - constants.chessTimerStep
                     enemyAfkTimer?.invalidate()
-                    enemyAfkTimer = makeAfkTimer(for: .player2, timeElapsed: interval)
+                    if gameLogic.gameMode == .multiplayer {
+                        if wsManager!.connectedToTheInternet {
+                            enemyAfkTimer = makeAfkTimer(for: .player2, timeElapsed: interval)
+                        }
+                    }
+                    else {
+                        enemyAfkTimer = makeAfkTimer(for: .player2, timeElapsed: interval)
+                    }
                 }
                 let newTimeLeft = gameLogic.currentPlayer.timeLeft - Int(interval)
                 var extraTime = 0.0
@@ -1079,12 +1008,17 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 if !gameLogic.turns.isEmpty && gameLogic.timerEnabled {
                     gameLogic.updateTimeLeft(with: newTimeLeft + Int(extraTime), countAdditionalTime: false)
                 }
-                if isConnected || gameLogic.gameMode != .multiplayer {
-                    needToRequestLastAction = false
+                if gameLogic.gameMode == .multiplayer {
+                    if wsManager!.connectedToWSServer {
+                        needToRequestLastAction = false
+                    }
+                    else {
+                        needToRequestLastAction = true
+                        makeReconnectTimer()
+                    }
                 }
                 else {
-                    needToRequestLastAction = true
-                    makeReconnectTimer()
+                    needToRequestLastAction = false
                 }
             }
             else {
@@ -1095,11 +1029,9 @@ class GameViewController: UIViewController, WebSocketDelegate {
     }
     
     private func surrenderAction(for player: GamePlayers = .player1) {
-        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded && isConnected {
+        if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
             gameLogic.surrender(for: player)
-            if let gameStatusJson = try? JSONEncoder().encode(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, gameEnded: true, playerToSurrender: player == .player1 ? .player2: .player1)) {
-                socket.write(data: gameStatusJson)
-            }
+            wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, gameEnded: true, playerToSurrender: player == .player1 ? .player2: .player1))
         }
         else if !gameLogic.gameEnded {
             gameLogic.surrender()
@@ -1118,7 +1050,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
             if let self = self {
                 if !self.serverError {
                     if player == .player1 && !self.gameLogic.gameEnded {
-                        self.makeErrorAlert(with: "You lost the game, because you was afk for more than 5 minutes", afkError: true)
+                        self.makeErrorAlert(with: "You lost the game, because you was afk for more than 5 minutes")
                     }
                     self.surrenderAction(for: player)
                 }
@@ -1130,37 +1062,35 @@ class GameViewController: UIViewController, WebSocketDelegate {
         })
     }
     
-    private func makeErrorAlert(with message: String, addReconnectButton: Bool = false, afkError: Bool = false) {
-        if !suspendedState || afkError {
-            let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Ok", style: .default) { [weak self] _ in
+    private func makeErrorAlert(with message: String, addReconnectButton: Bool = false) {
+        let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Ok", style: .default) { [weak self] _ in
+            if let self = self {
+                self.stopTurnsPlayback()
+                self.finishAnimations()
+                self.dismiss(animated: true)
+            }
+        })
+        if addReconnectButton {
+            alert.addAction(UIAlertAction(title: "Reconnect", style: .default) { [weak self] _ in
                 if let self = self {
-                    self.stopTurnsPlayback()
-                    self.finishAnimations()
-                    self.dismiss(animated: true)
+                    if !self.wsManager!.connectedToWSServer || !self.wsManager!.connectedToTheInternet {
+                        self.makeReconnectTimer()
+                    }
                 }
             })
-            if addReconnectButton {
-                alert.addAction(UIAlertAction(title: "Reconnect", style: .default) { [weak self] _ in
-                    if let self = self {
-                        if !self.isConnected || !self.connectedToTheInternet {
-                            self.makeReconnectTimer()
-                        }
-                    }
-                })
-            }
-            if let topVC = UIApplication.getTopMostViewController(), topVC as? UIAlertController != nil {
-                topVC.dismiss(animated: true, completion: {
-                    if let topVC = UIApplication.getTopMostViewController() {
-                        topVC.present(alert, animated: true)
-                    }
-                })
-            }
-            else if let topVC = UIApplication.getTopMostViewController() {
-                topVC.present(alert, animated: true)
-            }
-            audioPlayer.playSound(Sounds.errorSound)
         }
+        if let topVC = UIApplication.getTopMostViewController(), topVC as? UIAlertController != nil {
+            topVC.dismiss(animated: true, completion: {
+                if let topVC = UIApplication.getTopMostViewController() {
+                    topVC.present(alert, animated: true)
+                }
+            })
+        }
+        else if let topVC = UIApplication.getTopMostViewController() {
+            topVC.present(alert, animated: true)
+        }
+        audioPlayer.playSound(Sounds.errorSound)
     }
     
     private func rotateScrollContent(reverse: Bool = false) {
@@ -1332,9 +1262,19 @@ class GameViewController: UIViewController, WebSocketDelegate {
         turnAction.isEnabled = disable ? !disable : condition && !gameLogic.lastTurn
         fastAnimationsButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
         saveButton.isEnabled = disable ? !disable : !gameLogic.gameEnded && !gameLogic.turns.isEmpty
-        surrenderButton.isEnabled = disable ? gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded && isConnected && connectedToTheInternet : !gameLogic.gameEnded
+        if disable && gameLogic.gameMode == .multiplayer {
+            surrenderButton.isEnabled = !gameLogic.gameEnded && wsManager!.connectedToWSServer && wsManager!.connectedToTheInternet
+            exitButton.isEnabled = !fastAnimations && !restoringTurns && wsManager!.connectedToWSServer && wsManager!.connectedToTheInternet
+        }
+        else if disable {
+            surrenderButton.isEnabled = false
+            exitButton.isEnabled = !fastAnimations && !restoringTurns
+        }
+        else {
+            surrenderButton.isEnabled = !gameLogic.gameEnded
+            exitButton.isEnabled = true
+        }
         animatingTurns = disable ? gameLogic.gameMode == .oneScreen || gameLogic.gameEnded : disable
-        exitButton.isEnabled = !disable ? !disable : !fastAnimations && !restoringTurns && ((isConnected && connectedToTheInternet) || gameLogic.gameMode == .oneScreen)
         player1RotateFiguresButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
         player2RotateFiguresButton.isEnabled = disable ? !fastAnimations && !restoringTurns : !disable
         stopTurnsPlayback()
@@ -1428,12 +1368,14 @@ class GameViewController: UIViewController, WebSocketDelegate {
         gameLogic.activateTime(continueTimer: continueTimer, callback: {[weak self] time in
             if let self = self {
                 self.audioPlayer.playSound(Sounds.clockTickSound)
-                if !self.isConnected && self.gameLogic.gameMode == .multiplayer && self.connectedToTheInternet {
-                    self.gameLogic.stopTime()
-                }
-                if !self.connectedToTheInternet && self.gameLogic.gameMode == .multiplayer && self.gameLogic.currentPlayer.type == .player2 {
-                    if self.gameLogic.timeLeft <= Int(constants.extraTimeForEnemyAFKTimer) {
+                if self.gameLogic.gameMode == .multiplayer {
+                    if !self.wsManager!.connectedToWSServer && self.wsManager!.connectedToTheInternet {
                         self.gameLogic.stopTime()
+                    }
+                    if !self.wsManager!.connectedToTheInternet && self.gameLogic.currentPlayer.type == .player2 {
+                        if self.gameLogic.timeLeft <= Int(constants.extraTimeForEnemyAFKTimer) {
+                            self.gameLogic.stopTime()
+                        }
                     }
                 }
                 if time == 0 && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
@@ -1671,9 +1613,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                 if gameLogic.gameEnded {
                     shouldSendTurn = false
                 }
-                if let turnJson = try? JSONEncoder().encode(gameLogic.turns.beforeLast!) {
-                    socket.write(data: turnJson)
-                }
+                wsManager?.writeObject(gameLogic.turns.beforeLast!)
                 toggleTurnButtons(disable: true)
                 afkTimer?.invalidate()
                 enemyAfkTimer = makeAfkTimer(for: .player2)
@@ -1702,9 +1642,7 @@ class GameViewController: UIViewController, WebSocketDelegate {
                     if gameLogic.gameEnded {
                         shouldSendTurn = false
                     }
-                    if let turnJson = try? JSONEncoder().encode(turn) {
-                        socket.write(data: turnJson)
-                    }
+                    wsManager?.writeObject(turn)
                     toggleTurnButtons(disable: true)
                     if !gameLogic.pawnWizard {
                         afkTimer?.invalidate()
@@ -3359,7 +3297,6 @@ class GameViewController: UIViewController, WebSocketDelegate {
         chatMessageField = SmartTextField(maxCharacters: constants.maxCharactersForChatMessage, sendButton: sendMessageToChatButton)
         chatMessageField.setup(placeholder: "Enter message", font: UIFont.systemFont(ofSize: fontSize))
         chatMessageField.adjustsFontSizeToFitWidth = false
-        chatMessageField.isConnectedToTheServer = isConnected
         let hideButton = UIButton()
         hideButton.buttonWith(imageItem: SystemImages.hideImage, and: #selector(toggleChat))
         let downStack = UIStackView()

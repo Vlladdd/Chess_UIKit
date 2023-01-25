@@ -24,6 +24,15 @@ protocol AuthorizationDelegate: UIViewController {
     func successCallbackForAuthorization() -> Void
 }
 
+protocol WSManagerDelegate: UIViewController {
+    func socketConnected(with headers: [String: String])
+    func socketDisconnected(with reason: String, and code: UInt16)
+    func socketReceivedData(_ data: Data)
+    func socketReceivedText(_ text: String)
+    func webSocketError(with message: String)
+    func lostInternet()
+}
+
 protocol StorageItem: Item {
     
     var folderName: Item? { get }

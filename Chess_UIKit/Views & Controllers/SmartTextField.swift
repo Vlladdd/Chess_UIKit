@@ -12,8 +12,6 @@ class SmartTextField: UITextField, UITextFieldDelegate {
     
     // MARK: - Properties
     
-    var isConnectedToTheServer = false
-    
     private let maxCharacters: Int
     private let sendButton: UIButton
     
@@ -44,7 +42,7 @@ class SmartTextField: UITextField, UITextFieldDelegate {
         if count == 0 {
             sendButton.isEnabled = false
         }
-        else if isConnectedToTheServer {
+        else if WSManager.getSharedInstance()?.connectedToWSServer ?? false {
             sendButton.isEnabled = true
         }
         if count == maxCharacters {

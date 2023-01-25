@@ -55,6 +55,7 @@
 		74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AB20D2295A02FB0076084C /* SmartTextField.swift */; };
 		74B2CED328CD14510002D075 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B2CED228CD14510002D075 /* User.swift */; };
 		74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */; };
+		74ED4B53297EC88E00987269 /* WSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ED4B52297EC88E00987269 /* WSManager.swift */; };
 		74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F5102C291D5A40000689F2 /* LoadingSpinner.swift */; };
 /* End PBXBuildFile section */
 
@@ -102,6 +103,7 @@
 		74AB20D2295A02FB0076084C /* SmartTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTextField.swift; sourceTree = "<group>"; };
 		74B2CED228CD14510002D075 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		74ED4B52297EC88E00987269 /* WSManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WSManager.swift; sourceTree = "<group>"; };
 		74F5102C291D5A40000689F2 /* LoadingSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingSpinner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -192,6 +194,7 @@
 			isa = PBXGroup;
 			children = (
 				741394882856555900159033 /* GameLogic.swift */,
+				74ED4B52297EC88E00987269 /* WSManager.swift */,
 				744E4866296A13DA0058D5C4 /* AudioFile.swift */,
 				749B6308292C11F20045B718 /* PlayerMessage.swift */,
 				746F30222959056700C53A5A /* ChatMessage.swift */,
@@ -321,6 +324,7 @@
 				7418FB6D291D2B9000DA2BDC /* ViewWithNotifIcon.swift in Sources */,
 				7470975428D36EB90089B483 /* Picker.swift in Sources */,
 				7470975228D350270089B483 /* CreateGameVC.swift in Sources */,
+				74ED4B53297EC88E00987269 /* WSManager.swift in Sources */,
 				74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */,
 				74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */,
 				74A1928929644EEB00AAC877 /* AudioPlayer.swift in Sources */,

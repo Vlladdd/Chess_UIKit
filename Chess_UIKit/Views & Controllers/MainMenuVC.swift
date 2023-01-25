@@ -6,78 +6,18 @@
 //
 
 import UIKit
-import Starscream
 
 //VC that represents main menu view
-class MainMenuVC: UIViewController, WebSocketDelegate {
+class MainMenuVC: UIViewController, WSManagerDelegate {
     
-    // MARK: - WebSocketDelegate
+    // MARK: - WSManagerDelegate
     
-    var socket: Starscream.WebSocket!
-    
-    var isConnected = false {
-        didSet {
-            if !isConnected {
-                pingTimer?.invalidate()
-            }
-        }
+    func socketConnected(with headers: [String: String]) {
+        wsManager?.writeText(storage.currentUser.email + Date().toStringDateHMS + "MainMenuVC")
     }
     
-    private func connectToWebSocketServer() {
-        var request = URLRequest(url: URL(string: constants.websocketAddress)!)
-        request.timeoutInterval = constants.requestTimeout
-        socket = WebSocket(request: request)
-        socket.delegate = self
-        socket.connect()
-    }
-    
-    func didReceive(event: WebSocketEvent, client: WebSocket) {
-        switch event {
-        case .connected(let headers):
-            isConnected = true
-            print("websocket is connected: \(headers)")
-            socket.write(string: storage.currentUser.email + Date().toStringDateHMS + "MainMenuVC")
-            if !(pingTimer?.isValid ?? false) {
-                pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
-                    if let jsonData = try? JSONEncoder().encode("Hello") {
-                        self?.socket.write(ping: jsonData)
-                    }
-                })
-            }
-        case .disconnected(let reason, let code):
-            isConnected = false
-            print("websocket is disconnected: \(reason) with code: \(code)")
-        case .text(let string):
-            print("Received text: \(string)")
-        case .binary(let data):
-            print("Received data: \(data.count)")
-        case .ping(_):
-            break
-        case .pong(_):
-            break
-        case .viabilityChanged(_):
-            break
-        case .reconnectSuggested(_):
-            break
-        case .cancelled:
-            isConnected = false
-            break
-        case .error(let error):
-            isConnected = false
-            handleWebSocketError(error)
-        }
-    }
-    
-    private func handleWebSocketError(_ error: Error?) {
-        if let error = error as? WSError {
-            makeErrorAlert(with: "websocket encountered an error: \(error.message)")
-        }
-        else if let error = error {
-            makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)")
-        }
-        else {
-            makeErrorAlert(with: "websocket encountered an error")
-        }
+    func webSocketError(with message: String) {
+        makeErrorAlert(with: message)
     }
     
     // MARK: - View Functions
@@ -87,7 +27,8 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         audioPlayer.musicEnabled = storage.currentUser.musicEnabled
         audioPlayer.soundsEnabled = storage.currentUser.soundsEnabled
         makeUI()
-        connectToWebSocketServer()
+        wsManager?.delegate = self
+        wsManager?.connectToWebSocketServer()
         audioPlayer.playSound(Sounds.successSound)
     }
     
@@ -123,7 +64,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        socket.delegate = self
         //if user disconnected from last game, we need to take into account points from that game
         if let lastGame = storage.currentUser.games.last {
             if lastGame.winner == nil && !lastGame.gameEnded && lastGame.gameMode == .multiplayer {
@@ -140,7 +80,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if UIApplication.getTopMostViewController() as? AuthorizationVC != nil {
-            pingTimer?.invalidate()
+            wsManager?.disconnectFromWebSocketServer()
         }
     }
     
@@ -150,9 +90,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     
     private let storage = Storage.sharedInstance
     private let audioPlayer = AudioPlayer.sharedInstance
-    
-    //checks connection to the server
-    private var pingTimer: Timer?
+    private let wsManager = WSManager.getSharedInstance()
     
     // MARK: - Buttons Methods
     
@@ -475,11 +413,10 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         if let sender = sender {
             if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
                 if game.gameMode == .multiplayer && !game.gameEnded {
-                    if isConnected && presentedViewController == nil {
+                    //if gameMode == .multiplayer, there is no way for wsManager to be nil
+                    if wsManager!.connectedToWSServer && presentedViewController == nil {
                         game.addSecondPlayer(user: storage.currentUser)
-                        if let gameJson = try? JSONEncoder().encode(game) {
-                            socket.write(data: gameJson)
-                        }
+                        wsManager?.writeObject(game)
                         //opponent on top
                         game.switchPlayers()
                         //we are saving game at the start for the case, where game will not be ended and
@@ -487,9 +424,9 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
                         //for example, if player will disconnect
                         storage.addGameToCurrentUserAndSave(game)
                     }
-                    else if !isConnected {
+                    else if !wsManager!.connectedToWSServer {
                         makeErrorAlert(with: "You are not connected to the server, will try to reconnect")
-                        socket.connect()
+                        wsManager?.connectToWebSocketServer()
                         return
                     }
                     else {
@@ -603,8 +540,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     //makes view for game creation
     private func makeCreateGameVC() {
         let createGameVC = CreateGameVC()
-        createGameVC.socket = socket
-        createGameVC.isConnected = isConnected
         configureSheetController(of: createGameVC)
         present(createGameVC, animated: true)
         audioPlayer.playSound(Sounds.openPopUpSound)
@@ -613,8 +548,6 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
     //makes game view with chosen game
     private func makeGameVC(with game: GameLogic) {
         let gameVC = GameViewController()
-        gameVC.socket = socket
-        gameVC.isConnected = isConnected
         gameVC.gameLogic = game
         gameVC.modalPresentationStyle = .fullScreen
         present(gameVC, animated: true)
@@ -1269,7 +1202,7 @@ class MainMenuVC: UIViewController, WebSocketDelegate {
         }
         userData.addArrangedSubviews([userAvatar, userName, exitButton])
         var userDataConstraints = [NSLayoutConstraint]()
-        if (storage.currentUser.haveNewAvatarsInInventory() || storage.currentUser.nickname.isEmpty) && !storage.currentUser.guestMode {
+        if storage.currentUser.haveNewAvatarsInInventory() || storage.currentUser.nickname.isEmpty {
             userDataView = ViewWithNotifIcon(mainView: userData, cornerRadius: widthForAvatar / constants.optimalDividerForCornerRadius)
         }
         else {
@@ -1365,8 +1298,6 @@ private struct MainMenuVC_Constants {
     static let distanceForContentInHorizontalShowcase = 20.0
     static let multiplierForSpecialSquareViewSize = 0.6
     static let pickItemBorderColor = UIColor.yellow.cgColor
-    static let websocketAddress = "http://localhost:1337"
-    static let requestTimeout = 5.0
     static let volumeForBackgroundMusic: Float = 0.5
     
     static func convertLogicColor(_ color: Colors) -> UIColor {

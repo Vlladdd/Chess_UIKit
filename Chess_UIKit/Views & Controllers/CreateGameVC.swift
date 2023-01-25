@@ -6,72 +6,39 @@
 //
 
 import UIKit
-import Starscream
 
 //VC that represents view to create game
-class CreateGameVC: UIViewController, WebSocketDelegate {
+class CreateGameVC: UIViewController, WSManagerDelegate {
     
-    // MARK: - WebSocketDelegate
+    // MARK: - WSManagerDelegate
     
-    var socket: Starscream.WebSocket!
-    var isConnected = false
+    func lostInternet() {
+        makeErrorAlert(with: "Lost internet connection")
+    }
     
-    func didReceive(event: WebSocketEvent, client: WebSocket) {
-        switch event {
-        case .connected(let headers):
-            isConnected = true
-            print("websocket is connected: \(headers)")
-            socket.write(string: storage.currentUser.email + Date().toStringDateHMS + "CreateGameVC")
-        case .disconnected(let reason, let code):
-            isConnected = false
-            print("websocket is disconnected: \(reason) with code: \(code)")
-        case .text(let string):
-            print("Received text: \(string)")
-        case .binary(let data):
-            print("Received data: \(data.count)")
-            if let game = try? JSONDecoder().decode(GameLogic.self, from: data), game.gameID == gameID {
-                audioPlayer.pauseSound(Music.menuBackgroundMusic)
-                audioPlayer.playSound(Sounds.successSound)
-                //we are saving game at the start for the case, where game will not be ended and
-                //to be able to take into account points from that game
-                //for example, if player will disconnect
-                storage.addGameToCurrentUserAndSave(game)
-                let gameVC = GameViewController()
-                gameVC.socket = socket
-                gameVC.isConnected = isConnected
-                gameVC.gameLogic = game
-                gameVC.modalPresentationStyle = .fullScreen
-                dismiss(animated: true) {
-                    UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
-                }
+    func socketConnected(with headers: [String: String]) {
+        wsManager?.writeText(storage.currentUser.email + Date().toStringDateHMS + "CreateGameVC")
+    }
+    
+    func socketReceivedData(_ data: Data) {
+        if let game = try? JSONDecoder().decode(GameLogic.self, from: data), game.gameID == gameID {
+            audioPlayer.pauseSound(Music.menuBackgroundMusic)
+            audioPlayer.playSound(Sounds.successSound)
+            //we are saving game at the start for the case, where game will not be ended and
+            //to be able to take into account points from that game
+            //for example, if player will disconnect
+            storage.addGameToCurrentUserAndSave(game)
+            let gameVC = GameViewController()
+            gameVC.gameLogic = game
+            gameVC.modalPresentationStyle = .fullScreen
+            dismiss(animated: true) {
+                UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
             }
-        case .ping(_):
-            break
-        case .pong(_):
-            break
-        case .viabilityChanged(_):
-            break
-        case .reconnectSuggested(_):
-            break
-        case .cancelled:
-            isConnected = false
-            break
-        case .error(let error):
-            isConnected = false
-            handleWebSocketError(error)
         }
     }
     
-    private func handleWebSocketError(_ error: Error?) {
-        if let error = error as? WSError {
-            makeErrorAlert(with: "websocket encountered an error: \(error.message)")
-        }
-        else if let error = error {
-            makeErrorAlert(with: "websocket encountered an error: \(error.localizedDescription)")
-        }
-        else {
-            makeErrorAlert(with: "websocket encountered an error")
-        }
+    func webSocketError(with message: String) {
+        makeErrorAlert(with: message)
     }
     
     // MARK: - View Functions
@@ -79,7 +46,7 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         makeUI()
-        socket.delegate = self
+        wsManager?.delegate = self
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -94,10 +61,8 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
         if let gameID = gameID {
             storage.deleteMultiplayerGame(with: gameID)
         }
-        pingTimer?.invalidate()
         if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
-            mainMenuVC.socket.delegate = mainMenuVC
-            mainMenuVC.isConnected = isConnected
+            wsManager?.delegate = mainMenuVC
         }
     }
     
@@ -107,9 +72,8 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     
     private let storage = Storage.sharedInstance
     private let audioPlayer = AudioPlayer.sharedInstance
+    private let wsManager = WSManager.getSharedInstance()
     
-    //checks connection to the server
-    private var pingTimer: Timer?
     //useful for multiplayer game
     private var gameID: String? = nil
     
@@ -149,19 +113,22 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
             }
             switch modePicker.pickedData! {
             case .oneScreen:
+                wsManager?.deactivatePingTimer()
                 audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
                 let secondUser = User(email: "Player2", nickname: "Player2")
                 let gameLogic = GameLogic(firstUser: storage.currentUser, secondUser: secondUser, gameMode: .oneScreen, firstPlayerColor: colorPicker.pickedData!, rewindEnabled: rewindSwitch.isOn, totalTime: totalTime, additionalTime: additionalTime)
                 let gameVC = GameViewController()
-                gameVC.isConnected = isConnected
                 gameVC.gameLogic = gameLogic
                 gameVC.modalPresentationStyle = .fullScreen
                 dismiss(animated: true) {
                     UIApplication.getTopMostViewController()?.present(gameVC, animated: true)
                 }
             case .multiplayer:
-                if isConnected {
+                if wsManager!.connectedToWSServer {
+                    if let gameID = gameID {
+                        storage.deleteMultiplayerGame(with: gameID)
+                    }
                     sender?.isEnabled = false
                     dataFieldsStack.isHidden.toggle()
                     makeLoadingSpinner()
@@ -175,16 +142,11 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
                     //cuz obv it is not possible to create 2 games with same date on same device
                     let gameLogic = GameLogic(firstUser: storage.currentUser, secondUser: nil, gameMode: .multiplayer, firstPlayerColor: colorPicker.pickedData!, totalTime: totalTime, additionalTime: additionalTime, gameID: deviceID + Date().toStringDateHMS)
                     storage.saveGameForMultiplayer(gameLogic)
-                    pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
-                        if let jsonData = try? JSONEncoder().encode("Hello") {
-                            self?.socket.write(ping: jsonData)
-                        }
-                    })
                     gameID = gameLogic.gameID
                 }
                 else {
                     makeErrorAlert(with: "You are not connected to the server, will try to reconnect")
-                    socket.connect()
+                    wsManager?.connectToWebSocketServer()
                 }
             }
         }
@@ -232,7 +194,6 @@ class CreateGameVC: UIViewController, WebSocketDelegate {
     }
     
     private func makeErrorAlert(with message: String) {
-        pingTimer?.invalidate()
         createGameButton.isEnabled = true
         dataFieldsStack.isHidden = false
         loadingSpinner.removeFromSuperview()
@@ -464,6 +425,5 @@ private struct CreateGameVC_Constants {
     static let minSecondsForTimer = 0.0
     static let maxSecondsForTimer = 59.0
     static let stepValueForTimer = 1.0
-    static let requestTimeout = 5.0
     static let distanceForSwitchInSpecialView = 3.0
 }
