@@ -17,61 +17,58 @@ extension AuthorizationDelegate {
         Storage.sharedInstance
     }
     
-    func loginOperation(error: Error?, resolver: MultiFactorResolver?, displayNameString: String?) {
-        guard error == nil else {
-            if let resolver = resolver, let displayNameString = displayNameString {
-                showTextInputPrompt(withMessage: "Select factor to sign in\n\(displayNameString)", completionBlock: {
-                    [weak self] userPressedOK, displayName in
-                    if let displayName = displayName {
-                        self?.storage.multifactorAuth(with: resolver, and: displayName, callback: { error, verificationID, selectedHint in
-                            self?.multiFactorOperation(error: error, verificationID: verificationID, selectedHint: selectedHint, resolver: resolver)
-                        })
+    func loginOperation(with resolver: MultiFactorResolver?, displayNameString: String?) {
+        if let resolver, let displayNameString {
+            showTextInputPrompt(withMessage: "Select factor to sign in\n\(displayNameString)", completionBlock: {
+                [weak self] userPressedOK, displayName in
+                guard let self else { return }
+                if let displayName {
+                    Task {
+                        do {
+                            let result = try await self.storage.multifactorAuth(with: resolver, and: displayName)
+                            self.multiFactorOperation(verificationID: result.verificationID, selectedHint: result.selectedHint, resolver: resolver)
+                        }
+                        catch {
+                            self.authorizationErrorWith(errorMessage: "Multi factor start sign in failed. Error: \(error.localizedDescription.debugDescription)")
+                        }
                     }
-                    else {
-                        self?.errorCallbackForAuthorization(errorMessage: "DisplayName is nil")
-                    }
-                })
-                return
-            }
-            else {
-                errorCallbackForAuthorization(errorMessage: error!.localizedDescription)
-                return
-            }
-        }
-        successCallbackForAuthorization()
-    }
-    
-    private func multiFactorOperation(error: Error?, verificationID: String?, selectedHint: PhoneMultiFactorInfo?, resolver: MultiFactorResolver) {
-        guard error == nil else {
-            errorCallbackForAuthorization(errorMessage: "Multi factor start sign in failed. Error: \(error.debugDescription)")
-            return
-        }
-        if let verificationID = verificationID {
-            showTextInputPrompt(withMessage: "Verification code for \(selectedHint?.displayName ?? "")", completionBlock: {
-                [weak self] userPressedOK, verificationCode in
-                if let verificationCode = verificationCode {
-                    self?.storage.checkVerificationCode(with: resolver, verificationID: verificationID, verificationCode: verificationCode, callback: {
-                        error in
-                        self?.checkVerificationCodeOperation(error: error)
-                    })
                 }
                 else {
-                    self?.errorCallbackForAuthorization(errorMessage: "VerificationCode is nil")
+                    self.authorizationErrorWith(errorMessage: "DisplayName is nil")
+                }
+            })
+            return
+        }
+        else {
+            successAuthorization()
+        }
+    }
+    
+    private func multiFactorOperation(verificationID: String?, selectedHint: PhoneMultiFactorInfo?, resolver: MultiFactorResolver) {
+        if let verificationID {
+            showTextInputPrompt(withMessage: "Verification code for \(selectedHint?.displayName ?? "")", completionBlock: {
+                [weak self] userPressedOK, verificationCode in
+                guard let self else { return }
+                if let verificationCode {
+                    Task {
+                        do {
+                            try await self.storage.checkVerificationCode(with: resolver, verificationID: verificationID, verificationCode: verificationCode)
+                            await self.navigationController?.popViewController(animated: true)
+                            self.successAuthorization()
+                        }
+                        catch {
+                            self.authorizationErrorWith(errorMessage: "Multi factor finalize sign in failed. Error: \(error.localizedDescription.debugDescription)")
+                        }
+                    }
+                }
+                else {
+                    self.authorizationErrorWith(errorMessage: "VerificationCode is nil")
                 }
             })
         }
         else {
-            errorCallbackForAuthorization(errorMessage: "VerificationID is nil")
+            authorizationErrorWith(errorMessage: "VerificationID is nil")
         }
-    }
-    
-    private func checkVerificationCodeOperation(error: Error?) {
-        guard error == nil else {
-            errorCallbackForAuthorization(errorMessage: "Multi factor finalize sign in failed. Error: \(error.debugDescription)")
-            return
-        }
-        navigationController?.popViewController(animated: true)
-        successCallbackForAuthorization()
     }
     
 }

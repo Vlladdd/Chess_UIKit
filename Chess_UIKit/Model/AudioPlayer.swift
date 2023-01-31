@@ -45,8 +45,8 @@ class AudioPlayer {
                 //or another solution is to load all sounds and music at the start of the app
                 if audioFile.sizeMB > constants.bigFileSizeMB {
                     audioFile.updateCurrentStatus(newValue: .loading)
-                    DispatchQueue.global().async {[weak self] in
-                        self?.loadAudio(audioFile, volume: volume)
+                    Task {
+                        loadAudio(audioFile, volume: volume)
                     }
                 }
                 else {

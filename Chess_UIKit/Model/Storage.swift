@@ -76,21 +76,39 @@ class Storage {
     }
     
     //signs ins user with google account and gets his data from database
-    func signInWith(idToken: String, and accessToken: String, callback:  @escaping (Error?, MultiFactorResolver?, String?) -> Void) {
+    func signInWith(idToken: String, and accessToken: String) async throws -> (resolver: MultiFactorResolver?, displayNameString: String?) {
         let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
-        Auth.auth().signIn(with: credential) { [weak self] authResult, error in
-            self?.callbackForSignIn(error: error, authResult: authResult, callback: { error, resolver, displayNameString in
-                callback(error, resolver, displayNameString)
-            })
+        do {
+            let authResult = try await Auth.auth().signIn(with: credential)
+            let result = try await signInResultWith(error: nil, authResult: authResult)
+            return (result.resolver, result.displayNameString)
+        }
+        catch {
+            do {
+                let result = try await signInResultWith(error: error, authResult: nil)
+                return (result.resolver, result.displayNameString)
+            }
+            catch {
+                throw error
+            }
         }
     }
     
     //signs ins user with email and password and gets his data from database
-    func signInWith(email: String, and password: String, callback:  @escaping (Error?, MultiFactorResolver?, String?) -> Void) {
-        Auth.auth().signIn(withEmail: email, password: password) { [weak self] authResult, error in
-            self?.callbackForSignIn(error: error, authResult: authResult, callback: { error, resolver, displayNameString in
-                callback(error, resolver, displayNameString)
-            })
+    func signInWith(email: String, and password: String) async throws -> (resolver: MultiFactorResolver?, displayNameString: String?) {
+        do {
+            let authResult = try await Auth.auth().signIn(withEmail: email, password: password)
+            let result = try await signInResultWith(error: nil, authResult: authResult)
+            return (result.resolver, result.displayNameString)
+        }
+        catch {
+            do {
+                let result = try await signInResultWith(error: error, authResult: nil)
+                return (result.resolver, result.displayNameString)
+            }
+            catch {
+                throw error
+            }
         }
     }
     
@@ -104,14 +122,17 @@ class Storage {
         currentUser = nil
     }
     
-    func checkIfUserIsLoggedIn(callback: @escaping (Bool, Error?) -> Void) {
+    func checkIfUserIsLoggedIn() async throws {
         if Auth.auth().currentUser != nil {
-            findUser(callback: { error in
-                callback(true, error)
-            })
+            do {
+                try await findUser()
+            }
+            catch {
+                throw error
+            }
         }
         else {
-            callback(false, ExtraFirebaseErrors.userNotLoggedIn)
+            throw ExtraFirebaseErrors.userNotLoggedIn
         }
     }
     
@@ -120,42 +141,43 @@ class Storage {
     }
     
     //creates new user for authentication and then new user object in database
-    func createUser(with email: String, and password: String, callback:  @escaping (Error?) -> Void) {
-        Auth.auth().createUser(withEmail: email, password: password) { [weak self] authResult, error in
-            guard error == nil else {
-                print(error!.localizedDescription)
-                callback(error)
-                return
-            }
-            if authResult != nil {
-                self?.currentUser = User(email: email)
-                callback(nil)
-                return
-            }
-            callback(ExtraFirebaseErrors.authResultIsEmpty)
+    func createUser(with email: String, and password: String) async throws {
+        do {
+            try await Auth.auth().createUser(withEmail: email, password: password)
+            currentUser = User(email: email)
+        }
+        catch {
+            throw error
         }
     }
     
     //checks if MFA required and tries to get user`s data, if not
-    private func callbackForSignIn(error: Error?, authResult: AuthDataResult?, callback:  @escaping (Error?, MultiFactorResolver?, String?) -> Void) {
+    private func signInResultWith(error: Error?, authResult: AuthDataResult?) async throws -> (resolver: MultiFactorResolver?, displayNameString: String?) {
         guard error == nil else {
-            let multifactorRequired = checkIfMultifactorRequired(error: error!)
-            print(error!.localizedDescription)
-            callback(error, multifactorRequired.resolver, multifactorRequired.displayNameString)
-            return
+            do {
+                let multifactorRequired = try checkIfMultifactorRequired(error: error!)
+                return (multifactorRequired.resolver, multifactorRequired.displayNameString)
+            }
+            catch {
+                throw error
+            }
         }
-        if let authResult = authResult {
-            getCurrentUser(authResult: authResult, callback: { error in
-                callback(error, nil, nil)
-            })
+        if let authResult {
+            do {
+                try await getCurrentUser(authResult: authResult)
+                return (nil, nil)
+            }
+            catch {
+                throw error
+            }
         }
         else {
-            callback(ExtraFirebaseErrors.authResultIsEmpty, nil, nil)
+            throw ExtraFirebaseErrors.authResultIsEmpty
         }
     }
     
     //checks if MFA required
-    private func checkIfMultifactorRequired(error: Error) -> (resolver: MultiFactorResolver?, displayNameString: String?) {
+    private func checkIfMultifactorRequired(error: Error) throws -> (resolver: MultiFactorResolver, displayNameString: String) {
         let authError = error as NSError
         if authError.code == AuthErrorCode.secondFactorRequired.rawValue {
             // The user is a multi-factor user. Second factor challenge is required.
@@ -167,30 +189,22 @@ class Storage {
             }
             return (resolver, displayNameString)
         }
-        return (nil, nil)
+        else {
+            throw error
+        }
     }
     
-    func updateUserAccount(with email: String, and password: String, callback:  @escaping (Error?) -> Void) {
-        Auth.auth().currentUser?.updateEmail(to: email, completion: { error in
-            guard error == nil else {
-                print(error!.localizedDescription)
-                callback(error)
-                return
-            }
+    func updateUserAccount(with email: String, and password: String) async throws {
+        do {
+            try await Auth.auth().currentUser?.updateEmail(to: email)
             if !password.isEmpty {
-                Auth.auth().currentUser?.updatePassword(to: password, completion: { error in
-                    guard error == nil else {
-                        print(error!.localizedDescription)
-                        callback(error)
-                        return
-                    }
-                    callback(nil)
-                })
+                try await Auth.auth().currentUser?.updatePassword(to: password)
             }
-            else {
-                callback(nil)
-            }
-        })
+            currentUser.updateEmail(newValue: email)
+        }
+        catch {
+            throw error
+        }
     }
     
     func addGameToCurrentUserAndSave(_ game: GameLogic) {
@@ -229,116 +243,112 @@ class Storage {
     }
     
     //observer, which is looking for available multiplayer games
-    func getMultiplayerGames(callback: @escaping (Error?, [GameLogic]?) -> ()) {
+    func getMultiplayerGames() -> AsyncThrowingStream<[GameLogic], Error> {
         let game = firebaseDatabase.child(constants.keyForMultiplayerGames)
-        game.observe(.value, with: { snapshot in
-            if snapshot.exists() {
-                if let games = snapshot.children.allObjects as? [DataSnapshot] {
-                    var findedGames = [GameLogic]()
-                    for game in games {
-                        do {
-                            let findedGame = try game.data(as: GameLogic.self)
-                            findedGames.append(findedGame)
+        return AsyncThrowingStream { continuation in
+            game.observe(.value, with: { snapshot in
+                if snapshot.exists() {
+                    if let games = snapshot.children.allObjects as? [DataSnapshot] {
+                        var findedGames = [GameLogic]()
+                        for game in games {
+                            do {
+                                let findedGame = try game.data(as: GameLogic.self)
+                                findedGames.append(findedGame)
+                            }
+                            catch {
+                                continuation.finish(throwing: error)
+                            }
                         }
-                        catch {
-                            print(error.localizedDescription)
-                            callback(error, nil)
-                            return
-                        }
+                        continuation.yield(findedGames)
                     }
-                    callback(nil, findedGames)
-                    return
                 }
+                else {
+                    continuation.finish(throwing: ExtraFirebaseErrors.snapshotNotExist)
+                }
+            })
+            continuation.onTermination = { [weak self] _ in
+                guard let self else { return }
+                self.removeMultiplayerGamesObservers()
             }
-            else {
-                callback(ExtraFirebaseErrors.snapshotNotExist, nil)
-            }
-        })
+        }
     }
     
-    func removeMultiplayerGamesObservers() {
+    private func removeMultiplayerGamesObservers() {
         firebaseDatabase.child(constants.keyForMultiplayerGames).removeAllObservers()
     }
     
-    func multifactorAuth(with resolver: MultiFactorResolver, and displayName: String, callback:  @escaping (Error?, String?, PhoneMultiFactorInfo?) -> Void) {
+    func multifactorAuth(with resolver: MultiFactorResolver, and displayName: String) async throws -> (verificationID: String, selectedHint: PhoneMultiFactorInfo?) {
         var selectedHint: PhoneMultiFactorInfo?
         for tmpFactorInfo in resolver.hints {
             if displayName == tmpFactorInfo.displayName {
                 selectedHint = tmpFactorInfo as? PhoneMultiFactorInfo
             }
         }
-        PhoneAuthProvider.provider().verifyPhoneNumber(with: selectedHint!, uiDelegate: nil, multiFactorSession: resolver.session) { verificationID, error in
-            callback(error, verificationID, selectedHint)
+        do {
+            let verificationID = try await PhoneAuthProvider.provider().verifyPhoneNumber(with: selectedHint!, uiDelegate: nil, multiFactorSession: resolver.session)
+            return (verificationID, selectedHint)
+        }
+        catch {
+            throw error
         }
     }
     
-    func checkVerificationCode(with resolver: MultiFactorResolver, verificationID: String, verificationCode: String, callback:  @escaping (Error?) -> Void) {
+    func checkVerificationCode(with resolver: MultiFactorResolver, verificationID: String, verificationCode: String) async throws {
         let credential: PhoneAuthCredential? = PhoneAuthProvider.provider().credential(withVerificationID: verificationID, verificationCode: verificationCode)
         let assertion: MultiFactorAssertion? = PhoneMultiFactorGenerator.assertion(with: credential!)
-        resolver.resolveSignIn(with: assertion!) { [weak self] authResult, error in
-            guard error == nil else {
-                callback(error)
-                return
+        do {
+            let authResult = try await resolver.resolveSignIn(with: assertion!)
+            do {
+                try await getCurrentUser(authResult: authResult)
             }
-            if let authResult = authResult {
-                self?.getCurrentUser(authResult: authResult, callback: { error in
-                    callback(error)
-                })
+            catch {
+                throw error
             }
-            else {
-                callback(ExtraFirebaseErrors.authResultIsEmpty)
-            }
+        }
+        catch {
+            throw error
         }
     }
     
     //looking for an associated data for user uid in a database
-    private func findUser(callback: @escaping (Error?) -> ()) {
+    private func findUser() async throws {
         if let key = Auth.auth().currentUser?.uid {
             let user = firebaseDatabase.child(constants.keyForUsers).child(key)
-            user.getData(completion: { [weak self] error, snapshot in
-                guard error == nil else {
-                    print(error!.localizedDescription)
-                    callback(error)
-                    return
-                }
-                if let snapshot, snapshot.exists() {
+            do {
+                let snapshot = try await user.getData()
+                if snapshot.exists() {
                     do {
-                        self?.currentUser = try snapshot.data(as: User.self)
-                        callback(nil)
-                        return
+                        currentUser = try snapshot.data(as: User.self)
                     }
                     catch {
-                        print(error.localizedDescription)
-                        callback(error)
-                        return
+                        throw error
                     }
                 }
                 else {
-                    callback(ExtraFirebaseErrors.snapshotNotExist)
+                    throw ExtraFirebaseErrors.snapshotNotExist
                 }
-            })
+            }
+            catch {
+                throw error
+            }
         }
         else {
-            callback(ExtraFirebaseErrors.userNotLoggedIn)
+            throw ExtraFirebaseErrors.userNotLoggedIn
         }
     }
     
-    private func getCurrentUser(authResult: AuthDataResult, callback: @escaping (Error?) -> ()) {
-        findUser(callback: { [weak self] error in
-            guard error == nil else {
-                if error as? ExtraFirebaseErrors == .snapshotNotExist {
-                    self?.currentUser = User(email: authResult.user.email ?? "")
-                    callback(nil)
-                    return
-                }
-                else {
-                    print(error!.localizedDescription)
-                    callback(error)
-                    return
-                }
+    private func getCurrentUser(authResult: AuthDataResult) async throws {
+        do {
+            try await findUser()
+        }
+        catch {
+            if error as? ExtraFirebaseErrors == .snapshotNotExist {
+                currentUser = User(email: authResult.user.email ?? "")
             }
-            callback(nil)
-        })
+            else {
+                throw error
+            }
+        }
     }
     
 }

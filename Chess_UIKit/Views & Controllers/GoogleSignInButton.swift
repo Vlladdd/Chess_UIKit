@@ -29,7 +29,7 @@ class GoogleSignInButton: GIDSignInButton {
     // MARK: - Buttons Methods
     
     @objc private func signIn(_ sender: GoogleSignInButton? = nil) {
-        if let delegate = delegate {
+        if let delegate {
             guard let clientID = delegate.storage.clientID else { return }
             // Create Google Sign In configuration object.
             let config = GIDConfiguration(clientID: clientID)
@@ -37,16 +37,22 @@ class GoogleSignInButton: GIDSignInButton {
             delegate.prepareForAuthorizationProcess()
             GIDSignIn.sharedInstance.signIn(with: config, presenting: delegate) { user, error in
                 guard error == nil else {
-                    delegate.errorCallbackForAuthorization(errorMessage: error!.localizedDescription)
+                    delegate.authorizationErrorWith(errorMessage: error!.localizedDescription)
                     return
                 }
                 guard let authentication = user?.authentication, let idToken = authentication.idToken else {
-                    delegate.errorCallbackForAuthorization(errorMessage: "Can`t find idToken")
+                    delegate.authorizationErrorWith(errorMessage: "Can`t find idToken")
                     return
                 }
-                delegate.storage.signInWith(idToken: idToken, and: authentication.accessToken, callback: { error, resolver, displayNameString in
-                    delegate.loginOperation(error: error, resolver: resolver, displayNameString: displayNameString)
-                })
+                Task {
+                    do {
+                        let result = try await delegate.storage.signInWith(idToken: idToken, and: authentication.accessToken)
+                        delegate.loginOperation(with: result.resolver, displayNameString: result.displayNameString)
+                    }
+                    catch {
+                        delegate.authorizationErrorWith(errorMessage: error.localizedDescription)
+                    }
+                }
             }
         }
         else {

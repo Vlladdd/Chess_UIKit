@@ -20,8 +20,8 @@ protocol GameItem: Item {
 
 protocol AuthorizationDelegate: UIViewController {
     func prepareForAuthorizationProcess() -> Void
-    func errorCallbackForAuthorization(errorMessage: String) -> Void
-    func successCallbackForAuthorization() -> Void
+    func authorizationErrorWith(errorMessage: String) -> Void
+    func successAuthorization() -> Void
 }
 
 protocol WSManagerDelegate: UIViewController {

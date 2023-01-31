@@ -41,14 +41,16 @@ class AuthorizationView: UIStackView {
     // MARK: - Buttons Methods
     
     @objc private func signUp(_ sender: UIButton? = nil) {
-        if let delegate = delegate {
+        if let delegate {
             delegate.prepareForAuthorizationProcess()
-            delegate.storage.createUser(with: emailField.text!, and: passwordField.text!) { error in
-                guard error == nil else {
-                    delegate.errorCallbackForAuthorization(errorMessage: error!.localizedDescription)
-                    return
+            Task {
+                do {
+                    try await delegate.storage.createUser(with: emailField.text!, and: passwordField.text!)
+                    delegate.successAuthorization()
                 }
-                delegate.successCallbackForAuthorization()
+                catch {
+                    delegate.authorizationErrorWith(errorMessage: error.localizedDescription)
+                }
             }
         }
         else {
@@ -57,11 +59,17 @@ class AuthorizationView: UIStackView {
     }
     
     @objc private func signIn(_ sender: UIButton? = nil) {
-        if let delegate = delegate {
+        if let delegate {
             delegate.prepareForAuthorizationProcess()
-            delegate.storage.signInWith(email: emailField.text!, and: passwordField.text!, callback: { error, resolver, displayNameString in
-                delegate.loginOperation(error: error, resolver: resolver, displayNameString: displayNameString)
-            })
+            Task {
+                do {
+                    let result = try await delegate.storage.signInWith(email: emailField.text!, and: passwordField.text!)
+                    delegate.loginOperation(with: result.resolver, displayNameString: result.displayNameString)
+                }
+                catch {
+                    delegate.authorizationErrorWith(errorMessage: error.localizedDescription)
+                }
+            }
         }
         else {
             fatalError("delegate is nil")
@@ -69,9 +77,9 @@ class AuthorizationView: UIStackView {
     }
     
     @objc private func signInViaGuestMode(_ sender: UIButton? = nil) {
-        if let delegate = delegate {
+        if let delegate {
             delegate.storage.signInAsGuest()
-            delegate.successCallbackForAuthorization()
+            delegate.successAuthorization()
         }
         else {
             fatalError("delegate is nil")

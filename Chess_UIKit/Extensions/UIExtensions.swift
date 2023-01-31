@@ -66,7 +66,7 @@ extension UISwitch {
         translatesAutoresizingMaskIntoConstraints = false
         self.isOn = isOn
         set(offTint: Constants.offTintColor)
-        if let function = function {
+        if let function {
             addTarget(nil, action: function, for: .valueChanged)
         }
         addTarget(nil, action: #selector(playToggleSound), for: .valueChanged)
@@ -294,7 +294,7 @@ extension UILabel {
     //custom adjustFontSizeToFitWidth, which can be beautifully animated
     //i am not using it now, but may come in handy in future
     func updateFontSizeToFitSuperview() {
-        if let superview = superview {
+        if let superview {
             let fontSize = getFontSizeToFitRect(superview.bounds)
             if fontSize > 0 && font.pointSize > 0 {
                 transform = CGAffineTransform(scaleX: fontSize/font.pointSize , y: fontSize/font.pointSize)
@@ -304,7 +304,7 @@ extension UILabel {
     
     private func getFontSizeToFitRect(_ rect: CGRect) -> CGFloat {
         var currentFont = UIFont.systemFont(ofSize: font.pointSize)
-        if let text = text, rect.size.width > 0 && rect.size.height > 0 {
+        if let text, rect.size.width > 0 && rect.size.height > 0 {
             var initialSize : CGSize = text.size(withAttributes: [NSAttributedString.Key.font : currentFont])
             if initialSize.width > rect.size.width || initialSize.height > rect.size.height {
                 while initialSize.width > rect.size.width || initialSize.height > rect.size.height {

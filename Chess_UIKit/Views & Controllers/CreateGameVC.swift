@@ -58,7 +58,7 @@ class CreateGameVC: UIViewController, WSManagerDelegate {
         super.viewDidDisappear(animated)
         //we are making retain cycle, when attaching our functions to picker, so need to break it
         modePicker.breakRetainCycle()
-        if let gameID = gameID {
+        if let gameID {
             storage.deleteMultiplayerGame(with: gameID)
         }
         if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
@@ -80,25 +80,25 @@ class CreateGameVC: UIViewController, WSManagerDelegate {
     // MARK: - Buttons Methods
     
     @objc private func changeTotalMinutes(_ sender: UIStepper? = nil) {
-        if let sender = sender {
+        if let sender {
             totalTimeMinutesValue.text = String(Int(sender.value))
         }
     }
     
     @objc private func changeTotalSeconds(_ sender: UIStepper? = nil) {
-        if let sender = sender {
+        if let sender {
             totalTimeSecondsValue.text = String(Int(sender.value))
         }
     }
     
     @objc private func changeAdditionalMinutes(_ sender: UIStepper? = nil) {
-        if let sender = sender {
+        if let sender {
             additionalTimeMinutesValue.text = String(Int(sender.value))
         }
     }
     
     @objc private func changeAdditionalSeconds(_ sender: UIStepper? = nil) {
-        if let sender = sender {
+        if let sender {
             additionalTimeSecondsValue.text = String(Int(sender.value))
         }
     }
@@ -126,7 +126,7 @@ class CreateGameVC: UIViewController, WSManagerDelegate {
                 }
             case .multiplayer:
                 if wsManager!.connectedToWSServer {
-                    if let gameID = gameID {
+                    if let gameID {
                         storage.deleteMultiplayerGame(with: gameID)
                     }
                     sender?.isEnabled = false
@@ -161,7 +161,7 @@ class CreateGameVC: UIViewController, WSManagerDelegate {
     
     @objc private func toggleTimer(_ sender: UISwitch? = nil) {
         let viewsToToggle = [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine]
-        if let sender = sender {
+        if let sender {
             UIView.animate(withDuration: constants.animationDuration, animations: {
                 for view in viewsToToggle {
                     view.isHidden = !sender.isOn
@@ -201,7 +201,7 @@ class CreateGameVC: UIViewController, WSManagerDelegate {
         alert.addAction(UIAlertAction(title: "Ok", style: .default))
         UIApplication.getTopMostViewController()?.present(alert, animated: true)
         audioPlayer.playSound(Sounds.errorSound)
-        if let gameID = gameID {
+        if let gameID {
             storage.deleteMultiplayerGame(with: gameID)
         }
     }

@@ -92,23 +92,24 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     private let audioPlayer = AudioPlayer.sharedInstance
     private let wsManager = WSManager.getSharedInstance()
     
+    private var searchingForMPgames: Task<Void, Error>?
+    
     // MARK: - Buttons Methods
     
     @objc private func signOut(_ sender: UIButton? = nil) {
         let exitAlert = UIAlertController(title: "Exit", message: "Are you sure?", preferredStyle: .alert)
         exitAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
-            if let self = self {
-                self.storage.signOut()
-                if self.presentedViewController != nil {
-                    self.dismiss(animated: true) {
-                        self.dismiss(animated: true)
-                    }
-                }
-                else {
+            guard let self else { return }
+            self.storage.signOut()
+            if self.presentedViewController != nil {
+                self.dismiss(animated: true) {
                     self.dismiss(animated: true)
                 }
-                self.audioPlayer.playSound(Sounds.closePopUpSound)
             }
+            else {
+                self.dismiss(animated: true)
+            }
+            self.audioPlayer.playSound(Sounds.closePopUpSound)
         }))
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
         UIApplication.getTopMostViewController()?.present(exitAlert, animated: true)
@@ -116,7 +117,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     }
     
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
-        storage.removeMultiplayerGamesObservers()
+        searchingForMPgames?.cancel()
         let createButton = makeMainMenuButtonView(with: MiscImages.createButtonBG, buttonImageItem: nil, buttontext: "Create", and: #selector(showCreateGameVC))
         let joinButton = makeMainMenuButtonView(with: MiscImages.joinButtonBG, buttonImageItem: nil, buttontext: "Join", and: #selector(makeMultiplayerGamesList))
         let loadButton = makeMainMenuButtonView(with: MiscImages.loadButtonBG, buttonImageItem: nil, buttontext: "Load", and: #selector(makeUserGamesList))
@@ -140,7 +141,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     //for inventory or shop
     @objc private func makeListOfItems(_ sender: UIButton? = nil) {
         var buttons = [UIView]()
-        if let sender = sender {
+        if let sender {
             if let isShopButtons = sender.superview?.layer.value(forKey: constants.keyForIsShopButton) as? Bool {
                 if let items = sender.superview?.layer.value(forKey: constants.keyForItems) as? [GameItem], items.count > 0 {
                     switch items.first!.type {
@@ -184,7 +185,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     
     //change current value of item of user
     @objc private func chooseItemInInventory(_ sender: UIButton? = nil) {
-        if let sender = sender {
+        if let sender {
             if let item = sender.superview?.superview?.layer.value(forKey: constants.keyForItem) as? GameItem {
                 audioPlayer.playSound(Sounds.chooseItemSound)
                 storage.currentUser.setValue(with: item)
@@ -195,7 +196,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     
     //highlight picked item and remove notification icon from him
     @objc private func pickitem(_ sender: UITapGestureRecognizer? = nil) {
-        if let sender = sender {
+        if let sender {
             if let mainMenuButton = sender.view?.superview {
                 if let item = mainMenuButton.layer.value(forKey: constants.keyForItem) as? GameItem {
                     audioPlayer.playSound(Sounds.pickItemSound)
@@ -241,41 +242,40 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
                 let itemName = item.getHumanReadableName()
                 let alert = UIAlertController(title: "Buy \(itemName)", message: "Are you sure?", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: "No", style: .cancel, handler: nil))
-                alert.addAction(UIAlertAction(title: "Yes", style: .default, handler: {[weak self] _ in
-                    if let self = self {
-                        self.audioPlayer.playSound(Sounds.buyItemSound)
-                        self.storage.currentUser.addAvailableItem(item)
-                        var startCoins = self.storage.currentUser.coins
-                        self.storage.currentUser.addCoins(-item.cost)
-                        let endCoins = self.storage.currentUser.coins
-                        let snapshotOfShopitem = mainMenuButton.subviews.second!.snapshotView(afterScreenUpdates: true)!
-                        self.view.addSubview(snapshotOfShopitem)
-                        let snapshotConstraints = [snapshotOfShopitem.leadingAnchor.constraint(equalTo: snapshotOfShopitem.superview!.leadingAnchor), snapshotOfShopitem.topAnchor.constraint(equalTo: snapshotOfShopitem.superview!.topAnchor)]
-                        NSLayoutConstraint.activate(snapshotConstraints)
-                        let actualPosOfSnapshot = snapshotOfShopitem.convert(mainMenuButton.bounds, from: mainMenuButton)
-                        snapshotOfShopitem.transform = CGAffineTransform(translationX: actualPosOfSnapshot.minX, y: actualPosOfSnapshot.minY)
-                        let coinsBoundsForAnimation = snapshotOfShopitem.convert(self.coinsText.bounds, from: self.coinsText)
-                        UIView.animate(withDuration: constants.animationDuration, animations: {
-                            sender?.isEnabled = false
-                            sender?.backgroundColor = constants.inInventoryColor
-                            sender?.setTitleColor(self.defaultTextColor, for: .normal)
-                            mainMenuButton.backgroundColor = constants.inInventoryColor
-                            snapshotOfShopitem.transform = constants.transformForShopItemWhenBought.concatenating(snapshotOfShopitem.transform.translatedBy(x: coinsBoundsForAnimation.midX - snapshotOfShopitem.bounds.midX, y: coinsBoundsForAnimation.midY - snapshotOfShopitem.bounds.midY))
-                        }) {  _ in
-                            snapshotOfShopitem.removeFromSuperview()
-                        }
-                        let interval = constants.animationDuration / Double(startCoins - endCoins)
-                        let timer = Timer(timeInterval: interval, repeats: true, block: { timer in
-                            if startCoins == endCoins {
-                                timer.invalidate()
-                                return
-                            }
-                            startCoins -= 1
-                            self.coinsText.text = String(startCoins)
-                        })
-                        timer.fire()
-                        RunLoop.main.add(timer, forMode: .common)
+                alert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
+                    guard let self else { return }
+                    self.audioPlayer.playSound(Sounds.buyItemSound)
+                    self.storage.currentUser.addAvailableItem(item)
+                    var startCoins = self.storage.currentUser.coins
+                    self.storage.currentUser.addCoins(-item.cost)
+                    let endCoins = self.storage.currentUser.coins
+                    let snapshotOfShopitem = mainMenuButton.subviews.second!.snapshotView(afterScreenUpdates: true)!
+                    self.view.addSubview(snapshotOfShopitem)
+                    let snapshotConstraints = [snapshotOfShopitem.leadingAnchor.constraint(equalTo: snapshotOfShopitem.superview!.leadingAnchor), snapshotOfShopitem.topAnchor.constraint(equalTo: snapshotOfShopitem.superview!.topAnchor)]
+                    NSLayoutConstraint.activate(snapshotConstraints)
+                    let actualPosOfSnapshot = snapshotOfShopitem.convert(mainMenuButton.bounds, from: mainMenuButton)
+                    snapshotOfShopitem.transform = CGAffineTransform(translationX: actualPosOfSnapshot.minX, y: actualPosOfSnapshot.minY)
+                    let coinsBoundsForAnimation = snapshotOfShopitem.convert(self.coinsText.bounds, from: self.coinsText)
+                    UIView.animate(withDuration: constants.animationDuration, animations: {
+                        sender?.isEnabled = false
+                        sender?.backgroundColor = constants.inInventoryColor
+                        sender?.setTitleColor(self.defaultTextColor, for: .normal)
+                        mainMenuButton.backgroundColor = constants.inInventoryColor
+                        snapshotOfShopitem.transform = constants.transformForShopItemWhenBought.concatenating(snapshotOfShopitem.transform.translatedBy(x: coinsBoundsForAnimation.midX - snapshotOfShopitem.bounds.midX, y: coinsBoundsForAnimation.midY - snapshotOfShopitem.bounds.midY))
+                    }) {  _ in
+                        snapshotOfShopitem.removeFromSuperview()
                     }
+                    let interval = constants.animationDuration / Double(startCoins - endCoins)
+                    let timer = Timer(timeInterval: interval, repeats: true, block: { timer in
+                        if startCoins == endCoins {
+                            timer.invalidate()
+                            return
+                        }
+                        startCoins -= 1
+                        self.coinsText.text = String(startCoins)
+                    })
+                    timer.fire()
+                    RunLoop.main.add(timer, forMode: .common)
                 }))
                 present(alert, animated: true)
                 audioPlayer.playSound(Sounds.openPopUpSound)
@@ -296,9 +296,10 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     //shows view for game creation
     @objc private func showCreateGameVC(_ sender: UIButton? = nil) {
         if (presentedViewController as? CreateGameVC) == nil {
-            if let presentedViewController = presentedViewController {
-                presentedViewController.dismiss(animated: true) {[weak self] in
-                    self?.makeCreateGameVC()
+            if let presentedViewController {
+                presentedViewController.dismiss(animated: true) { [weak self] in
+                    guard let self else { return }
+                    self.makeCreateGameVC()
                 }
             }
             else {
@@ -313,9 +314,10 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     //shows view for redacting user profile
     @objc private func showUserProfileVC(_ sender: UITapGestureRecognizer? = nil) {
         if (presentedViewController as? UserProfileVC) == nil {
-            if let presentedViewController = presentedViewController {
-                presentedViewController.dismiss(animated: true) {[weak self] in
-                    self?.makeUserProfileVC()
+            if let presentedViewController {
+                presentedViewController.dismiss(animated: true) { [weak self] in
+                    guard let self else { return }
+                    self.makeUserProfileVC()
                 }
             }
             else {
@@ -335,38 +337,33 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     @objc private func makeMultiplayerGamesList(_ sender: UIButton? = nil) {
         var firstTime = true
         sender?.isEnabled = false
-        storage.getMultiplayerGames(callback: { [weak self] error, games in
-            if let self = self {
-                sender?.isEnabled = true
-                guard error == nil else {
-                    self.makeErrorAlert(with: error!.localizedDescription)
-                    self.makeGameMenu()
-                    return
-                }
-                if let games = games {
+        searchingForMPgames = Task {
+            do {
+                for try await games in storage.getMultiplayerGames() {
                     if firstTime {
                         firstTime = false
-                        self.makeGamesList(with: games)
+                        makeGamesList(with: games)
                     }
                     else {
-                        self.updateMultiplayerGamesList(with: games)
+                        updateMultiplayerGamesList(with: games)
                     }
                 }
-                else {
-                    self.makeErrorAlert(with: "No games available")
-                    self.makeGameMenu()
-                }
+                sender?.isEnabled = true
             }
-        })
+            catch {
+                makeErrorAlert(with: error.localizedDescription)
+                makeGameMenu()
+            }
+        }
     }
     
     //shows/hides additional info about game with animation
     @objc private func toggleGameInfo(_ sender: UIButton? = nil) {
-        if let sender = sender {
+        if let sender {
             if let gameInfoView = sender.superview?.superview?.superview {
                 if let additionalInfo = gameInfoView.subviews.first(where: {$0 as? GameInfoTable != nil}) {
                     let heightConstraint = gameInfoView.constraints.first(where: {$0.firstAttribute == .height && $0.secondItem == nil})
-                    if let heightConstraint = heightConstraint {
+                    if let heightConstraint {
                         NSLayoutConstraint.deactivate([heightConstraint])
                         gameInfoView.removeConstraint(heightConstraint)
                         var heightConstraint: NSLayoutConstraint?
@@ -382,8 +379,9 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
                             sender.transform = .identity
                             heightConstraint = gameInfoView.heightAnchor.constraint(equalToConstant: fontSize * constants.multiplierForButtonSize)
                         }
-                        if let heightConstraint = heightConstraint {
-                            UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
+                        if let heightConstraint {
+                            UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                                guard let self else { return }
                                 additionalInfo.alpha = newAlpha
                                 NSLayoutConstraint.activate([heightConstraint])
                                 //for some reason, when we animating first time, second header also shows with animation
@@ -394,7 +392,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
                                         additionalInfo.layoutIfNeeded()
                                     }
                                 }
-                                self?.view.layoutIfNeeded()
+                                self.view.layoutIfNeeded()
                             }) {_ in
                                 if !isHidden {
                                     additionalInfo.isHidden = true
@@ -410,7 +408,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     
     //loads chosen game
     @objc private func loadGame(_ sender: UIButton? = nil) {
-        if let sender = sender {
+        if let sender {
             if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
                 if game.gameMode == .multiplayer && !game.gameEnded {
                     //if gameMode == .multiplayer, there is no way for wsManager to be nil
@@ -437,15 +435,16 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
                 }
                 audioPlayer.pauseSound(Music.menuBackgroundMusic)
                 audioPlayer.playSound(Sounds.successSound)
-                if let presentedViewController = presentedViewController {
-                    presentedViewController.dismiss(animated: true) {[weak self] in
-                        self?.makeGameVC(with: game)
+                if let presentedViewController {
+                    presentedViewController.dismiss(animated: true) { [weak self] in
+                        guard let self else { return }
+                        self.makeGameVC(with: game)
                     }
                 }
                 else {
                     makeGameVC(with: game)
                 }
-                storage.removeMultiplayerGamesObservers()
+                searchingForMPgames?.cancel()
             }
         }
     }
@@ -455,18 +454,17 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
         let alert = UIAlertController(title: "Delete game", message: "Are you sure?", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "No", style: .cancel))
         alert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
-            if let self = self {
-                if let sender = sender {
-                    if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
-                        self.storage.currentUser.removeGame(game)
-                        if let gameInfo = sender.superview?.superview?.superview {
-                            UIView.animate(withDuration: constants.animationDuration, animations: {
-                                gameInfo.isHidden = true
-                            }) { _ in
-                                gameInfo.removeFromSuperview()
-                            }
-                            self.audioPlayer.playSound(Sounds.removeSound)
+            guard let self else { return }
+            if let sender {
+                if let game = sender.layer.value(forKey: constants.keyForGame) as? GameLogic {
+                    self.storage.currentUser.removeGame(game)
+                    if let gameInfo = sender.superview?.superview?.superview {
+                        UIView.animate(withDuration: constants.animationDuration, animations: {
+                            gameInfo.isHidden = true
+                        }) { _ in
+                            gameInfo.removeFromSuperview()
                         }
+                        self.audioPlayer.playSound(Sounds.removeSound)
                     }
                 }
             }
@@ -507,7 +505,8 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
             }) {
                 buttonsStack.addArrangedSubview(makeInfoView(of: game))
                 UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-                    self?.view.layoutIfNeeded()
+                    guard let self else { return }
+                    self.view.layoutIfNeeded()
                 })
             }
         }
@@ -520,7 +519,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
         let operations = [sumOperation, subtractOperation]
         let randomOperation = operations.randomElement()
         let endX = view.bounds.minX
-        if let randomOperation = randomOperation {
+        if let randomOperation {
             let startX = randomOperation(endX, self.view.frame.width)
             view.transform = CGAffineTransform(translationX: startX, y: 0)
             UIView.animate(withDuration: constants.animationDuration, animations: {
@@ -566,6 +565,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     }
     
     private func makeErrorAlert(with message: String) {
+        print(message)
         let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Ok", style: .default))
         if let topVC = UIApplication.getTopMostViewController(), topVC as? GameViewController == nil && topVC as? UIAlertController == nil {
@@ -674,10 +674,11 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
         }
         configureButtonsStack(withAdditionalButtons: addAdditionalButtons)
         viewForScrollView.subviews.first?.transform = CGAffineTransform(translationX: 0, y: -yForAnimation)
-        UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-            self?.viewForScrollView.subviews.first?.transform = .identity
+        UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+            guard let self else { return }
+            self.viewForScrollView.subviews.first?.transform = .identity
             if addAdditionalButtons {
-                self?.additionalButtons.transform = .identity
+                self.additionalButtons.transform = .identity
             }
         })
         audioPlayer.playSound(Sounds.moveSound1)
@@ -692,7 +693,7 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
             buttonBG.setImage(with: backgroundImageItem)
         }
         var buttonConstraints = [NSLayoutConstraint]()
-        if let action = action {
+        if let action {
             let button = MainMenuButton(type: .system)
             button.buttonWith(imageItem: buttonImageItem, text: buttontext, font: defaultFont, and: action)
             buttonBG.addSubview(button)
@@ -1216,18 +1217,16 @@ class MainMenuVC: UIViewController, WSManagerDelegate {
     
     func updateUserData() {
         if let userAvatar = (userDataView.subviews.first as? UIStackView)?.arrangedSubviews.first as? UIImageView {
-            UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
-                if let self = self {
-                    userAvatar.setImage(with: self.storage.currentUser.playerAvatar)
-                }
+            UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
+                guard let self else { return }
+                userAvatar.setImage(with: self.storage.currentUser.playerAvatar)
             })
         }
         if let userName = (userDataView.subviews.first as? UIStackView)?.arrangedSubviews.second as? UILabel {
-            UIView.transition(with: userName, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
-                if let self = self {
-                    userName.text = self.storage.currentUser.nickname
-                    self.userDataView.layoutIfNeeded()
-                }
+            UIView.transition(with: userName, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
+                guard let self else { return }
+                userName.text = self.storage.currentUser.nickname
+                self.userDataView.layoutIfNeeded()
             })
         }
     }

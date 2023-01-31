@@ -56,7 +56,7 @@ class SmartTextField: UITextField, UITextFieldDelegate {
             textField.text = String(newTextFieldText)
             //moves cursor to the end of the message
             //can`t modify here, so we need a little delay
-            DispatchQueue.main.async {
+            Task {
                 let newPosition = textField.endOfDocument
                 textField.selectedTextRange = textField.textRange(from: newPosition, to: newPosition)
             }

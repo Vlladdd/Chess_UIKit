@@ -98,7 +98,7 @@ class GameLogic: Codable {
         let player1 = Player(user: firstUser, type: .player1, figuresColor: firstPlayerColor, timeLeft: totalTime, multiplayerType: gameMode == .multiplayer ? .creator : nil)
         players.append(player1)
         //when we create multiplayer game, it only have 1 user at the start
-        if let secondUser = secondUser {
+        if let secondUser {
             let player2 = Player(user: secondUser, type: .player2, figuresColor: firstPlayerColor.opposite(), timeLeft: totalTime)
             players.append(player2)
         }
@@ -158,7 +158,7 @@ class GameLogic: Codable {
         startFromFirstTurn()
     }
     
-    func restoreFromStoredTurnsToLastTurn() {
+    func restoreFromStoredTurnsToLastTurn() async {
         turns = storedTurns
         gameBoard = storedGameBoard
         players = storedPlayers
@@ -252,7 +252,7 @@ class GameLogic: Codable {
                     if currentTurn != turns.last || (currentTurn == turns.first && currentTurn?.squares.first?.figure?.color == currentPlayer.figuresColor) {
                         removeTurnsIfTurnChanged()
                     }
-                    if let turn = turn {
+                    if let turn {
                         turns.append(turn)
                         currentTurn = turn
                     }
@@ -293,7 +293,7 @@ class GameLogic: Codable {
         if canCastle.short || canCastle.long {
             checkIfCastled(squares: pickedSquares)
         }
-        if let currentTurn = currentTurn, let turnIndex = turns.firstIndex(of: currentTurn) {
+        if let currentTurn, let turnIndex = turns.firstIndex(of: currentTurn) {
             turns[turnIndex].updateCastle(short: shortCastle, long: longCastle)
             self.currentTurn = turns[turnIndex]
         }
@@ -335,7 +335,7 @@ class GameLogic: Codable {
     
     //checks if figure ever moved before
     private func checkIfFigureMoved(figure: Figure) -> Bool{
-        if let currentTurn = currentTurn, let turnIndex = turns.firstIndex(of: currentTurn) {
+        if let currentTurn, let turnIndex = turns.firstIndex(of: currentTurn) {
             let turnsBefore = turns[0..<turnIndex]
             if !turnsBefore.contains(where: {$0.squares.contains(where: {$0.figure == figure}) && $0.squares.first?.column == figure.startColumn}) {
                 return false
@@ -373,7 +373,7 @@ class GameLogic: Codable {
                 gameBoard.updateSquare(square: turn.squares.second!, figure: figure)
                 checkForRealCheck(color: figure.color)
             }
-            else if let figure = figure {
+            else if let figure {
                 turns[turnIndex].updateTime(newValue: turnTime ?? Date())
                 turns[turnIndex].updatePawnTransform(newValue: figure)
                 turns[turnIndex].updateTurnDuration(newValue: turnDuration)
@@ -415,7 +415,7 @@ class GameLogic: Codable {
     private func moveRookToCastle(startColumn: BoardFiles, endColumn: BoardFiles, row: Int) {
         let startSquare = gameBoard[startColumn, row ]
         let endSquare = gameBoard[endColumn, row ]
-        if let startSquare = startSquare, let endSquare = endSquare {
+        if let startSquare, let endSquare {
             makeTurn(square: startSquare)
             makeTurn(square: endSquare)
         }
@@ -429,7 +429,7 @@ class GameLogic: Codable {
             //and white pawn will move up, so distance between new pawn square and old pawn square
             //will be calculated diferently
             let rowDistance = figure.color == .black ? constants.minimumDistance : -constants.minimumDistance
-            if let currentTurn = currentTurn, let turnIndex = turns.firstIndex(of: currentTurn), !backwardRewind && !forwardRewind {
+            if let currentTurn, let turnIndex = turns.firstIndex(of: currentTurn), !backwardRewind && !forwardRewind {
                 if currentTurn.pawnSquare == nil {
                     let pawnSquare = gameBoard.squares.first(where: {$0.column == pickedSquares.second!.column && $0.row == pickedSquares.second!.row + rowDistance})
                     self.currentTurn?.updatePawnSquare(newValue: pawnSquare)
@@ -532,7 +532,7 @@ class GameLogic: Codable {
                     if figure.type == .pawn && figure.color != currentFigure.color {
                         if let turn = currentTurn, turn.squares.contains(square) && turn.squares.second!.row - turn.squares.first!.row == -rowDistance * 2  {
                             let enPassantSquare = gameBoard.squares.first(where: {$0.column == square.column && $0.row == square.row + rowDistance})
-                            if let enPassantSquare = enPassantSquare {
+                            if let enPassantSquare {
                                 availableSquares.append(enPassantSquare)
                                 enPassantSquares.append(enPassantSquare)
                             }
@@ -813,7 +813,7 @@ class GameLogic: Codable {
         if !gameEnded {
             timer?.invalidate()
             gameEnded = true
-            if let player = player {
+            if let player {
                 winner = player == .player2 ? players.first! : players.second!
             }
             else {
@@ -930,10 +930,8 @@ class GameLogic: Codable {
     private func checkCheckSquaresForDeadPosition(color: GameColors) -> Bool {
         let squaresSortedByRow = gameBoard.squares.sorted(by: {$0.row < $1.row})
         let condition: (Square) -> Bool = { [weak self] in
-            if let self = self {
-                return $0.figure?.type == .pawn && $0.figure?.color != color && !self.checkSquares.contains($0)
-            }
-            return false
+            guard let self else { return false }
+            return $0.figure?.type == .pawn && $0.figure?.color != color && !self.checkSquares.contains($0)
         }
         //square with pawn with max row
         let maxPawn = color == .white ? squaresSortedByRow.first(where: {condition($0)}) : squaresSortedByRow.last(where: {condition($0)})
@@ -947,7 +945,7 @@ class GameLogic: Codable {
                 uniqueCheckSquares.append(checkSquare)
             }
         }
-        if let maxPawn = maxPawn {
+        if let maxPawn {
             let range = color == .white ? stride(from: constants.firstRow, through: maxPawn.row, by: constants.minimumDistance) : stride(from: constants.lastRow, through: maxPawn.row, by: -constants.minimumDistance)
             for column in BoardFiles.allCases {
                 for row in range {
@@ -987,7 +985,7 @@ class GameLogic: Codable {
         //instead of 3, it must be 2
         let figuresFactor = player == nil ? 0 : 1
         var figuresAvailable = gameBoard.squares.filter({$0.figure != nil})
-        if let player = player {
+        if let player {
             figuresAvailable = figuresAvailable.filter({$0.figure?.color == player.figuresColor})
         }
         //if player have only king
@@ -1031,21 +1029,36 @@ class GameLogic: Codable {
     
     // MARK: - Chess time
     
-    func activateTime(continueTimer: Bool = false, callback: @escaping (Int) -> Void) {
+    func activateTime(continueTimer: Bool = false) -> AsyncStream<Int> {
         if !timeLeftIsUpdated && !continueTimer {
             timeLeft = currentPlayer.timeLeft - constants.timerStep
         }
         else {
             timeLeftIsUpdated = false
         }
-        callback(timeLeft)
-        timer = Timer.scheduledTimer(withTimeInterval: constants.timerDelay, repeats: true, block: {[weak self] _ in
-            if let self = self {
+        if continueTimer {
+            if timeLeft <= constants.minimumTimeForTurn {
+                timeLeft = constants.minimumTimeForTurn
+            }
+        }
+        return AsyncStream { continuation in
+            continuation.yield(timeLeft)
+            timer = Timer.scheduledTimer(withTimeInterval: constants.timerDelay, repeats: true, block: { [weak self] _ in
+                guard let self else { return }
+                if self.gameMode == .multiplayer {
+                    if !WSManager.getSharedInstance()!.connectedToWSServer && WSManager.getSharedInstance()!.connectedToTheInternet {
+                        continuation.finish()
+                    }
+                    if !WSManager.getSharedInstance()!.connectedToTheInternet && self.currentPlayer.type == .player2 {
+                        if self.timeLeft <= constants.minimumTimeForTurn {
+                            continuation.finish()
+                        }
+                    }
+                }
                 if self.timeLeft != 0 {
                     self.timeLeft -= constants.timerStep
                 }
                 if self.timeLeft == 0 {
-                    self.timer?.invalidate()
                     let insufficientMaterial = self.checkForInsufficientMaterial(for: self.currentPlayer.type == .player1 ? self.players.second : self.players.first)
                     //in other words, even if current player time runs out, if opponent have insufficient material, it is a draw, instead of lose
                     if insufficientMaterial {
@@ -1054,17 +1067,19 @@ class GameLogic: Codable {
                     else {
                         self.surrender()
                     }
+                    continuation.yield(self.timeLeft)
+                    continuation.finish()
                 }
-                callback(self.timeLeft)
+                continuation.yield(self.timeLeft)
+            })
+            if let timer = timer {
+                RunLoop.main.add(timer, forMode: .common)
             }
-        })
-        if let timer = timer {
-            RunLoop.main.add(timer, forMode: .common)
+            continuation.onTermination = { [weak self] _ in
+                guard let self else { return }
+                self.timer?.invalidate()
+            }
         }
-    }
-    
-    func stopTime() {
-        timer?.invalidate()
     }
     
     func timerIsValid() -> Bool {
@@ -1075,10 +1090,16 @@ class GameLogic: Codable {
     
     //returns turn to animate, if backward rewind and makes turn
     //switches first and second square for that
-    func backward() -> Turn? {
+    //delay is used to wait for animation of previous turn to finish, when we chaining turns to create playback
+    //another reason why it is async, cuz animating a lot of turns can take a lot of time and
+    //can lead to freeze UI
+    func backward(delay: Double = 0.0) async -> Turn? {
         resetPickedSquares()
         if !firstTurn {
-            if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+            if let currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+                if delay > 0 {
+                    try? await Task.sleep(seconds: delay)
+                }
                 if (!currentTurn.shortCastle && !currentTurn.longCastle) || currentTurn.squares.first?.figure?.type == .king {
                     switchPlayer()
                 }
@@ -1107,10 +1128,13 @@ class GameLogic: Codable {
     }
     
     //returns turn to animate, if forward rewind and makes turn
-    func forward() -> Turn? {
+    func forward(delay: Double = 0.0) async -> Turn? {
         resetPickedSquares()
         if !lastTurn {
-            if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+            if let currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+                if delay > 0 {
+                    try? await Task.sleep(seconds: delay)
+                }
                 if (currentTurn.shortCastle || currentTurn.longCastle) && currentTurn.squares.first?.figure?.type == .king {
                     switchPlayer()
                 }
@@ -1140,7 +1164,7 @@ class GameLogic: Codable {
     }
     
     private func backCurrentTurn() {
-        if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+        if let currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
             //we are not making current turn nil, if it is start of the game
             //instead current turn stays the same
             if currentTurnIndex != 0 {
@@ -1154,7 +1178,7 @@ class GameLogic: Codable {
     }
     
     private func forwardCurrentTurn() {
-        if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+        if let currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
             //we are not forwarding, if we at the start, because first turn is always current turn
             if currentTurnIndex != turns.count - 1 && !firstTurn {
                 self.currentTurn = turns[currentTurnIndex + 1]
@@ -1169,7 +1193,7 @@ class GameLogic: Codable {
     
     //if some turn was changed, erases game after that turn
     private func removeTurnsIfTurnChanged() {
-        if let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
+        if let currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn) {
             //when we dropping turns, our currentTurn is -1 from that turn, which we about to change, except, if its a firstTurn
             let specialFactor = currentTurnIndex == 0 && firstTurn ? 0 : 1
             turns = turns.dropLast(turns.count - specialFactor - currentTurnIndex)
@@ -1178,7 +1202,7 @@ class GameLogic: Codable {
     
     //returns how much turns to current turn and whether it is ahead or behind
     func turnsLeft(to turn: Turn) -> (forward: Bool, count: Int) {
-        if turn != currentTurn, let currentTurn = currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn), let indexOfTurn = turns.firstIndex(of: turn) {
+        if let currentTurn, turn != currentTurn, let currentTurnIndex = turns.firstIndex(of: currentTurn), let indexOfTurn = turns.firstIndex(of: turn) {
             var turnsLeft = [Turn]()
             var forward = true
             if indexOfTurn > currentTurnIndex {
@@ -1270,7 +1294,7 @@ class GameLogic: Codable {
     //a case of desynchronisation
     func updateTimeLeft(with newValue: Int, countAdditionalTime: Bool = true) {
         timeLeft = newValue - (countAdditionalTime ? additionalTime : 0)
-        if let timer = timer, !timer.isValid {
+        if let timer, !timer.isValid {
             timeLeftIsUpdated = true
         }
     }
@@ -1307,4 +1331,5 @@ private struct GameLogic_Constants {
     static let turnsForCountAsSameTurn = 2
     static let sameTurnsForDraw = 3 * turnsForCountAsSameTurn
     static let minimumTurnsToCalculatePoints = 1
+    static let minimumTimeForTurn = 10
 }

@@ -70,8 +70,9 @@ class ViewWithNotifIcon: UIImageView {
             specialHeightConstraint?.isActive = true
         }
         NSLayoutConstraint.activate(notificationViewConstraints)
-        UIView.transition(with: self, duration: constants.animationDuration, options: .transitionFlipFromBottom, animations: {[weak self] in
-            self?.superview?.layoutIfNeeded()
+        UIView.transition(with: self, duration: constants.animationDuration, options: .transitionFlipFromBottom, animations: { [weak self] in
+            guard let self else { return }
+            self.superview?.layoutIfNeeded()
         })
     }
     
@@ -86,8 +87,9 @@ class ViewWithNotifIcon: UIImageView {
             let newConstraints = [mainView.trailingAnchor.constraint(equalTo: trailingAnchor), mainView.topAnchor.constraint(equalTo: topAnchor)]
             NSLayoutConstraint.activate(newConstraints)
             specialHeightConstraint?.isActive = false
-            UIView.transition(with: self, duration: constants.animationDuration, options: .transitionFlipFromTop, animations: {[weak self] in
-                self?.rootView.layoutIfNeeded()
+            UIView.transition(with: self, duration: constants.animationDuration, options: .transitionFlipFromTop, animations: { [weak self] in
+                guard let self else { return }
+                self.rootView.layoutIfNeeded()
             })
         }
     }

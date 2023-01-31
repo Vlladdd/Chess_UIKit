@@ -169,22 +169,21 @@ class WheelOfFortune: UIView {
     }
     
     private func segmentAnimation(segmentData: SegmentData, delay: Double, animationDuration: Double, startAngle: CGFloat, reverse: Bool = true, angleModifier: Double = constants.defaultAngleModifier) {
-        let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
-            if let self = self {
-                if self.isVisible() {
-                    self.audioPlayer.playSound(Sounds.toggleSound)
-                }
-                self.coinsText.text = String(segmentData.coinsPrize) + " coins"
-                //changes stroke color of wheel segment
-                segmentData.layer.updateStroke(to: constants.colorForWinnerSegment, animated: true, duration: constants.animationDuration)
-                //rotates figure in middle of the wheel
-                self.figureView.layer.rotate(from: startAngle, to: startAngle + segmentData.angle / angleModifier, animated: true, duration: animationDuration)
-                if reverse {
-                    let timerForReverse = Timer.scheduledTimer(withTimeInterval: animationDuration, repeats: false, block: {_ in
-                        segmentData.layer.updateStroke(to: constants.defaultColorForSegment, animated: true, duration: constants.animationDuration)
-                    })
-                    RunLoop.main.add(timerForReverse, forMode: .common)
-                }
+        let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: { [weak self] _ in
+            guard let self else { return }
+            if self.isVisible() {
+                self.audioPlayer.playSound(Sounds.toggleSound)
+            }
+            self.coinsText.text = String(segmentData.coinsPrize) + " coins"
+            //changes stroke color of wheel segment
+            segmentData.layer.updateStroke(to: constants.colorForWinnerSegment, animated: true, duration: constants.animationDuration)
+            //rotates figure in middle of the wheel
+            self.figureView.layer.rotate(from: startAngle, to: startAngle + segmentData.angle / angleModifier, animated: true, duration: animationDuration)
+            if reverse {
+                let timerForReverse = Timer.scheduledTimer(withTimeInterval: animationDuration, repeats: false, block: {_ in
+                    segmentData.layer.updateStroke(to: constants.defaultColorForSegment, animated: true, duration: constants.animationDuration)
+                })
+                RunLoop.main.add(timerForReverse, forMode: .common)
             }
         })
         RunLoop.main.add(timer, forMode: .common)

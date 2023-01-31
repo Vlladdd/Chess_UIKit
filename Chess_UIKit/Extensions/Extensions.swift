@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Network
 
 // MARK: - Some useful extensions
 
@@ -97,4 +98,26 @@ extension RawRepresentable where RawValue == String {
         rawValue
     }
     
+}
+
+extension NWPathMonitor {
+    func paths() -> AsyncStream<NWPath> {
+        AsyncStream { continuation in
+            pathUpdateHandler = { path in
+                continuation.yield(path)
+            }
+            continuation.onTermination = { [weak self] _ in
+                guard let self else { return }
+                self.cancel()
+            }
+            start(queue: DispatchQueue(label: "Monitor"))
+        }
+    }
+}
+
+extension Task where Success == Never, Failure == Never {
+    static func sleep(seconds: Double) async throws {
+        let duration = UInt64(seconds * 1_000_000_000)
+        try await Task.sleep(nanoseconds: duration)
+    }
 }

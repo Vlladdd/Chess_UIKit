@@ -17,7 +17,8 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         makeLoadingSpinner()
     }
     
-    func errorCallbackForAuthorization(errorMessage: String) {
+    func authorizationErrorWith(errorMessage: String) {
+        print(errorMessage)
         let alert = UIAlertController(title: "Error", message: errorMessage, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Ok", style: .default))
         present(alert, animated: true)
@@ -26,12 +27,13 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         audioPlayer.playSound(Sounds.errorSound)
     }
     
-    func successCallbackForAuthorization() {
+    func successAuthorization() {
         let mainMenuVC = MainMenuVC()
         mainMenuVC.modalPresentationStyle = .fullScreen
-        present(mainMenuVC, animated: false) {[weak self] in
-            self?.loadingSpinner.removeFromSuperview()
-            self?.authorizationView.isHidden = false
+        present(mainMenuVC, animated: false) { [weak self] in
+            guard let self else { return }
+            self.loadingSpinner.removeFromSuperview()
+            self.authorizationView.isHidden = false
         }
     }
     
@@ -42,19 +44,15 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         makeUI()
         configureKeyboardToHideWhenTappedAround()
         prepareForAuthorizationProcess()
-        storage.checkIfUserIsLoggedIn(callback: { [weak self] isLoggedIn, error in
-            if isLoggedIn {
-                guard error == nil else {
-                    self?.errorCallbackForAuthorization(errorMessage: error!.localizedDescription)
-                    return
-                }
-                self?.successCallbackForAuthorization()
+        Task {
+            do {
+                try await storage.checkIfUserIsLoggedIn()
+                successAuthorization()
             }
-            else {
-                self?.loadingSpinner.removeFromSuperview()
-                self?.authorizationView.isHidden.toggle()
+            catch {
+                authorizationErrorWith(errorMessage: error.localizedDescription)
             }
-        })
+        }
     }
     
     // MARK: - Properties

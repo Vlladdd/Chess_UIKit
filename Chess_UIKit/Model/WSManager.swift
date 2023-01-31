@@ -65,6 +65,7 @@ class WSManager: WebSocketDelegate {
     private var socket: Starscream.WebSocket!
     //checks connection to the server
     private var pingTimer: Timer?
+    private var monitorTask: Task<Void,Error>?
     
     private typealias constants = WSManager_Constants
     
@@ -98,6 +99,7 @@ class WSManager: WebSocketDelegate {
         socket.disconnect()
         connectedToWSServer = false
         WSManager.sharedInstance = nil
+        monitorTask?.cancel()
     }
     
     func writeText(_ text: String) {
@@ -113,10 +115,16 @@ class WSManager: WebSocketDelegate {
     func activatePingTimer() {
         if !(pingTimer?.isValid ?? false) {
             pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
-                if let jsonData = try? JSONEncoder().encode("Hello") {
-                    self?.socket.write(ping: jsonData)
+                guard let self else { return }
+                Task {
+                    if let jsonData = try? JSONEncoder().encode("Hello") {
+                        self.socket.write(ping: jsonData)
+                    }
                 }
             })
+        }
+        if let pingTimer {
+            RunLoop.main.add(pingTimer, forMode: .common)
         }
     }
     
@@ -128,7 +136,7 @@ class WSManager: WebSocketDelegate {
         if let error = error as? WSError {
             delegate?.webSocketError(with: "websocket encountered an error: \(error.message)")
         }
-        else if let error = error {
+        else if let error {
             delegate?.webSocketError(with: "websocket encountered an error: \(error.localizedDescription)")
         }
         else {
@@ -139,22 +147,18 @@ class WSManager: WebSocketDelegate {
     //TODO: - Need to be tested on real devices with real server
     //not working properly on simulators
     private func configureNWPathMonitor() {
-        monitor.pathUpdateHandler = { [weak self] path in
-            if let self = self {
-                DispatchQueue.main.sync {
-                    if path.status == .satisfied {
-                        self.connectedToTheInternet = true
-                    }
-                    else {
-                        self.connectedToWSServer = false
-                        self.connectedToTheInternet = false
-                        self.delegate?.lostInternet()
-                    }
+        monitorTask = Task {
+            for await path in monitor.paths() {
+                if path.status == .satisfied {
+                    connectedToTheInternet = true
+                }
+                else {
+                    connectedToWSServer = false
+                    connectedToTheInternet = false
+                    delegate?.lostInternet()
                 }
             }
         }
-        let queue = DispatchQueue(label: "Monitor")
-        monitor.start(queue: queue)
     }
     //
     

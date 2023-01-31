@@ -60,18 +60,17 @@ class UserProfileVC: UIViewController {
             if !storage.checkIfGoogleSignIn() && !storage.currentUser.guestMode {
                 let email = (emailLine.arrangedSubviews.second as? UITextField)?.text
                 let password = (passwordLine.arrangedSubviews.second as? UITextField)?.text
-                if let email = email, let password = password {
-                    storage.updateUserAccount(with: email, and: password, callback: { [weak self] error in
-                        if let self = self {
-                            guard error == nil else {
-                                self.updateUserResultAlert(with: "Error", and: error!.localizedDescription)
-                                self.audioPlayer.playSound(Sounds.errorSound)
-                                return
-                            }
-                            self.storage.currentUser.updateEmail(newValue: email)
-                            self.updateNickname(newValue: nickname, nicknameView: nicknameView!)
+                if let email, let password {
+                    Task {
+                        do {
+                            try await storage.updateUserAccount(with: email, and: password)
+                            updateNickname(newValue: nickname, nicknameView: nicknameView!)
                         }
-                    })
+                        catch {
+                            updateUserResultAlert(with: "Error", and: error.localizedDescription)
+                            audioPlayer.playSound(Sounds.errorSound)
+                        }
+                    }
                 }
             }
             else {
@@ -98,7 +97,7 @@ class UserProfileVC: UIViewController {
     }
     
     @objc private func pickAvatar(_ sender: UITapGestureRecognizer? = nil) {
-        if let sender = sender {
+        if let sender {
             if let avatar = sender.view?.layer.value(forKey: constants.keyForAvatar) as? Avatars {
                 audioPlayer.playSound(Sounds.pickItemSound)
                 storage.currentUser.addSeenItem(avatar)
@@ -112,10 +111,9 @@ class UserProfileVC: UIViewController {
                     storage.currentUser.setValue(with: avatar)
                     sender.view?.subviews.first?.backgroundColor = constants.chosenItemColor
                 }
-                UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: {[weak self] in
-                    if let self = self {
-                        self.userAvatar.setImage(with: avatar)
-                    }
+                UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
+                    guard let self else { return }
+                    self.userAvatar.setImage(with: avatar)
                 })
                 avatarInfo.text = avatar.description
                 sender.view?.layer.borderColor = constants.pickItemBorderColor
@@ -146,6 +144,7 @@ class UserProfileVC: UIViewController {
     }
     
     private func updateUserResultAlert(with title: String, and message: String) {
+        print(message)
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Ok", style: .default))
         UIApplication.getTopMostViewController()?.present(alert, animated: true)

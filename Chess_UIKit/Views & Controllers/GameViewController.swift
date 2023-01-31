@@ -85,7 +85,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private func websocketDidConnect() {
         //only for case after restored internet connection
         if gameLogic.currentPlayer.type == .player2 && !serverError {
-            if let enemyAfkTimer = enemyAfkTimer, !enemyAfkTimer.isValid {
+            if let enemyAfkTimer, !enemyAfkTimer.isValid {
                 var timeElapsed = Date().timeIntervalSince(gameLogic.turns.last?.time ?? gameLogic.startDate)
                 if timeElapsed > constants.maxTimeForAFK {
                     timeElapsed = constants.maxTimeForAFK
@@ -152,18 +152,20 @@ class GameViewController: UIViewController, WSManagerDelegate {
             opponentWantsDraw = true
             //a little notification
             UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-                self?.additionalButton.backgroundColor = constants.notificationColor
-                self?.surrenderButton.backgroundColor = constants.notificationColor
+                guard let self else { return }
+                self.additionalButton.backgroundColor = constants.notificationColor
+                self.surrenderButton.backgroundColor = constants.notificationColor
             })
-            Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw - interval, repeats: false, block: { [weak self] _ in
-                if let self = self {
-                    self.opponentWantsDraw = false
-                    UIView.animate(withDuration: constants.animationDuration, animations: {
-                        self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
-                        self.additionalButton.backgroundColor = self.showChatButton.backgroundColor
-                    })
-                }
+            let timer = Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw - interval, repeats: false, block: { [weak self] _ in
+                guard let self else { return }
+                self.opponentWantsDraw = false
+                UIView.animate(withDuration: constants.animationDuration, animations: {
+                    self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
+                    self.additionalButton.backgroundColor = self.showChatButton.backgroundColor
+                })
             })
+            //prevent animations from stop, when scrolling
+            RunLoop.main.add(timer, forMode: .common)
         }
     }
     
@@ -246,7 +248,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-            self?.checkForSpecialConstraints()
+            guard let self else { return }
+            self.checkForSpecialConstraints()
         })
         scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
     }
@@ -259,19 +262,17 @@ class GameViewController: UIViewController, WSManagerDelegate {
         //should be for first or second case
         //if we are changing orientation from landscape to portrait, we need to update constraints, before transition will begin,
         //because there will be not enough space to put anything from left or from right of gameBoard in portrait orientation
-        UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-            if let self = self {
-                self.checkOrientationAndUpdateConstraints(size: size, orientation: .landscapeLeft)
-            }
+        UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+            guard let self else { return }
+            self.checkOrientationAndUpdateConstraints(size: size, orientation: .landscapeLeft)
         })
         //if we are changing orientation from portrait to landscape, we need to wait for rotation to finish, before changing
         //constraints, because there will be not enough space to put anything from left or from right of gameBoard in portrait orientation
-        coordinator.animate(alongsideTransition: nil, completion: {[weak self] _ in
-            if let self = self {
-                UIView.animate(withDuration: constants.animationDuration, animations: {
-                    self.checkOrientationAndUpdateConstraints(size: size, orientation: .portrait)
-                })
-            }
+        coordinator.animate(alongsideTransition: nil, completion: { [weak self] _ in
+            guard let self else { return }
+            UIView.animate(withDuration: constants.animationDuration, animations: {
+                self.checkOrientationAndUpdateConstraints(size: size, orientation: .portrait)
+            })
         })
     }
     
@@ -294,6 +295,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     
     var gameLogic: GameLogic!
     
+    private var chessTimer: Task<Void, Error>?
     //to mute pop-ups with new messages
     private var muteChat = false
     //if we connect to the server, after afkTimer for that is expired, and we already have final alert on screen
@@ -315,7 +317,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private var currentUserMessageTimer: Timer?
     private var oponnentMessageTimer: Timer?
     //used in playback of the turns and also to have ability to stop it
-    private var turnsActionTimers: [Timer] = []
+    private var turnsTask: Task<Void, Error>?
     private var backwardRewind = false
     private var forwardRewind = false
     //we are storing all animations to have ability to finish them all at once
@@ -358,10 +360,9 @@ class GameViewController: UIViewController, WSManagerDelegate {
         //removes notification about new messages
         if chatView.alpha == 0 {
             UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-                if let self = self {
-                    self.showChatButton.backgroundColor = constants.defaultButtonBGColor
-                    self.additionalButton.backgroundColor = self.surrenderButton.backgroundColor
-                }
+                guard let self else { return }
+                self.showChatButton.backgroundColor = constants.defaultButtonBGColor
+                self.additionalButton.backgroundColor = self.surrenderButton.backgroundColor
             })
         }
         animateView(chatView, with: view.frame.height)
@@ -374,54 +375,50 @@ class GameViewController: UIViewController, WSManagerDelegate {
     //and also we are doing it asynchronously, cuz rewinding turns could take some seconds, which will freeze UI
     @objc private func restoreGame(_ sender: UIButton? = nil) {
         audioPlayer.playSound(Sounds.toggleSound)
-        if !animatingTurns && !fastAnimations {
-            makeLoadingSpinner()
-            restoringTurns = true
-            toggleTurnButtons(disable: true)
-            DispatchQueue.global().async {[weak self] in
-                if let self = self {
-                    //this will only rewind to first turn
-                    if self.gameLogic.currentTurn != self.gameLogic.turns.first {
-                        self.moveTurns(to: self.gameLogic.turns.first!, animate: false)
-                    }
-                    //this will rewind first turn
-                    if !self.gameLogic.firstTurn {
-                        self.moveTurn(forward: false, activateTurnButtons: false)
-                    }
-                    self.gameLogic.restoreFromStoredTurns()
-                    DispatchQueue.main.sync {
-                        for arrangedSubview in self.turns.arrangedSubviews {
-                            arrangedSubview.removeFromSuperview()
-                        }
-                        self.makeEmptyTurnData()
-                        for turn in self.gameLogic.turns {
-                            if (!turn.shortCastle && !turn.longCastle) || turn.squares.first?.figure?.type == .rook {
-                                self.addTurnToUI(turn)
-                            }
-                        }
-                    }
-                    self.restoringTurns = false
-                    self.moveTurns(to: self.gameLogic.turns.last!, animate: false)
-                    DispatchQueue.main.sync {
-                        self.toggleTurnButtons(disable: false)
-                        self.loadingSpinner.removeFromSuperview()
+        makeLoadingSpinner()
+        restoringTurns = true
+        toggleTurnButtons(disable: true)
+        turnsTask = Task {
+            if !fastAnimations {
+                //this will only rewind to first turn
+                if gameLogic.currentTurn != gameLogic.turns.first {
+                    await moveTurns(to: gameLogic.turns.first!, animate: false)
+                }
+                //this will rewind first turn
+                if !gameLogic.firstTurn {
+                    await moveTurn(forward: false, activateTurnButtons: false)
+                }
+                gameLogic.restoreFromStoredTurns()
+                for arrangedSubview in turns.arrangedSubviews {
+                    arrangedSubview.removeFromSuperview()
+                }
+                makeEmptyTurnData()
+                for turn in gameLogic.turns {
+                    if (!turn.shortCastle && !turn.longCastle) || turn.squares.first?.figure?.type == .rook {
+                        addTurnToUI(turn)
                     }
                 }
+                await moveTurns(to: gameLogic.turns.last!, animate: false)
             }
-        }
-        //instantly restores game
-        else if !animatingTurns {
-            gameLogic.restoreFromStoredTurnsToLastTurn()
-            for arrangedSubview in turns.arrangedSubviews {
-                arrangedSubview.removeFromSuperview()
+            //instantly restores game
+            else {
+                restoringTurns = true
+                toggleTurnButtons(disable: true)
+                await gameLogic.restoreFromStoredTurnsToLastTurn()
+                for arrangedSubview in turns.arrangedSubviews {
+                    arrangedSubview.removeFromSuperview()
+                }
+                makeEmptyTurnData()
+                removeFiguresFrom(destroyedFigures1)
+                removeFiguresFrom(destroyedFigures2)
+                replaceFiguresInSquares()
+                updatePlayersTime()
+                updateUIIfLoad()
+                updateUI()
             }
-            makeEmptyTurnData()
-            removeFiguresFrom(destroyedFigures1)
-            removeFiguresFrom(destroyedFigures2)
-            replaceFiguresInSquares()
-            updatePlayersTime()
-            updateUIIfLoad()
-            updateUI()
+            restoringTurns = false
+            toggleTurnButtons(disable: false)
+            loadingSpinner.removeFromSuperview()
         }
     }
     
@@ -481,10 +478,11 @@ class GameViewController: UIViewController, WSManagerDelegate {
     @objc private func toggleFastAnimations(_ sender: UIButton? = nil) {
         audioPlayer.playSound(Sounds.toggleSound)
         fastAnimations.toggle()
-        if let sender = sender {
+        if let sender {
             if sender.backgroundColor == constants.dangerPlayerDataColor {
-                UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                    sender.backgroundColor = self?.currentPlayerDataColor
+                UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                    guard let self else { return }
+                    sender.backgroundColor = self.currentPlayerDataColor
                 })
             }
             else {
@@ -494,13 +492,11 @@ class GameViewController: UIViewController, WSManagerDelegate {
             }
         }
         finishAnimations()
-        if !turnsActionTimers.isEmpty {
-            if let chosenTurn = chosenTurn {
+        if turnsTask != nil {
+            if let chosenTurn {
                 toggleTurnButtons(disable: true)
-                DispatchQueue.global().async {[weak self] in
-                    if let self = self {
-                        self.moveTurns(to: chosenTurn, animate: false)
-                    }
+                turnsTask = Task {
+                    await moveTurns(to: chosenTurn, animate: !fastAnimations)
                 }
             }
         }
@@ -508,7 +504,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     
     //shows/hides additional buttons
     @objc private func transitAdditonalButtons(_ sender: UIButton? = nil) {
-        if let sender = sender {
+        if let sender {
             if sender.transform == currentTransformOfArrow {
                 sender.transform = currentTransformOfArrow.rotated(by: .pi)
             }
@@ -525,7 +521,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     }
     
     @objc private func rotateFigures(_ sender: UIButton? = nil) {
-        if let sender = sender {
+        if let sender {
             if sender.transform == CGAffineTransform(rotationAngle: .pi) {
                 sender.transform = .identity
             }
@@ -542,10 +538,11 @@ class GameViewController: UIViewController, WSManagerDelegate {
     @objc private func toggleGameBoardAutoRotate(_ sender: UIButton? = nil) {
         audioPlayer.playSound(Sounds.toggleSound)
         gameBoardAutoRotate.toggle()
-        if let sender = sender {
+        if let sender {
             if sender.backgroundColor == constants.dangerPlayerDataColor {
-                UIView.animate(withDuration: constants.animationDuration, animations: {[weak self] in
-                    sender.backgroundColor = self?.currentPlayerDataColor
+                UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
+                    guard let self else { return }
+                    sender.backgroundColor = self.currentPlayerDataColor
                 })
             }
             else {
@@ -568,7 +565,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     @objc private func lockGameView(_ sender: UIButton? = nil) {
         audioPlayer.playSound(Sounds.toggleSound)
         scrollViewOfGame.isScrollEnabled.toggle()
-        if let sender = sender {
+        if let sender {
             if sender.compareCurrentImageTo(SystemImages.unlockedImage) {
                 sender.setImage(with: SystemImages.lockedImage)
             }
@@ -583,57 +580,56 @@ class GameViewController: UIViewController, WSManagerDelegate {
         if !animatingTurns && !gameLogic.gameEnded {
             let surrenderAlert = UIAlertController(title: "Surrender/Draw", message: "Do you want to surrender or draw?", preferredStyle: .alert)
             surrenderAlert.addAction(UIAlertAction(title: "Surrender", style: .default, handler: { [weak self] _ in
-                if let self = self {
-                    sender?.isEnabled = false
-                    if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
-                        self.gameLogic.surrender(for: .player1)
-                        self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
-                    }
-                    else {
-                        self.gameLogic.surrender()
-                    }
+                guard let self else { return }
+                sender?.isEnabled = false
+                if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
+                    self.gameLogic.surrender(for: .player1)
+                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
+                }
+                else {
+                    self.gameLogic.surrender()
+                }
+                if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
+                    self.makeEndOfTheGameView()
+                }
+            }))
+            surrenderAlert.addAction(UIAlertAction(title: "Draw", style: .default, handler: { [weak self] _ in
+                guard let self else { return }
+                sender?.isEnabled = false
+                if self.gameLogic.gameMode == .oneScreen {
+                    self.gameLogic.forceDraw()
                     if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
                         self.makeEndOfTheGameView()
                     }
                 }
-            }))
-            surrenderAlert.addAction(UIAlertAction(title: "Draw", style: .default, handler: { [weak self] _ in
-                if let self = self {
-                    sender?.isEnabled = false
-                    if self.gameLogic.gameMode == .oneScreen {
+                else if !self.gameLogic.gameEnded {
+                    self.currentUserWantsDraw = true
+                    if self.opponentWantsDraw {
                         self.gameLogic.forceDraw()
                         if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
                             self.makeEndOfTheGameView()
                         }
                     }
-                    else if !self.gameLogic.gameEnded {
-                        self.currentUserWantsDraw = true
-                        if self.opponentWantsDraw {
-                            self.gameLogic.forceDraw()
-                            if self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
-                                self.makeEndOfTheGameView()
-                            }
-                        }
-                        else {
-                            //a little notification
+                    else {
+                        //a little notification
+                        UIView.animate(withDuration: constants.animationDuration, animations: {
+                            self.surrenderButton.backgroundColor = constants.notificationColor
+                            self.additionalButton.backgroundColor = constants.notificationColor
+                        })
+                        let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.storage.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.storage.currentUser.playerAvatar, userFrame: self.storage.currentUser.frame, message: "Wanna draw?")
+                        self.addMessageToChat(chatMessage)
+                        self.wsManager?.writeObject(chatMessage)
+                        let timer = Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
+                            self.currentUserWantsDraw = false
+                            self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
                             UIView.animate(withDuration: constants.animationDuration, animations: {
-                                self.surrenderButton.backgroundColor = constants.notificationColor
-                                self.additionalButton.backgroundColor = constants.notificationColor
+                                self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
+                                self.additionalButton.backgroundColor = self.showChatButton.backgroundColor
                             })
-                            let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.storage.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.storage.currentUser.playerAvatar, userFrame: self.storage.currentUser.frame, message: "Wanna draw?")
-                            self.addMessageToChat(chatMessage)
-                            self.wsManager?.writeObject(chatMessage)
-                            Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
-                                self.currentUserWantsDraw = false
-                                self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
-                                UIView.animate(withDuration: constants.animationDuration, animations: {
-                                    self.surrenderButton.backgroundColor = constants.defaultButtonBGColor
-                                    self.additionalButton.backgroundColor = self.showChatButton.backgroundColor
-                                })
-                            })
-                        }
-                        self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true))
+                        })
+                        RunLoop.main.add(timer, forMode: .common)
                     }
+                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true))
                 }
             }))
             surrenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
@@ -656,17 +652,16 @@ class GameViewController: UIViewController, WSManagerDelegate {
     @objc private func exit(_ sender: UIButton? = nil) {
         let exitAlert = UIAlertController(title: "Exit", message: "Are you sure?", preferredStyle: .alert)
         exitAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
-            if let self = self {
-                self.stopTurnsPlayback()
-                self.finishAnimations()
-                if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
-                    self.gameLogic.surrender(for: .player1)
-                    //gameLogic is a class, saveCurrentUser() will not triger, so we have to do it manually
-                    self.storage.saveCurrentUser()
-                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
-                }
-                self.dismiss(animated: true)
+            guard let self else { return }
+            self.stopTurnsPlayback()
+            self.finishAnimations()
+            if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
+                self.gameLogic.surrender(for: .player1)
+                //gameLogic is a class, saveCurrentUser() will not triger, so we have to do it manually
+                self.storage.saveCurrentUser()
+                self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
             }
+            self.dismiss(animated: true)
         }))
         exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
         present(exitAlert, animated: true)
@@ -689,37 +684,37 @@ class GameViewController: UIViewController, WSManagerDelegate {
     //moves game back
     @objc private func turnsBackward(_ sender: UIButton? = nil) {
         if !animatingTurns {
+            toggleTurnButtons(disable: true)
             audioPlayer.playSound(Sounds.toggleSound)
-            moveTurn(forward: false)
+            Task {
+                await moveTurn(forward: false)
+                toggleTurnButtons(disable: false)
+            }
         }
     }
     
     //moves game forward
     @objc private func turnsForward(_ sender: UIButton? = nil) {
         if !animatingTurns {
+            toggleTurnButtons(disable: true)
             audioPlayer.playSound(Sounds.toggleSound)
-            moveTurn(forward: true)
+            Task {
+                await moveTurn(forward: true)
+                toggleTurnButtons(disable: false)
+            }
         }
     }
     
     //stops/activates game playback
     @objc private func turnsAction(_ sender: UIButton? = nil) {
         audioPlayer.playSound(Sounds.toggleSound)
-        if turnsActionTimers.isEmpty && !animatingTurns {
+        if turnsTask == nil && !animatingTurns {
             toggleTurnButtons(disable: true)
-            if fastAnimations {
-                DispatchQueue.global().async {[weak self] in
-                    if let self = self {
-                        self.moveTurns(to: self.gameLogic.turns.last!, animate: false)
-                    }
-                }
-            }
-            else {
-                moveTurns(to: gameLogic.turns.last!, animate: true)
+            turnsTask = Task {
+                await moveTurns(to: gameLogic.turns.last!, animate: !fastAnimations)
             }
         }
-        else if !turnsActionTimers.isEmpty {
-            stopTurnsPlayback()
+        else if turnsTask != nil {
             toggleTurnButtons(disable: false)
         }
     }
@@ -730,15 +725,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
             if turn != gameLogic.currentTurn && !animatingTurns {
                 audioPlayer.playSound(Sounds.pickItemSound)
                 toggleTurnButtons(disable: true)
-                if fastAnimations {
-                    DispatchQueue.global().async {[weak self] in
-                        if let self = self {
-                            self.moveTurns(to: turn, animate: false)
-                        }
-                    }
-                }
-                else {
-                    moveTurns(to: turn, animate: true)
+                turnsTask = Task {
+                    await moveTurns(to: turn, animate: !fastAnimations)
                 }
             }
         }
@@ -770,8 +758,9 @@ class GameViewController: UIViewController, WSManagerDelegate {
             //is not visible, which sometimes is the case, for example, on some iPad screens
             if chatView.alpha == 0 {
                 UIView.animate(withDuration: constants.animationDuration, animations: { [weak self] in
-                    self?.showChatButton.backgroundColor = constants.notificationColor
-                    self?.additionalButton.backgroundColor = constants.notificationColor
+                    guard let self else { return }
+                    self.showChatButton.backgroundColor = constants.notificationColor
+                    self.additionalButton.backgroundColor = constants.notificationColor
                 })
             }
             if chatMessage.playerType == gameLogic.players.first!.multiplayerType {
@@ -795,7 +784,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
         }
         messageTimer?.invalidate()
         let timer = Timer.scheduledTimer(withTimeInterval: constants.timeToChatMessagePopUp, repeats: false, block: { [weak self] _ in
-            self?.animateTransition(of: chatWindow, startAlpha: chatWindow.alpha)
+            guard let self else { return }
+            self.animateTransition(of: chatWindow, startAlpha: chatWindow.alpha)
         })
         if messageTimer == currentUserMessageTimer {
             currentUserMessageTimer = timer
@@ -909,29 +899,31 @@ class GameViewController: UIViewController, WSManagerDelegate {
         reconnectTimer?.invalidate()
         makeLoadingSpinner()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
-            if let self = self {
-                if !self.chatMessageField.text!.isEmpty {
-                    self.sendMessageToChatButton.isEnabled = true
+            guard let self else { return }
+            if !self.chatMessageField.text!.isEmpty {
+                self.sendMessageToChatButton.isEnabled = true
+            }
+            if self.gameLogic.currentPlayer.type == .player1 {
+                self.toggleTurnButtons(disable: false)
+                self.pawnPicker.isUserInteractionEnabled = true
+            }
+            else {
+                self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
+                self.exitButton.isEnabled = true
+            }
+            self.loadingSpinner.removeFromSuperview()
+            if !self.finalError {
+                if !self.wsManager!.connectedToTheInternet {
+                    self.makeErrorAlert(with: "You are not connected to the internet", addReconnectButton: true)
                 }
-                if self.gameLogic.currentPlayer.type == .player1 {
-                    self.toggleTurnButtons(disable: false)
-                    self.pawnPicker.isUserInteractionEnabled = true
-                }
-                else {
-                    self.surrenderButton.isEnabled = !self.gameLogic.gameEnded
-                    self.exitButton.isEnabled = true
-                }
-                self.loadingSpinner.removeFromSuperview()
-                if !self.finalError {
-                    if !self.wsManager!.connectedToTheInternet {
-                        self.makeErrorAlert(with: "You are not connected to the internet", addReconnectButton: true)
-                    }
-                    else if !self.wsManager!.connectedToWSServer {
-                        self.webSocketError(with: "You are not connected to the server, maybe server is not working")
-                    }
+                else if !self.wsManager!.connectedToWSServer {
+                    self.webSocketError(with: "You are not connected to the server, maybe server is not working")
                 }
             }
         })
+        if let reconnectTimer {
+            RunLoop.main.add(reconnectTimer, forMode: .common)
+        }
         wsManager?.connectToWebSocketServer()
     }
     
@@ -950,11 +942,13 @@ class GameViewController: UIViewController, WSManagerDelegate {
         wsManager?.activatePingTimer()
         websocketDidConnect()
         cancelGameTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: false, block: { [weak self] _ in
-            if let self = self {
-                self.makeErrorAlert(with: "Game was cancelled")
-                self.storage.currentUser.removeGame(self.gameLogic)
-            }
+            guard let self else { return }
+            self.makeErrorAlert(with: "Game was cancelled")
+            self.storage.currentUser.removeGame(self.gameLogic)
         })
+        if let cancelGameTimer {
+            RunLoop.main.add(cancelGameTimer, forMode: .common)
+        }
     }
     
     func switchToSuspendedState() {
@@ -1046,37 +1040,36 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private func makeAfkTimer(for player: GamePlayers, timeElapsed: Double = 0) -> Timer {
         //in case, if problems with server, we will wait a little longer for enemy turn
         let extraTime: Double = player == .player2 ? constants.extraTimeForEnemyAFKTimer : 0
-        return Timer.scheduledTimer(withTimeInterval: constants.maxTimeForAFK + extraTime - timeElapsed, repeats: false, block: { [weak self] _ in
-            if let self = self {
-                if !self.serverError {
-                    if player == .player1 && !self.gameLogic.gameEnded {
-                        self.makeErrorAlert(with: "You lost the game, because you was afk for more than 5 minutes")
-                    }
-                    self.surrenderAction(for: player)
+        let timer = Timer.scheduledTimer(withTimeInterval: constants.maxTimeForAFK + extraTime - timeElapsed, repeats: false, block: { [weak self] _ in
+            guard let self else { return }
+            if !self.serverError {
+                if player == .player1 && !self.gameLogic.gameEnded {
+                    self.makeErrorAlert(with: "You lost the game, because you was afk for more than 5 minutes")
                 }
-                else if !self.gameLogic.gameEnded {
-                    self.finalError = true
-                    self.makeErrorAlert(with: "Server is not working")
-                }
+                self.surrenderAction(for: player)
+            }
+            else if !self.gameLogic.gameEnded {
+                self.finalError = true
+                self.makeErrorAlert(with: "Server is not working")
             }
         })
+        RunLoop.main.add(timer, forMode: .common)
+        return timer
     }
     
     private func makeErrorAlert(with message: String, addReconnectButton: Bool = false) {
         let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Ok", style: .default) { [weak self] _ in
-            if let self = self {
-                self.stopTurnsPlayback()
-                self.finishAnimations()
-                self.dismiss(animated: true)
-            }
+            guard let self else { return }
+            self.stopTurnsPlayback()
+            self.finishAnimations()
+            self.dismiss(animated: true)
         })
         if addReconnectButton {
             alert.addAction(UIAlertAction(title: "Reconnect", style: .default) { [weak self] _ in
-                if let self = self {
-                    if !self.wsManager!.connectedToWSServer || !self.wsManager!.connectedToTheInternet {
-                        self.makeReconnectTimer()
-                    }
+                guard let self else { return }
+                if !self.wsManager!.connectedToWSServer || !self.wsManager!.connectedToTheInternet {
+                    self.makeReconnectTimer()
                 }
             })
         }
@@ -1166,8 +1159,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
     //we have some rotation animations when we animating turn
     //this function is used to prevent double rotation
     //and also figure can be in wrong place, cuz animation don`t finish, so we also need to rotate her
-    private func checkSpecialFigureView(_ figureView: UIView?, color: GameColors?, operation: @escaping (GameColors, GameColors) -> Bool) {
-        if let figureView = figureView {
+    private func checkSpecialFigureView(_ figureView: UIView?, color: GameColors?, operation: (GameColors, GameColors) -> Bool) {
+        if let figureView {
             if let figureData = figureView.layer.value(forKey: constants.keyForFIgure) as? Figure, color != nil ? operation(figureData.color, color!) : true {
                 if let figureImageView = figureView as? UIImageView {
                     figureImageView.image = figureImageView.image?.rotate(radians: .pi)
@@ -1222,7 +1215,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         for squareView in squares {
             if let oldSquare = squareView.layer.value(forKey: constants.keyNameForSquare) as? Square {
                 let newSquare = gameLogic.gameBoard.squares.first(where: {$0 == oldSquare})
-                if let newSquare = newSquare {
+                if let newSquare {
                     if let figure = squareView.subviews.second {
                         figure.removeFromSuperview()
                     }
@@ -1334,10 +1327,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
     }
     
     private func stopTurnsPlayback() {
-        for timer in turnsActionTimers {
-            timer.invalidate()
-        }
-        turnsActionTimers = []
+        turnsTask?.cancel()
+        turnsTask = nil
     }
     
     private func finishAnimations() {
@@ -1352,11 +1343,11 @@ class GameViewController: UIViewController, WSManagerDelegate {
         if gameLogic.timerEnabled && !gameLogic.gameEnded && (!gameLogic.pawnWizard || continueTimer) {
             if !continueTimer {
                 updatePlayersTime()
-                Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: {[weak self] _ in
-                    if let self = self {
-                        self.startPlayerTime(continueTimer: continueTimer)
-                    }
+                let timer = Timer.scheduledTimer(withTimeInterval: constants.animationDuration, repeats: false, block: { [weak self] _ in
+                    guard let self else { return }
+                    self.startPlayerTime(continueTimer: continueTimer)
                 })
+                RunLoop.main.add(timer, forMode: .common)
             }
             else {
                 startPlayerTime(continueTimer: continueTimer)
@@ -1365,28 +1356,20 @@ class GameViewController: UIViewController, WSManagerDelegate {
     }
     
     private func startPlayerTime(continueTimer: Bool) {
-        gameLogic.activateTime(continueTimer: continueTimer, callback: {[weak self] time in
-            if let self = self {
-                self.audioPlayer.playSound(Sounds.clockTickSound)
-                if self.gameLogic.gameMode == .multiplayer {
-                    if !self.wsManager!.connectedToWSServer && self.wsManager!.connectedToTheInternet {
-                        self.gameLogic.stopTime()
-                    }
-                    if !self.wsManager!.connectedToTheInternet && self.gameLogic.currentPlayer.type == .player2 {
-                        if self.gameLogic.timeLeft <= Int(constants.extraTimeForEnemyAFKTimer) {
-                            self.gameLogic.stopTime()
-                        }
-                    }
+        chessTimer?.cancel()
+        chessTimer = Task {
+            for try await time in gameLogic.activateTime(continueTimer: continueTimer) {
+                audioPlayer.playSound(Sounds.clockTickSound)
+                if time == 0 && view.subviews.first(where: {$0 == endOfTheGameView}) == nil {
+                    makeEndOfTheGameView()
                 }
-                if time == 0 && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
-                    self.makeEndOfTheGameView()
-                }
-                if self.gameLogic.currentPlayer.type == .player1 {
-                    self.player1Timer.text = time.timeAsString
-                    self.player1TimerForTurns.text = time.timeAsString
-                    self.player1TimerForMessagePopUp.text = time.timeAsString
-                    if self.gameLogic.timeLeft < constants.dangerTimeleft {
-                        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                if gameLogic.currentPlayer.type == .player1 {
+                    player1Timer.text = time.timeAsString
+                    player1TimerForTurns.text = time.timeAsString
+                    player1TimerForMessagePopUp.text = time.timeAsString
+                    if gameLogic.timeLeft < constants.dangerTimeleft {
+                        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: { [weak self] in
+                            guard let self else { return }
                             self.player1Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player1TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player1TimerForMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
@@ -1394,15 +1377,16 @@ class GameViewController: UIViewController, WSManagerDelegate {
                                 self.audioPlayer.playSound(Music.dangerMusic)
                             }
                         })
-                        self.animations.append(animation)
+                        animations.append(animation)
                     }
                 }
                 else {
-                    self.player2Timer.text = time.timeAsString
-                    self.player2TimerForTurns.text = time.timeAsString
-                    self.player2TimerForMessagePopUp.text = time.timeAsString
-                    if self.gameLogic.timeLeft < constants.dangerTimeleft {
-                        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
+                    player2Timer.text = time.timeAsString
+                    player2TimerForTurns.text = time.timeAsString
+                    player2TimerForMessagePopUp.text = time.timeAsString
+                    if gameLogic.timeLeft < constants.dangerTimeleft {
+                        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: { [weak self] in
+                            guard let self else { return }
                             self.player2Timer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player2TimerForTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
                             self.player2TimerForMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
@@ -1410,51 +1394,36 @@ class GameViewController: UIViewController, WSManagerDelegate {
                                 self.audioPlayer.playSound(Music.dangerMusic)
                             }
                         })
-                        self.animations.append(animation)
+                        animations.append(animation)
                     }
                 }
             }
-        })
+        }
     }
     
     //moves turns backward or forward with animation and activates turnsView buttons, if it`s last turn to animate
-    //if we have many turns to animate without timers we are doing it asynchronously, cuz it could take some seconds, which will freeze UI
-    //and also we can`t update UI asynchronously, cuz before animating new turns, we need to be sure that gameBoard is in correct state
-    private func moveTurn(forward: Bool, activateTurnButtons: Bool = true, animated: Bool = false) {
-        //we need to stop all animations, before performing new ones, to be sure, that gameboard is in correct state
-        if !Thread.isMainThread {
-            DispatchQueue.main.sync {
-                finishAnimations()
-            }
-        }
-        else {
-            finishAnimations()
-        }
+    //if we have many turns to animate we are doing it asynchronously, cuz it could take some seconds, which will freeze UI
+    private func moveTurn(forward: Bool, activateTurnButtons: Bool = true, delay: Double = 0.0) async {
         forward == true ? forwardRewind.toggle() : backwardRewind.toggle()
-        let turn = forward == true ? gameLogic.forward() : gameLogic.backward()
+        let turn = await forward == true ? self.gameLogic.forward(delay: delay) : self.gameLogic.backward(delay: delay)
         var castleTurn: Turn?
-        if let turn = turn {
+        if let turn {
             if turn.shortCastle || turn.longCastle {
                 //we need to animate 2 turns, if it`s castle
-                castleTurn = forward == true ? gameLogic.forward() : gameLogic.backward()
+                castleTurn = await forward == true ? self.gameLogic.forward() : self.gameLogic.backward()
             }
         }
-        if !Thread.isMainThread {
-            DispatchQueue.main.sync {
-                updateUIAfterRewind(activateTurnButtons: activateTurnButtons, turn: turn, castleTurn: castleTurn)
-            }
-        }
-        else {
-            updateUIAfterRewind(activateTurnButtons: activateTurnButtons, turn: turn, castleTurn: castleTurn)
-        }
+        //we need to stop all animations, before performing new ones, to be sure, that gameboard is in correct state
+        finishAnimations()
+        updateUIAfterRewind(activateTurnButtons: activateTurnButtons, turn: turn, castleTurn: castleTurn)
         forward == true ? forwardRewind.toggle() : backwardRewind.toggle()
     }
     
     private func updateUIAfterRewind(activateTurnButtons: Bool, turn: Turn?, castleTurn: Turn?) {
-        if let turn = turn {
+        if let turn {
             animateTurn(turn)
         }
-        if let castleTurn = castleTurn {
+        if let castleTurn {
             animateTurn(castleTurn)
         }
         updatePlayersTime()
@@ -1478,56 +1447,45 @@ class GameViewController: UIViewController, WSManagerDelegate {
     }
     
     //moves game to chosen turn
-    private func moveTurns(to turn: Turn, animate: Bool = true) {
+    private func moveTurns(to turn: Turn, animate: Bool = true) async {
+        let turnsTask = turnsTask
+        //chaining animations to create playback
+        //in our logic we will wait a little bit to calculate turn, for that time we will
+        //have animation in our UI
         var delay = 0.0
         chosenTurn = turn
         let turnsInfo = gameLogic.turnsLeft(to: turn)
         let turnsLeft = turnsInfo.count
         let forward = turnsInfo.forward
         if turnsLeft > 0 {
-            if animate && Thread.isMainThread {
+            if animate {
                 //before we start animating turns, we need to put gameBoard in center of the screen
                 if !scrollViewOfGame.checkIfViewInCenterOfTheScreen(view: gameBoard) {
                     scrollViewOfGame.scrollToViewAndCenterOnScreen(view: gameBoard, animated: true)
                     delay = constants.animationDuration
                 }
-                for i in 0..<turnsLeft {
-                    let isLastTurnToAnimate = i == turnsLeft - 1
-                    //chaining animations to create playback
-                    //we are assuming that our logic will calculate turn in less than animationDuration
-                    //otherwise it will not work as expected and app could freeze
-                    //other solution is to make a recursive function, which assign new timer to callback of previous
-                    //but anyway, if our logic will calculate turn for so long, it`s pretty bad, so no need in that function
-                    //in average it is 0.025 seconds for 1 turn
-                    let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: {[weak self] _ in
-                        if let self = self {
-                            self.moveTurn(forward: forward, activateTurnButtons: isLastTurnToAnimate, animated: true)
-                        }
-                    })
-                    //prevent animations from stop, when scrolling
-                    RunLoop.main.add(timer, forMode: .common)
-                    turnsActionTimers.append(timer)
-                    //if there is no animation, it means all our logic turns will be calculated syncronously without any delay,
-                    //so we have to wait for calculations to finish and there is no way for us to make them slower, cuz they all already processing
-                    //in other situiation it`s possible, cuz we simply cancel all timers and calculating all turns without them,
-                    //which will make them faster
-                    turnAction.isEnabled = animate
-                    fastAnimationsButton.isEnabled = animate
-                    delay += constants.animationDuration
-                }
             }
-            else {
-                for i in 0..<turnsLeft {
-                    let isLastTurnToAnimate = i == turnsLeft - 1
-                    moveTurn(forward: forward, activateTurnButtons: isLastTurnToAnimate)
+            if !restoringTurns {
+                turnAction.isEnabled = true
+                fastAnimationsButton.isEnabled = true
+            }
+            for i in 0..<turnsLeft {
+                let isLastTurnToAnimate = i == turnsLeft - 1
+                if !(turnsTask?.isCancelled ?? true) {
+                    await moveTurn(forward: forward, activateTurnButtons: isLastTurnToAnimate, delay: delay)
+                }
+                else {
+                    return
+                }
+                //if gameBoard is already in center, delay will be 0 for the first turn
+                if animate {
+                    delay = constants.animationDuration
                 }
             }
         }
         else {
-            DispatchQueue.main.async {[weak self] in
-                self?.chosenTurn = nil
-                self?.toggleTurnButtons(disable: false)
-            }
+            chosenTurn = nil
+            toggleTurnButtons(disable: false)
         }
     }
     
@@ -1669,7 +1627,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         let firstFigure = turn.squares.first?.figure
         let playerOfTurn = turn.squares.first?.figure?.color == gameLogic.players.first?.figuresColor ? gameLogic.players.first! : gameLogic.players.second!
         let enemyPlayer = playerOfTurn.type == .player1 ? gameLogic.players.second! : gameLogic.players.first!
-        if let firstFigure = firstFigure {
+        if let firstFigure {
             firstFigureView = makeFigureView(of: playerOfTurn, with: firstFigure.type)
             //we are adding castle as one turn
             if turn.shortCastle || turn.longCastle {
@@ -1678,24 +1636,24 @@ class GameViewController: UIViewController, WSManagerDelegate {
             }
         }
         let secondFigure = turn.squares.second?.figure == nil ? turn.pawnSquare?.figure : turn.squares.second?.figure
-        if let secondFigure = secondFigure {
+        if let secondFigure {
             secondFigureView = makeFigureView(of: enemyPlayer, with: secondFigure.type)
         }
         if let figure = turn.pawnTransform {
             pawnTransformFigureView = makeFigureView(of: playerOfTurn, with: figure.type)
         }
         let turnLabel = makeTurnLabel(from: turn)
-        if let firstFigureView = firstFigureView {
+        if let firstFigureView {
             thisTurnData.addArrangedSubview(firstFigureView)
         }
         thisTurnData.layer.setValue(turn, forKey: constants.keyNameForTurn)
         let tap = UITapGestureRecognizer(target: self, action: #selector(moveToTurn))
         thisTurnData.addGestureRecognizer(tap)
         thisTurnData.addArrangedSubview(turnLabel)
-        if let secondFigureView = secondFigureView {
+        if let secondFigureView {
             thisTurnData.addArrangedSubview(secondFigureView)
         }
-        if let pawnTransformFigureView = pawnTransformFigureView {
+        if let pawnTransformFigureView {
             thisTurnData.addArrangedSubview(pawnTransformFigureView)
         }
         if turnData.arrangedSubviews.isEmpty {
@@ -1817,8 +1775,9 @@ class GameViewController: UIViewController, WSManagerDelegate {
                                 if condition > turnsView.bounds.size.height {
                                     contentOffset = CGPoint(x: 0, y: condition - turnsView.bounds.size.height + turns.spacing)
                                 }
-                                let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {[weak self] in
-                                    self?.turnsScrollView.contentOffset = contentOffset
+                                let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: { [weak self] in
+                                    guard let self else { return }
+                                    self.turnsScrollView.contentOffset = contentOffset
                                 })
                                 animations.append(animation)
                             }
@@ -1841,33 +1800,32 @@ class GameViewController: UIViewController, WSManagerDelegate {
         let currentPlayer = gameLogic.currentPlayer
         let currentPlayerFrame = currentPlayer.type == .player1 ? player1FrameView : player2FrameView
         let enemyPlayerFrame = currentPlayer.type == .player1 ? player2FrameView : player1FrameView
-        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {[weak self] in
-            if let self = self {
-                currentPlayerFrame.updateDataBackgroundColor(self.currentPlayerDataColor)
-                enemyPlayerFrame.updateDataBackgroundColor(self.defaultPlayerDataColor)
-                self.currentPlayerForTurns.text = self.gameLogic.currentPlayer.user.nickname
-                if self.gameLogic.timerEnabled {
-                    let currentPlayerTimer = currentPlayer.type == .player1 ? self.player1Timer : self.player2Timer
-                    let enemyPlayerTimer = currentPlayer.type == .player1 ? self.player2Timer : self.player1Timer
-                    let currentPlayerTimerInTurns = currentPlayer.type == .player1 ? self.player1TimerForTurns : self.player2TimerForTurns
-                    let enemyPlayerTimerInTurns = currentPlayer.type == .player1 ? self.player2TimerForTurns : self.player1TimerForTurns
-                    let currentPlayerTimerInMessagePopUp = currentPlayer.type == .player1 ? self.player1TimerForMessagePopUp : self.player2TimerForMessagePopUp
-                    let enemyPlayerTimerInMessagePopUp = currentPlayer.type == .player1 ? self.player2TimerForMessagePopUp : self.player1TimerForMessagePopUp
-                    if currentPlayer.timeLeft > constants.dangerTimeleft {
-                        currentPlayerTimer.layer.backgroundColor = self.currentPlayerDataColor.cgColor
-                        currentPlayerTimerInTurns.layer.backgroundColor = self.currentPlayerDataColor.cgColor
-                        currentPlayerTimerInMessagePopUp.layer.backgroundColor = self.currentPlayerDataColor.cgColor
-                        self.audioPlayer.pauseSound(Music.dangerMusic)
-                    }
-                    else {
-                        currentPlayerTimer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                        currentPlayerTimerInTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                        currentPlayerTimerInMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
-                    }
-                    enemyPlayerTimer.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
-                    enemyPlayerTimerInTurns.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
-                    enemyPlayerTimerInMessagePopUp.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
+        let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: { [weak self] in
+            guard let self else { return }
+            currentPlayerFrame.updateDataBackgroundColor(self.currentPlayerDataColor)
+            enemyPlayerFrame.updateDataBackgroundColor(self.defaultPlayerDataColor)
+            self.currentPlayerForTurns.text = self.gameLogic.currentPlayer.user.nickname
+            if self.gameLogic.timerEnabled {
+                let currentPlayerTimer = currentPlayer.type == .player1 ? self.player1Timer : self.player2Timer
+                let enemyPlayerTimer = currentPlayer.type == .player1 ? self.player2Timer : self.player1Timer
+                let currentPlayerTimerInTurns = currentPlayer.type == .player1 ? self.player1TimerForTurns : self.player2TimerForTurns
+                let enemyPlayerTimerInTurns = currentPlayer.type == .player1 ? self.player2TimerForTurns : self.player1TimerForTurns
+                let currentPlayerTimerInMessagePopUp = currentPlayer.type == .player1 ? self.player1TimerForMessagePopUp : self.player2TimerForMessagePopUp
+                let enemyPlayerTimerInMessagePopUp = currentPlayer.type == .player1 ? self.player2TimerForMessagePopUp : self.player1TimerForMessagePopUp
+                if currentPlayer.timeLeft > constants.dangerTimeleft {
+                    currentPlayerTimer.layer.backgroundColor = self.currentPlayerDataColor.cgColor
+                    currentPlayerTimerInTurns.layer.backgroundColor = self.currentPlayerDataColor.cgColor
+                    currentPlayerTimerInMessagePopUp.layer.backgroundColor = self.currentPlayerDataColor.cgColor
+                    self.audioPlayer.pauseSound(Music.dangerMusic)
                 }
+                else {
+                    currentPlayerTimer.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                    currentPlayerTimerInTurns.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                    currentPlayerTimerInMessagePopUp.layer.backgroundColor = constants.dangerPlayerDataColor.cgColor
+                }
+                enemyPlayerTimer.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
+                enemyPlayerTimerInTurns.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
+                enemyPlayerTimerInMessagePopUp.layer.backgroundColor = self.defaultPlayerDataColor.cgColor
             }
         })
         animations.append(animation)
@@ -1979,7 +1937,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         }
         let needCastleSound = (turn.shortCastle || turn.longCastle) && turn.squares.first?.figure?.type == .rook
         let needCheckSound = !backwardRewind ? turn.check && !turn.checkMate : gameLogic.currentTurn?.check ?? false
-        if let firstSquareView = firstSquareView, let secondSquareView = secondSquareView, let firstSquare = firstSquare, let secondSquare = secondSquare {
+        if let firstSquareView, let secondSquareView, let firstSquare, let secondSquare {
             animateFigures(firstSquareView: firstSquareView, secondSquareView: secondSquareView, thirdSquareView: thirdSquareView, firstSquare: firstSquare, secondSquare: secondSquare, pawnSquare: turn.pawnSquare, pawnTransform: turn.pawnTransform, backwardSquareView: backwardSquareView, needCastleSound: needCastleSound, needCheckSound: needCheckSound, needCheckmateSound: turn.checkMate)
         }
     }
@@ -2000,9 +1958,9 @@ class GameViewController: UIViewController, WSManagerDelegate {
         }
         var frameForBackward: (x: CGFloat, y: CGFloat) = (0, 0)
         var backwardFigureView: UIImageView?
-        if let backwardSquareView = backwardSquareView {
+        if let backwardSquareView {
             backwardFigureView = getBackwardFigureView()
-            if let backwardFigureView = backwardFigureView {
+            if let backwardFigureView {
                 bringFigureToFrontFromTrash(figureView: backwardFigureView)
                 frameForBackward = coordinatesToMoveFigureFrom(firstView: backwardFigureView, to: backwardSquareView)
                 if player1RotateFiguresButton.transform != player2RotateFiguresButton.transform {
@@ -2019,7 +1977,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         }
         secondSquareView.layer.setValue(secondSquare, forKey: constants.keyNameForSquare)
         firstSquareView.layer.setValue(firstSquare, forKey: constants.keyNameForSquare)
-        if let pawnSquare = pawnSquare {
+        if let pawnSquare {
             var newSquare = pawnSquare
             newSquare.updateFigure()
             thirdSquareView?.layer.setValue(newSquare, forKey: constants.keyNameForSquare)
@@ -2029,7 +1987,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         let secondFigureView = secondSquareView.subviews.second
         let thirdFigureView = thirdSquareView?.subviews.second
         for figureView in [firstFigureView, secondFigureView, thirdFigureView] {
-            if let figureView = figureView {
+            if let figureView {
                 figureView.isUserInteractionEnabled = false
                 figuresInMotion.append(figureView)
                 let bounds = getFrameForAnimation(firstView: scrollContentOfGame, secondView: figureView)
@@ -2042,58 +2000,57 @@ class GameViewController: UIViewController, WSManagerDelegate {
                 NSLayoutConstraint.activate(figureViewConstraints)
             }
         }
-        if let firstFigureView = firstFigureView {
+        if let firstFigureView {
             scrollContentOfGame.bringSubviewToFront(firstFigureView)
         }
         viewsOnTop()
         //turn animation
         let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
             backwardFigureView?.transform = CGAffineTransform(translationX: frameForBackward.x, y: frameForBackward.y)
-            if let firstFigureView = firstFigureView {
+            if let firstFigureView {
                 firstFigureView.transform = firstFigureView.transform.translatedBy(x: frame.minX - firstSquareView.bounds.minX, y: frame.minY - firstSquareView.bounds.minY)
             }
         }) { [weak self] _ in
-            if let self = self {
-                if needCastleSound && !backwardRewind {
-                    self.audioPlayer.playSound(Sounds.castleSound)
-                }
-                if needCheckSound {
-                    self.audioPlayer.playSound(Sounds.checkSound)
-                }
-                else if needCheckmateSound && !backwardRewind {
-                    self.audioPlayer.playSound(Sounds.checkmateSound)
-                }
-                NSLayoutConstraint.deactivate(self.scrollContentOfGame.constraints.filter({$0.firstItem === firstFigureView || $0.firstItem === secondFigureView || $0.firstItem === thirdFigureView}))
-                self.figuresInMotion = []
-                //stops trashAnimation before starting new one
-                self.trashAnimation?.stopAnimation(false)
-                self.trashAnimation?.finishAnimation(at: .end)
-                if let backwardSquareView = backwardSquareView, let backwardFigureView = backwardFigureView {
-                    let destroyedFiguresView = backwardFigureView.superview?.superview
-                    backwardFigureView.transform = .identity
-                    self.figureFromTrash = nil
-                    backwardSquareView.addSubview(backwardFigureView)
-                    destroyedFiguresView?.layoutIfNeeded()
-                }
-                if let secondFigureView = secondFigureView as? UIImageView {
-                    self.moveFigureToTrash(figureView: secondFigureView, currentPlayer: currentPlayer)
-                }
-                if let firstFigureView = firstFigureView {
-                    firstFigureView.transform = .identity
-                    secondSquareView.addSubview(firstFigureView)
-                    let figureViewConstraints = [firstFigureView.centerXAnchor.constraint(equalTo: secondSquareView.centerXAnchor), firstFigureView.centerYAnchor.constraint(equalTo: secondSquareView.centerYAnchor)]
-                    NSLayoutConstraint.activate(figureViewConstraints)
-                }
-                if let thirdFigureView = thirdFigureView as? UIImageView {
-                    self.moveFigureToTrash(figureView: thirdFigureView, currentPlayer: currentPlayer)
-                }
-                if self.gameLogic.gameEnded && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
-                    self.makeEndOfTheGameView()
-                }
-                if let pawnTransform = pawnTransform, !backwardRewind {
-                    if let turn = self.gameLogic.currentTurn, let square = turn.squares.last {
-                        self.updateSquare(square, figure: pawnTransform)
-                    }
+            guard let self else { return }
+            if needCastleSound && !backwardRewind {
+                self.audioPlayer.playSound(Sounds.castleSound)
+            }
+            if needCheckSound {
+                self.audioPlayer.playSound(Sounds.checkSound)
+            }
+            else if needCheckmateSound && !backwardRewind {
+                self.audioPlayer.playSound(Sounds.checkmateSound)
+            }
+            NSLayoutConstraint.deactivate(self.scrollContentOfGame.constraints.filter({$0.firstItem === firstFigureView || $0.firstItem === secondFigureView || $0.firstItem === thirdFigureView}))
+            self.figuresInMotion = []
+            //stops trashAnimation before starting new one
+            self.trashAnimation?.stopAnimation(false)
+            self.trashAnimation?.finishAnimation(at: .end)
+            if let backwardSquareView, let backwardFigureView {
+                let destroyedFiguresView = backwardFigureView.superview?.superview
+                backwardFigureView.transform = .identity
+                self.figureFromTrash = nil
+                backwardSquareView.addSubview(backwardFigureView)
+                destroyedFiguresView?.layoutIfNeeded()
+            }
+            if let secondFigureView = secondFigureView as? UIImageView {
+                self.moveFigureToTrash(figureView: secondFigureView, currentPlayer: currentPlayer)
+            }
+            if let firstFigureView {
+                firstFigureView.transform = .identity
+                secondSquareView.addSubview(firstFigureView)
+                let figureViewConstraints = [firstFigureView.centerXAnchor.constraint(equalTo: secondSquareView.centerXAnchor), firstFigureView.centerYAnchor.constraint(equalTo: secondSquareView.centerYAnchor)]
+                NSLayoutConstraint.activate(figureViewConstraints)
+            }
+            if let thirdFigureView = thirdFigureView as? UIImageView {
+                self.moveFigureToTrash(figureView: thirdFigureView, currentPlayer: currentPlayer)
+            }
+            if self.gameLogic.gameEnded && self.view.subviews.first(where: {$0 == self.endOfTheGameView}) == nil {
+                self.makeEndOfTheGameView()
+            }
+            if let pawnTransform, !backwardRewind {
+                if let turn = self.gameLogic.currentTurn, let square = turn.squares.last {
+                    self.updateSquare(square, figure: pawnTransform)
                 }
             }
         }
@@ -2136,7 +2093,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private func bringFigureToFrontFromTrash(figureView: UIView) {
         let trashView = figureView.superview?.superview
         let trashStack = figureView.superview
-        if let trashStack = trashStack, let trashView = trashView {
+        if let trashStack, let trashView {
             scrollContentOfGame.bringSubviewToFront(trashView)
             trashView.bringSubviewToFront(trashStack)
             trashStack.bringSubviewToFront(figureView)
@@ -2197,16 +2154,15 @@ class GameViewController: UIViewController, WSManagerDelegate {
         audioPlayer.playSound(Sounds.moveSound4)
         trashAnimation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: {
             figure.transform = figure.transform.translatedBy(x: x, y: y)
-        }) {[weak self] _ in
-            if let self = self {
-                figure.transform = .identity
-                self.figureToTrash = nil
-                switch currentPlayer.type {
-                case .player1:
-                    self.addFigureToTrash(player: .player1, destroyedFiguresStack1: self.player1DestroyedFigures1, destroyedFiguresStack2: self.player1DestroyedFigures2, figure: figure)
-                case .player2:
-                    self.addFigureToTrash(player: .player2, destroyedFiguresStack1: self.player2DestroyedFigures1, destroyedFiguresStack2: self.player2DestroyedFigures2, figure: figure)
-                }
+        }) { [weak self] _ in
+            guard let self else { return }
+            figure.transform = .identity
+            self.figureToTrash = nil
+            switch currentPlayer.type {
+            case .player1:
+                self.addFigureToTrash(player: .player1, destroyedFiguresStack1: self.player1DestroyedFigures1, destroyedFiguresStack2: self.player1DestroyedFigures2, figure: figure)
+            case .player2:
+                self.addFigureToTrash(player: .player2, destroyedFiguresStack1: self.player2DestroyedFigures1, destroyedFiguresStack2: self.player2DestroyedFigures2, figure: figure)
             }
         }
     }
@@ -2382,15 +2338,14 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private func addToggleChatMuteAction(with title: String, and imageItem: SystemImages, to parent: UIButton) {
         let image = UIImage(systemName: imageItem.getSystemName())
         let toggleChatMute = UIAction(title: title, image: image) { [weak self] _ in
-            if let self = self {
-                if self.muteChat {
-                    self.addToggleChatMuteAction(with: "Mute chat", and: SystemImages.hideImage, to: parent)
-                }
-                else {
-                    self.addToggleChatMuteAction(with: "Unmute chat", and: SystemImages.showImage, to: parent)
-                }
-                self.muteChat.toggle()
+            guard let self else { return }
+            if self.muteChat {
+                self.addToggleChatMuteAction(with: "Mute chat", and: SystemImages.hideImage, to: parent)
             }
+            else {
+                self.addToggleChatMuteAction(with: "Unmute chat", and: SystemImages.showImage, to: parent)
+            }
+            self.muteChat.toggle()
         }
         parent.menu = UIMenu(title: "", children: [toggleChatMute])
     }
@@ -3134,7 +3089,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
         else {
             progressPoints = currentProgress / CGFloat(currentPoints - rank.minimumPoints)
         }
-        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true, block: {[weak self] timer in
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true, block: { [weak self] timer in
+            guard let self else { return }
             if currentPoints == endPoints {
                 timer.invalidate()
                 return
@@ -3151,14 +3107,14 @@ class GameViewController: UIViewController, WSManagerDelegate {
                     playerProgress.reset()
                     rank = rank.nextRank
                     if playerProgress.isVisible() {
-                        self?.audioPlayer.playSound(Sounds.successSound)
+                        self.audioPlayer.playSound(Sounds.successSound)
                     }
                 }
                 else if condition2 {
                     playerProgress.fill()
                     rank = rank.previousRank
                     if playerProgress.isVisible() {
-                        self?.audioPlayer.playSound(Sounds.sadSound)
+                        self.audioPlayer.playSound(Sounds.sadSound)
                     }
                 }
                 rankLabel.text = rank.asString
@@ -3169,7 +3125,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
             //in other words new timer with bigger interval
             if currentPoints + factor == endPoints {
                 timer.invalidate()
-                self?.animatePoints(interval: interval * constants.muttiplierForIntervalForPointsAnimation, startPoints: currentPoints, endPoints: endPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor / constants.dividerForFactorForPointsAnimation, rank: rank, rankLabel: rankLabel)
+                self.animatePoints(interval: interval * constants.muttiplierForIntervalForPointsAnimation, startPoints: currentPoints, endPoints: endPoints, playerProgress: playerProgress, pointsLabel: pointsLabel, factor: factor / constants.dividerForFactorForPointsAnimation, rank: rank, rankLabel: rankLabel)
             }
         })
         RunLoop.main.add(timer, forMode: .common)
