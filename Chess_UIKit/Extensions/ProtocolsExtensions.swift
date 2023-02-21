@@ -136,3 +136,11 @@ extension WSManagerDelegate {
     }
     
 }
+
+extension SpecialItemView {
+    
+    var item: GameItem {
+        itemView.item
+    }
+    
+}

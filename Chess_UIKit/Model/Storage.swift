@@ -122,18 +122,17 @@ class Storage {
         currentUser = nil
     }
     
-    func checkIfUserIsLoggedIn() async throws {
+    func checkIfUserIsLoggedIn() async throws -> Bool {
         if Auth.auth().currentUser != nil {
             do {
                 try await findUser()
+                return true
             }
             catch {
                 throw error
             }
         }
-        else {
-            throw ExtraFirebaseErrors.userNotLoggedIn
-        }
+        return false
     }
     
     func checkIfGoogleSignIn() -> Bool {
@@ -197,10 +196,10 @@ class Storage {
     func updateUserAccount(with email: String, and password: String) async throws {
         do {
             try await Auth.auth().currentUser?.updateEmail(to: email)
+            currentUser.updateEmail(newValue: email)
             if !password.isEmpty {
                 try await Auth.auth().currentUser?.updatePassword(to: password)
             }
-            currentUser.updateEmail(newValue: email)
         }
         catch {
             throw error

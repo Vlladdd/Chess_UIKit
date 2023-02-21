@@ -46,8 +46,14 @@ class AuthorizationVC: UIViewController, AuthorizationDelegate {
         prepareForAuthorizationProcess()
         Task {
             do {
-                try await storage.checkIfUserIsLoggedIn()
-                successAuthorization()
+                let userIsLoggedIn = try await storage.checkIfUserIsLoggedIn()
+                if userIsLoggedIn {
+                    successAuthorization()
+                }
+                else {
+                    loadingSpinner.removeFromSuperview()
+                    authorizationView.isHidden.toggle()
+                }
             }
             catch {
                 authorizationErrorWith(errorMessage: error.localizedDescription)

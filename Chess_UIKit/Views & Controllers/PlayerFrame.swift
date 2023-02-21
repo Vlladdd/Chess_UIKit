@@ -8,7 +8,11 @@
 import UIKit
 
 //view that represents frame of the player
-class PlayerFrame: UIView {
+class PlayerFrame: UIView, ItemView {
+    
+    // MARK: - ItemView
+    
+    let item: GameItem
     
     // MARK: - Properties
     
@@ -22,23 +26,23 @@ class PlayerFrame: UIView {
     private let dataBackgroundView = UIView()
     private let borderForFrame = CAShapeLayer()
     private let borderForData = CAShapeLayer()
-    
-    private var data: UIView!
-    private var background: Backgrounds!
-    private var playerFrame: Frames!
+    private let data: UIView
+    private let background: Backgrounds
     
     private typealias constants = PlayerFrame_Constants
     
     // MARK: - Inits
     
-    convenience init(background: Backgrounds, playerFrame: Frames, data: UIView) {
-        self.init()
-        translatesAutoresizingMaskIntoConstraints = false
-        backgroundColor = .clear
+    init(background: Backgrounds, playerFrame: Frames, data: UIView) {
         self.background = background
-        self.playerFrame = playerFrame
+        item = playerFrame
         self.data = data
+        super.init(frame: .zero)
         setup()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
     
     // MARK: - Methods
@@ -59,6 +63,8 @@ class PlayerFrame: UIView {
     }
     
     private func setup() {
+        translatesAutoresizingMaskIntoConstraints = false
+        backgroundColor = .clear
         configureBorderLayer(borderForFrame)
         configureBorderLayer(borderForData)
         if let data = data as? UILabel {
@@ -72,7 +78,7 @@ class PlayerFrame: UIView {
         let backgroundColorForData = traitCollection.userInterfaceStyle == .dark ? constants.defaultDarkModeColorForDataBackground : constants.defaultLightModeColorForDataBackground
         dataBackgroundView.backgroundColor = backgroundColorForData
         frameBackground.setImage(with: background)
-        frameBorder.setImage(with: playerFrame)
+        frameBorder.setImage(with: item as! Frames)
         addSubviews([frameBorder, frameBackground, dataBackgroundView, data])
         let constraints = [data.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: constants.distanceForTextInFrame), data.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -constants.distanceForTextInFrame), data.centerXAnchor.constraint(equalTo: centerXAnchor), data.centerYAnchor.constraint(equalTo: centerYAnchor), frameBackground.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.widthAnchor.constraint(equalTo: widthAnchor), frameBorder.heightAnchor.constraint(equalTo: heightAnchor), frameBorder.centerXAnchor.constraint(equalTo: centerXAnchor), frameBorder.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.heightAnchor.constraint(equalTo: heightAnchor), dataBackgroundView.widthAnchor.constraint(equalTo: widthAnchor), frameBackground.centerXAnchor.constraint(equalTo: centerXAnchor), frameBackground.centerYAnchor.constraint(equalTo: centerYAnchor), dataBackgroundView.centerXAnchor.constraint(equalTo: centerXAnchor), dataBackgroundView.centerYAnchor.constraint(equalTo: centerYAnchor)]
         NSLayoutConstraint.activate(constraints)

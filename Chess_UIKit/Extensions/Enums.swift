@@ -647,3 +647,10 @@ enum SoundItems: String, Item {
 enum OtherItems: String, Item {
     case misc
 }
+
+enum BackButtonType: String {
+    case toMainMenu
+    case toInventoryMenu
+    case toShopMenu
+    case toGameMenu
+}

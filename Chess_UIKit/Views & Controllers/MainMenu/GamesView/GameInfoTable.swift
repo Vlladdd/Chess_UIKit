@@ -7,21 +7,21 @@
 
 import UIKit
 
-//class that represents custom table
+//class that represents custom table with game info
 class GameInfoTable: UITableView, UITableViewDelegate, UITableViewDataSource {
     
     // MARK: - Properties
     
     private var data: [Int: [String]] = [:]
-    private var dataFont: UIFont!
+    private let dataFont: UIFont
     
     private typealias constants = GameInfoTable_Constants
     
     // MARK: - Inits
     
     init(gameData: GameLogic, dataFont: UIFont) {
-        super.init(frame: .zero, style: .insetGrouped)
         self.dataFont = dataFont
+        super.init(frame: .zero, style: .insetGrouped)
         data[0] = ["Game mode", gameData.gameMode.asString]
         data[1] = ["Rewind enabled", gameData.rewindEnabled ? Answers.yes.asString : Answers.no.asString]
         if gameData.timerEnabled {

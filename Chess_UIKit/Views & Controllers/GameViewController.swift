@@ -1802,8 +1802,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
         let enemyPlayerFrame = currentPlayer.type == .player1 ? player2FrameView : player1FrameView
         let animation = UIViewPropertyAnimator.runningPropertyAnimator(withDuration: constants.animationDuration, delay: 0, animations: { [weak self] in
             guard let self else { return }
-            currentPlayerFrame.updateDataBackgroundColor(self.currentPlayerDataColor)
-            enemyPlayerFrame.updateDataBackgroundColor(self.defaultPlayerDataColor)
+            currentPlayerFrame?.updateDataBackgroundColor(self.currentPlayerDataColor)
+            enemyPlayerFrame?.updateDataBackgroundColor(self.defaultPlayerDataColor)
             self.currentPlayerForTurns.text = self.gameLogic.currentPlayer.user.nickname
             if self.gameLogic.timerEnabled {
                 let currentPlayerTimer = currentPlayer.type == .player1 ? self.player1Timer : self.player2Timer
@@ -2255,10 +2255,10 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private var squares = [UIImageView]()
     private var destroyedFigures1 = UIView()
     private var destroyedFigures2 = UIView()
-    private var player1FrameView = PlayerFrame()
-    private var player2FrameView = PlayerFrame()
-    private var player1TitleView = PlayerFrame()
-    private var player2TitleView = PlayerFrame()
+    private var player1FrameView: PlayerFrame!
+    private var player2FrameView: PlayerFrame!
+    private var player1TitleView: PlayerFrame!
+    private var player2TitleView: PlayerFrame!
     
     private var portraitConstraints: [NSLayoutConstraint] = []
     private var landscapeConstraints: [NSLayoutConstraint] = []

@@ -141,6 +141,24 @@ extension UIView {
         return true
     }
     
+    //random appearance of view with current transform .identity from left or right
+    func randomAAnimation(with duration: TimeInterval) {
+        let sumOperation: (CGFloat, CGFloat) -> CGFloat = {$0 + $1}
+        let subtractOperation: (CGFloat, CGFloat) -> CGFloat = {$0 - $1}
+        let operations = [sumOperation, subtractOperation]
+        let randomOperation = operations.randomElement()
+        let endX = bounds.minX
+        if let randomOperation {
+            let width = superview?.bounds.width ?? bounds.width
+            let startX = randomOperation(endX, width)
+            transform = CGAffineTransform(translationX: startX, y: 0)
+            UIView.animate(withDuration: duration, animations: { [weak self] in
+                guard let self else { return }
+                self.transform = .identity
+            })
+        }
+    }
+    
 }
 
 extension UIButton {
@@ -150,17 +168,7 @@ extension UIButton {
         isExclusiveTouch = true
         addTarget(nil, action: function, for: .touchUpInside)
         if let imageItem {
-            var image: UIImage?
-            if let imageItem = imageItem as? SystemImages {
-                image = UIImage(systemName: imageItem.getSystemName())
-            }
-            else if let imagePath = imageItem.getFullPath() {
-                image = UIImage(named: "\(imagePath)")
-            }
-            if let image {
-                setImage(image, for: .normal)
-                settingsForButtonWithImage()
-            }
+            setImage(with: imageItem)
         }
         setTitle(text, for: .normal)
         titleLabel?.textAlignment = .center
@@ -373,6 +381,25 @@ extension UIImageView {
         } else {
             layer.borderColor = Constants.lightModeBorderColor
         }
+    }
+    
+    func makeSquareView(with imageItem: ImageItem?) {
+        translatesAutoresizingMaskIntoConstraints = false
+        if let imageItem {
+            setImage(with: imageItem)
+        }
+        widthAnchor.constraint(equalTo: heightAnchor).isActive = true
+    }
+    
+    //in case if square and element in square is 2 different images
+    //right now only used for gameBoard, cuz default numbers is not part of square image
+    func makeSpecialSquareView(with firstItem: ImageItem, and secondItem: ImageItem, multiplier: CGFloat) {
+        makeSquareView(with: firstItem)
+        let secondSquare = UIImageView()
+        secondSquare.makeSquareView(with: secondItem)
+        addSubview(secondSquare)
+        let secondSquareConstraints = [secondSquare.centerXAnchor.constraint(equalTo: centerXAnchor), secondSquare.centerYAnchor.constraint(equalTo: centerYAnchor), secondSquare.widthAnchor.constraint(equalTo: widthAnchor, multiplier: multiplier), secondSquare.heightAnchor.constraint(equalTo: heightAnchor, multiplier: multiplier)]
+        NSLayoutConstraint.activate(secondSquareConstraints)
     }
     
     func setImage(with imageItem: ImageItem, upsideDown: Bool = false) {
@@ -597,5 +624,10 @@ extension UIScrollView {
         }
         return false
     }
+    
+    func scrollToTop(animated: Bool) {
+        let topOffset = CGPoint(x: 0, y: -contentInset.top)
+        setContentOffset(topOffset, animated: animated)
+   }
     
 }

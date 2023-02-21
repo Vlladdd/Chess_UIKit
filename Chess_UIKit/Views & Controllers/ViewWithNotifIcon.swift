@@ -18,24 +18,20 @@ class ViewWithNotifIcon: UIImageView {
     
     // MARK: - Properties
     
-    private(set) var mainView: UIView!
+    let mainView: UIView
     
-    private var cornerRadius: CGFloat = 0
+    private let height: CGFloat?
     private var specialHeightConstraint: NSLayoutConstraint? = nil
+    private var notificationIcon: UIImageView?
     
     private typealias constants = ViewWithNotifIcon_Constants
     
     // MARK: - Inits
     
-    init() {
-        super.init(frame: .zero)
-        isUserInteractionEnabled = true
-    }
-    
-    init(mainView: UIView, cornerRadius: CGFloat) {
-        super.init(frame: .zero)
+    init(mainView: UIView, height: CGFloat?) {
+        self.height = height
         self.mainView = mainView
-        self.cornerRadius = cornerRadius
+        super.init(frame: .zero)
         setup()
     }
     
@@ -48,42 +44,46 @@ class ViewWithNotifIcon: UIImageView {
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         isUserInteractionEnabled = true
-        layer.setValue(true, forKey: constants.keyForViewWithNotifIcon)
         addSubview(mainView)
-        addNotificationIcon()
+        let mainViewConstraints = [mainView.leadingAnchor.constraint(equalTo: leadingAnchor), mainView.bottomAnchor.constraint(equalTo: bottomAnchor), mainView.topAnchor.constraint(equalTo: topAnchor), mainView.trailingAnchor.constraint(equalTo: trailingAnchor)]
+        if let height {
+            heightAnchor.constraint(equalToConstant: height).isActive = true
+        }
+        NSLayoutConstraint.activate(mainViewConstraints)
     }
     
     func addNotificationIcon() {
-        let notificationIcon = UIImageView()
-        notificationIcon.defaultSettings()
-        notificationIcon.settingsForBackgroundOfTheButton(cornerRadius: cornerRadius)
-        notificationIcon.isUserInteractionEnabled = false
-        notificationIcon.backgroundColor = constants.notificationIconBackgroundColor
-        //makes it easier to find this view
-        notificationIcon.layer.setValue(true, forKey: constants.keyForNotifIcon)
-        addSubview(notificationIcon)
-        //in case if we are re-adding notification icon
-        NSLayoutConstraint.deactivate(constraints.filter({$0.firstItem === mainView}))
-        let notificationViewConstraints = [notificationIcon.heightAnchor.constraint(equalTo: heightAnchor, multiplier: constants.sizeMultiplierForNotificationIcon), notificationIcon.widthAnchor.constraint(equalTo: notificationIcon.heightAnchor), notificationIcon.trailingAnchor.constraint(equalTo: trailingAnchor), notificationIcon.topAnchor.constraint(equalTo: topAnchor), mainView.topAnchor.constraint(equalTo: notificationIcon.centerYAnchor), mainView.trailingAnchor.constraint(equalTo: notificationIcon.centerXAnchor), mainView.leadingAnchor.constraint(equalTo: leadingAnchor), mainView.bottomAnchor.constraint(equalTo: bottomAnchor)]
-        if let mainView = mainView as? UITextField, let pointSize = mainView.font?.pointSize {
-            specialHeightConstraint = heightAnchor.constraint(equalToConstant: pointSize * constants.multiplierForHeightTF)
-            specialHeightConstraint?.isActive = true
-        }
-        NSLayoutConstraint.activate(notificationViewConstraints)
-        UIView.transition(with: self, duration: constants.animationDuration, options: .transitionFlipFromBottom, animations: { [weak self] in
-            guard let self else { return }
-            self.superview?.layoutIfNeeded()
-        })
-    }
-    
-    func removeNotificationIcon() {
-        if let notificationIcon = subviews.first(where: {
-            if let isNotifIcon = $0.layer.value(forKey: constants.keyForNotifIcon) as? Bool {
-                return isNotifIcon
+        if notificationIcon == nil {
+            notificationIcon = UIImageView()
+            if let notificationIcon {
+                notificationIcon.defaultSettings()
+                notificationIcon.settingsForBackgroundOfTheButton(cornerRadius: mainView.layer.cornerRadius)
+                notificationIcon.isUserInteractionEnabled = false
+                notificationIcon.backgroundColor = constants.notificationIconBackgroundColor
+                addSubview(notificationIcon)
+                //in case if we are re-adding notification icon
+                NSLayoutConstraint.deactivate(constraints.filter({$0.firstItem === mainView}))
+                let notificationViewConstraints = [notificationIcon.heightAnchor.constraint(equalTo: heightAnchor, multiplier: constants.sizeMultiplierForNotificationIcon), notificationIcon.widthAnchor.constraint(equalTo: notificationIcon.heightAnchor), notificationIcon.trailingAnchor.constraint(equalTo: trailingAnchor), notificationIcon.topAnchor.constraint(equalTo: topAnchor), mainView.topAnchor.constraint(equalTo: notificationIcon.centerYAnchor), mainView.trailingAnchor.constraint(equalTo: notificationIcon.centerXAnchor), mainView.leadingAnchor.constraint(equalTo: leadingAnchor), mainView.bottomAnchor.constraint(equalTo: bottomAnchor)]
+                if height == nil, let mainView = mainView as? UITextField, let pointSize = mainView.font?.pointSize {
+                    specialHeightConstraint = heightAnchor.constraint(equalToConstant: pointSize * constants.multiplierForHeightTF)
+                    specialHeightConstraint?.isActive = true
+                }
+                NSLayoutConstraint.activate(notificationViewConstraints)
+                //transition animation seems enough, but sometimes for some reason it might not work here
+                //and also this combination looks cool
+                layer.rotate(from: -.pi, to: 0, animated: true, duration: constants.animationDuration)
+                UIView.transition(with: self, duration: constants.animationDuration, options: .transitionFlipFromBottom, animations: { [weak self] in
+                    guard let self else { return }
+                    self.rootView.layoutIfNeeded()
+                })
             }
-            return false
-        }) {
+        }
+    }
+     
+    func removeNotificationIcon() {
+        if let notificationIcon {
             notificationIcon.removeFromSuperview()
+            self.notificationIcon = nil
             let newConstraints = [mainView.trailingAnchor.constraint(equalTo: trailingAnchor), mainView.topAnchor.constraint(equalTo: topAnchor)]
             NSLayoutConstraint.activate(newConstraints)
             specialHeightConstraint?.isActive = false
@@ -99,8 +99,6 @@ class ViewWithNotifIcon: UIImageView {
 // MARK: - Constants
 
 private struct ViewWithNotifIcon_Constants {
-    static let keyForNotifIcon = "isNotifIcon"
-    static let keyForViewWithNotifIcon = "isSpecial"
     static let notificationIconBackgroundColor = UIColor.red
     static let sizeMultiplierForNotificationIcon = 0.5
     static let animationDuration = 0.5

@@ -311,6 +311,49 @@ struct User: Codable {
         return false
     }
     
+    func haveInInventory(item: GameItem) -> (inInventory: Bool, chosen: Bool, available: Bool) {
+        var inInventory = false
+        var chosen = false
+        switch item.type {
+        case .squaresThemes:
+            if let squaresTheme = item as? SquaresThemes {
+                inInventory = availableItems.contains(where: {$0 as? SquaresThemes == squaresTheme})
+                chosen = squaresTheme == self.squaresTheme
+            }
+        case .figuresThemes:
+            if let figuresTheme = item as? FiguresThemes {
+                inInventory = availableItems.contains(where: {$0 as? FiguresThemes == figuresTheme})
+                chosen = figuresTheme == self.figuresTheme
+            }
+        case .boardThemes:
+            if let boardTheme = item as? BoardThemes {
+                inInventory = availableItems.contains(where: {$0 as? BoardThemes == boardTheme})
+                chosen = boardTheme == self.boardTheme
+            }
+        case .frames:
+            if let frame = item as? Frames {
+                inInventory = availableItems.contains(where: {$0 as? Frames == frame})
+                chosen = frame == self.frame
+            }
+        case .backgrounds:
+            if let background = item as? Backgrounds {
+                inInventory = availableItems.contains(where: {$0 as? Backgrounds == background})
+                chosen = background == self.playerBackground
+            }
+        case .titles:
+            if let title = item as? Titles {
+                inInventory = availableItems.contains(where: {$0 as? Titles == title})
+                chosen = title == self.title
+            }
+        case .avatars:
+            if let avatar = item as? Avatars {
+                inInventory = availableItems.contains(where: {$0 as? Avatars == avatar})
+                chosen = avatar == self.playerAvatar
+            }
+        }
+        return (inInventory, chosen, item.cost < coins)
+    }
+    
     private func haveNewSquaresThemesInInventory() -> Bool {
         containsNewItemIn(items: SquaresThemes.allCases)
     }

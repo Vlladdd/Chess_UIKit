@@ -49,3 +49,51 @@ protocol SoundItem: StorageItem {}
 protocol Item {
     var name: String { get }
 }
+
+protocol MainMenuDelegate: UIViewController {
+    func signOut() -> Void
+    func toggleUserProfileVC() -> Void
+    func toggleCreateGameVC() -> Void
+    func showGameVC(with game: GameLogic) -> Void
+    func makeErrorAlert(with message: String) -> Void
+}
+
+protocol NotificationIconsDelegate: UIView {
+    func updateNotificationIcons() -> Void
+}
+
+protocol MainMenuViewDelegate: UIView, NotificationIconsDelegate {
+    var font: UIFont { get }
+    var mainMenuDelegate: MainMenuDelegate? { get set }
+    
+    func makeMenu(with elements: UIStackView, reversed: Bool) -> Void
+    func buyItem(itemView: ItemView, additionalChanges: @escaping () -> Void) -> Void
+}
+
+protocol ItemView: UIView {
+    var item: GameItem { get }
+}
+
+protocol SpecialItemView: ItemView {
+    var itemView: ItemView { get }
+}
+
+//if view need additional buttons
+protocol AdditionalButtonsDelegate: UIView {
+    func makeAdditionalButtons() -> AdditionalButtons
+}
+
+protocol InvItemDelegate: AdditionalButtonsDelegate, NotificationIconsDelegate {
+    var font: UIFont { get }
+    
+    func updateItemsColor(inShop: Bool) -> Void
+}
+
+protocol MPGamesDelegate: AdditionalButtonsDelegate {
+    var searchingForMPgames: Task<Void, Error>? { get set }
+}
+
+protocol AdditionalButtonsBuilder {
+    func addBackButton(type: BackButtonType) -> Self
+    func addCoinsView() -> Self
+}

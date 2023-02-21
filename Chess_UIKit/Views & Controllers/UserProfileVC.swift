@@ -91,6 +91,7 @@ class UserProfileVC: UIViewController {
             switchCurrentViews(viewsToExit: [dataScrollView], viewsToEnter: [avatarsScrollView, avatarInfoScrollView], xForAnimation: view.frame.width)
         }
         else {
+            updateAvatar(with: storage.currentUser.playerAvatar)
             userAvatar.layer.borderColor = defaultTextColor.cgColor
             switchCurrentViews(viewsToExit: [avatarsScrollView, avatarInfoScrollView], viewsToEnter: [dataScrollView], xForAnimation: -view.frame.width)
         }
@@ -101,25 +102,21 @@ class UserProfileVC: UIViewController {
             if let avatar = sender.view?.layer.value(forKey: constants.keyForAvatar) as? Avatars {
                 audioPlayer.playSound(Sounds.pickItemSound)
                 storage.currentUser.addSeenItem(avatar)
+                if storage.currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
+                    storage.currentUser.setValue(with: avatar)
+                }
                 for avatarLine in avatarsView.arrangedSubviews {
                     if let avatarLine = avatarLine as? UIStackView {
                         resetPickedAvatar(in: avatarLine)
                     }
                 }
                 resetPickedAvatar(in: avatarsLastLine)
-                if storage.currentUser.availableItems.contains(where: {$0 as? Avatars == avatar}) {
-                    storage.currentUser.setValue(with: avatar)
-                    sender.view?.subviews.first?.backgroundColor = constants.chosenItemColor
-                }
-                UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
-                    guard let self else { return }
-                    self.userAvatar.setImage(with: avatar)
-                })
+                updateAvatar(with: avatar)
                 avatarInfo.text = avatar.description
                 sender.view?.layer.borderColor = constants.pickItemBorderColor
                 if let mainMenuVC = presentingViewController as? MainMenuVC {
-                    mainMenuVC.updateUserData()
-                    mainMenuVC.removeNotificationIconsIfNeeded()
+                    mainMenuVC.mainMenuView.updateUserData()
+                    mainMenuVC.mainMenuView.updateNotificationIcons()
                 }
                 if let viewWithNotif = sender.view?.superview as? ViewWithNotifIcon {
                     viewWithNotif.removeNotificationIcon()
@@ -130,11 +127,18 @@ class UserProfileVC: UIViewController {
     
     // MARK: - Local Methods
     
+    private func updateAvatar(with newValue: Avatars) {
+        UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
+            guard let self else { return }
+            self.userAvatar.setImage(with: newValue)
+        })
+    }
+    
     private func updateNickname(newValue: String, nicknameView: UIView) {
         storage.currentUser.updateNickname(newValue: newValue)
         if let mainMenuVC = presentingViewController as? MainMenuVC {
-            mainMenuVC.updateUserData()
-            mainMenuVC.removeNotificationIconsIfNeeded()
+            mainMenuVC.mainMenuView.updateUserData()
+            mainMenuVC.mainMenuView.updateNotificationIcons()
         }
         if let viewWithNotif = nicknameView.superview as? ViewWithNotifIcon {
             viewWithNotif.removeNotificationIcon()
@@ -299,7 +303,8 @@ class UserProfileVC: UIViewController {
         }
         if storage.currentUser.nickname.isEmpty {
             let field = nicknameLine.arrangedSubviews.second!
-            let nicknameView = ViewWithNotifIcon(mainView: field, cornerRadius: fontSize / constants.minimumDividerForCornerRadius)
+            let nicknameView = ViewWithNotifIcon(mainView: field, height: nil)
+            nicknameView.addNotificationIcon()
             nicknameLine.addArrangedSubview(nicknameView)
         }
         dataScrollViewContent.addSubview(dataFieldsStack)
@@ -351,7 +356,8 @@ class UserProfileVC: UIViewController {
             }
             let avatarViewConstraints = [avatarView.heightAnchor.constraint(equalTo: avatarView.widthAnchor), backgroundView.heightAnchor.constraint(equalTo: avatarView.heightAnchor), backgroundView.widthAnchor.constraint(equalTo: avatarView.widthAnchor), backgroundView.centerXAnchor.constraint(equalTo: avatarView.centerXAnchor), backgroundView.centerYAnchor.constraint(equalTo: avatarView.centerYAnchor)]
             if storage.currentUser.containsNewItemIn(items: [avatar]) {
-                let avatarViewWithNotif = ViewWithNotifIcon(mainView: avatarView, cornerRadius: fontSize / constants.minimumDividerForCornerRadius)
+                let avatarViewWithNotif = ViewWithNotifIcon(mainView: avatarView, height: nil)
+                avatarViewWithNotif.addNotificationIcon()
                 avatarsViews.append(avatarViewWithNotif)
             }
             else {
@@ -486,11 +492,14 @@ class UserProfileVC: UIViewController {
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
-    private func removeNotificationIconsIfNeeded(in line: UIStackView) {
+    private func updateNotificationIcons(in line: UIStackView) {
         for avatarView in line.arrangedSubviews {
             if let viewWithNotif = avatarView as? ViewWithNotifIcon {
                 if let item = viewWithNotif.mainView.layer.value(forKey: constants.keyForAvatar) as? Avatars {
-                    if !storage.currentUser.containsNewItemIn(items: [item]) {
+                    if storage.currentUser.containsNewItemIn(items: [item]) {
+                        viewWithNotif.addNotificationIcon()
+                    }
+                    else {
                         viewWithNotif.removeNotificationIcon()
                     }
                 }
@@ -498,9 +507,9 @@ class UserProfileVC: UIViewController {
         }
     }
     
-    func removeNotificationIconsIfNeeded() {
-        removeNotificationIconsIfNeeded(in: avatarsView)
-        removeNotificationIconsIfNeeded(in: avatarsLastLine)
+    func updateNotificationIcons() {
+        updateNotificationIcons(in: avatarsView)
+        updateNotificationIcons(in: avatarsLastLine)
     }
     
 }
