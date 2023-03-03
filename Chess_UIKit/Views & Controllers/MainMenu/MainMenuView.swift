@@ -52,7 +52,7 @@ class MainMenuView: UIView, MainMenuViewDelegate {
             buttonsStack.updateNotificationIcons()
         }
         if let userProfileVC = mainMenuDelegate?.presentedViewController as? UserProfileVC {
-            userProfileVC.updateNotificationIcons()
+            userProfileVC.userProfileView.updateNotificationIcons()
         }
     }
     

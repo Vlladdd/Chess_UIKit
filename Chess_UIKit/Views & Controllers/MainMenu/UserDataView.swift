@@ -16,9 +16,8 @@ class UserDataView: UIStackView {
     
     private let storage = Storage.sharedInstance
     private let audioPlayer = AudioPlayer.sharedInstance
-    
-    let userAvatar =  UIImageView()
-    let userName = UILabel()
+    private let userAvatar =  UIImageView()
+    private let userName = UILabel()
     
     private typealias constants = UserDataView_Constants
     

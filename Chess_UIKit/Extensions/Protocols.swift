@@ -97,3 +97,21 @@ protocol AdditionalButtonsBuilder {
     func addBackButton(type: BackButtonType) -> Self
     func addCoinsView() -> Self
 }
+
+protocol UserProfileViewDelegate: UIView, NotificationIconsDelegate {
+    var userProfileDelegate: UIViewController? { get set }
+    
+    func updateUserInfo() -> Void
+    func updateAvatar(with newValue: Avatars) -> Void
+}
+
+protocol UPDataLineBuilder {
+    func addLabel(with font: UIFont, and text: String) -> Self
+    func addTextField(with font: UIFont, placeHolder: String, and startValue: String?, isNotifView: Bool) -> Self
+    func addTextData(with font: UIFont, and text: String) -> Self
+    func addSwitch(with currentState: Bool, and selector: Selector) -> Self
+}
+
+protocol AvatarDelegate: UIView, NotificationIconsDelegate {
+    func pickAvatar(_ avatar: Avatars) -> Void
+}

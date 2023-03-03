@@ -21,16 +21,15 @@ class AuthorizationView: UIStackView {
     private let emailField = UITextField()
     private let passwordField = UITextField()
     private let goggleSignInButton = GoogleSignInButton()
-    
-    private var font: UIFont!
+    private let font: UIFont
     
     private typealias constants = LoginView_Constants
     
     // MARK: - Inits
     
     init(font: UIFont) {
-        super.init(frame: .zero)
         self.font = font
+        super.init(frame: .zero)
         setup()
     }
     

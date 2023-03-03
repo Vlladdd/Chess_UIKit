@@ -40,9 +40,9 @@ struct User: Codable {
     private(set) var rank: Ranks = .bronze
     private(set) var title: Titles = .novice
     private(set) var games = [GameLogic]()
-    //items which was unlocked or bought and can be used by a user
-    private(set) var availableItems: [GameItem] = [SquaresThemes.defaultTheme, Backgrounds.defaultBackground, Frames.defaultFrame, FiguresThemes.defaultTheme, BoardThemes.defaultTheme, Titles.novice, Avatars.defaultAvatar]
     
+    //items which was unlocked or bought and can be used by a user
+    private var availableItems: [GameItem] = [SquaresThemes.defaultTheme, Backgrounds.defaultBackground, Frames.defaultFrame, FiguresThemes.defaultTheme, BoardThemes.defaultTheme, Titles.novice, Avatars.defaultAvatar]
     private var availableSquaresThemes = [SquaresThemes.defaultTheme]
     private var availableBackgrounds = [Backgrounds.defaultBackground]
     private var availableFrames = [Frames.defaultFrame]

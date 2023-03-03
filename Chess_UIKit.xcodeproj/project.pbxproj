@@ -80,6 +80,15 @@
 		74E6CFA828CB85B900EAB421 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */; };
 		74ED4B53297EC88E00987269 /* WSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ED4B52297EC88E00987269 /* WSManager.swift */; };
 		74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F5102C291D5A40000689F2 /* LoadingSpinner.swift */; };
+		74F99E0729ABC9A400CC071C /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0629ABC9A400CC071C /* UserProfileView.swift */; };
+		74F99E0929ABCC1C00CC071C /* UPToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0829ABCC1C00CC071C /* UPToolbar.swift */; };
+		74F99E0B29ABD76400CC071C /* RankInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0A29ABD76400CC071C /* RankInfoView.swift */; };
+		74F99E0D29ABDDD500CC071C /* UserInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0C29ABDDD500CC071C /* UserInfoView.swift */; };
+		74F99E0F29ABE16F00CC071C /* UPDataLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0E29ABE16F00CC071C /* UPDataLine.swift */; };
+		74F99E1129ABE60F00CC071C /* UPDLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1029ABE60F00CC071C /* UPDLBuilder.swift */; };
+		74F99E1329ABFA1D00CC071C /* AvatarsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1229ABFA1D00CC071C /* AvatarsView.swift */; };
+		74F99E1529ABFB2900CC071C /* UPAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1429ABFB2900CC071C /* UPAvatarView.swift */; };
+		74F99E1729AC0B1600CC071C /* AvatarInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1629AC0B1600CC071C /* AvatarInfoView.swift */; };
 		74FAB3A42996B91B00015BF8 /* MMButtonsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FAB3A32996B91B00015BF8 /* MMButtonsView.swift */; };
 /* End PBXBuildFile section */
 
@@ -152,6 +161,15 @@
 		74E6CFA728CB85B900EAB421 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		74ED4B52297EC88E00987269 /* WSManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WSManager.swift; sourceTree = "<group>"; };
 		74F5102C291D5A40000689F2 /* LoadingSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingSpinner.swift; sourceTree = "<group>"; };
+		74F99E0629ABC9A400CC071C /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileView.swift; sourceTree = "<group>"; };
+		74F99E0829ABCC1C00CC071C /* UPToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPToolbar.swift; sourceTree = "<group>"; };
+		74F99E0A29ABD76400CC071C /* RankInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankInfoView.swift; sourceTree = "<group>"; };
+		74F99E0C29ABDDD500CC071C /* UserInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInfoView.swift; sourceTree = "<group>"; };
+		74F99E0E29ABE16F00CC071C /* UPDataLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPDataLine.swift; sourceTree = "<group>"; };
+		74F99E1029ABE60F00CC071C /* UPDLBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPDLBuilder.swift; sourceTree = "<group>"; };
+		74F99E1229ABFA1D00CC071C /* AvatarsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarsView.swift; sourceTree = "<group>"; };
+		74F99E1429ABFB2900CC071C /* UPAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPAvatarView.swift; sourceTree = "<group>"; };
+		74F99E1629AC0B1600CC071C /* AvatarInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarInfoView.swift; sourceTree = "<group>"; };
 		74FAB3A32996B91B00015BF8 /* MMButtonsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MMButtonsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -237,7 +255,7 @@
 				7467A6902874553F00B7504A /* SegmentData.swift */,
 				74692EC3295E095200A462DD /* SmartImageView.swift */,
 				74AB20D2295A02FB0076084C /* SmartTextField.swift */,
-				74414E70291689C9008CBD1E /* UserProfileVC.swift */,
+				74F99E0529ABC8BE00CC071C /* UserProfile */,
 				7418FB6C291D2B9000DA2BDC /* ViewWithNotifIcon.swift */,
 				7460A1D62871C92B0037A481 /* WheelOfFortune.swift */,
 			);
@@ -324,6 +342,26 @@
 			path = ItemsView;
 			sourceTree = "<group>";
 		};
+		74D993BB29AF953F00CB78D9 /* Avatars */ = {
+			isa = PBXGroup;
+			children = (
+				74F99E1629AC0B1600CC071C /* AvatarInfoView.swift */,
+				74F99E1229ABFA1D00CC071C /* AvatarsView.swift */,
+				74F99E1429ABFB2900CC071C /* UPAvatarView.swift */,
+			);
+			path = Avatars;
+			sourceTree = "<group>";
+		};
+		74D993BC29AF954800CB78D9 /* UserInfo */ = {
+			isa = PBXGroup;
+			children = (
+				74F99E0E29ABE16F00CC071C /* UPDataLine.swift */,
+				74F99E1029ABE60F00CC071C /* UPDLBuilder.swift */,
+				74F99E0C29ABDDD500CC071C /* UserInfoView.swift */,
+			);
+			path = UserInfo;
+			sourceTree = "<group>";
+		};
 		74F6CB6029A121B2002A6C7F /* Authorization */ = {
 			isa = PBXGroup;
 			children = (
@@ -342,6 +380,19 @@
 				7400C93729940044009BA248 /* GameView.swift */,
 			);
 			path = GamesView;
+			sourceTree = "<group>";
+		};
+		74F99E0529ABC8BE00CC071C /* UserProfile */ = {
+			isa = PBXGroup;
+			children = (
+				74D993BB29AF953F00CB78D9 /* Avatars */,
+				74F99E0A29ABD76400CC071C /* RankInfoView.swift */,
+				74F99E0829ABCC1C00CC071C /* UPToolbar.swift */,
+				74D993BC29AF954800CB78D9 /* UserInfo */,
+				74414E70291689C9008CBD1E /* UserProfileVC.swift */,
+				74F99E0629ABC9A400CC071C /* UserProfileView.swift */,
+			);
+			path = UserProfile;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -434,6 +485,7 @@
 				74660A9428591E22006FBF70 /* Figure.swift in Sources */,
 				745D1C7728CB5DDC001E25D3 /* Storage.swift in Sources */,
 				743E49F3298C73E800CD3FB2 /* MMButtonView.swift in Sources */,
+				74F99E0729ABC9A400CC071C /* UserProfileView.swift in Sources */,
 				744E4867296A13DA0058D5C4 /* AudioFile.swift in Sources */,
 				74027DD3285B92CA00806401 /* Player.swift in Sources */,
 				7489B0CC28D205B8002311BF /* MainMenuButton.swift in Sources */,
@@ -447,6 +499,8 @@
 				745CC22D29231CDF00CDFA10 /* ProtocolsExtensions.swift in Sources */,
 				7418FB6D291D2B9000DA2BDC /* ViewWithNotifIcon.swift in Sources */,
 				7470975428D36EB90089B483 /* Picker.swift in Sources */,
+				74F99E0F29ABE16F00CC071C /* UPDataLine.swift in Sources */,
+				74F99E0D29ABDDD500CC071C /* UserInfoView.swift in Sources */,
 				7470975228D350270089B483 /* CreateGameVC.swift in Sources */,
 				74ED4B53297EC88E00987269 /* WSManager.swift in Sources */,
 				74DD03F9298DA2BB002E379E /* ItemsView.swift in Sources */,
@@ -457,6 +511,7 @@
 				74A1928929644EEB00AAC877 /* AudioPlayer.swift in Sources */,
 				74FAB3A42996B91B00015BF8 /* MMButtonsView.swift in Sources */,
 				74B2CED328CD14510002D075 /* User.swift in Sources */,
+				74F99E1729AC0B1600CC071C /* AvatarInfoView.swift in Sources */,
 				74DD03F1298D7065002E379E /* Showcase.swift in Sources */,
 				74482B6A286C59A7004EC83C /* PlayerFrame.swift in Sources */,
 				74DD03F7298D8A8C002E379E /* ShopItemView.swift in Sources */,
@@ -464,6 +519,7 @@
 				743E49F5298C7C4B00CD3FB2 /* MMBasicButtons.swift in Sources */,
 				746F30232959056700C53A5A /* ChatMessage.swift in Sources */,
 				74DD0405298DCCCE002E379E /* TitleView.swift in Sources */,
+				74F99E0929ABCC1C00CC071C /* UPToolbar.swift in Sources */,
 				7400C9342993FA1B009BA248 /* MMGameButtons.swift in Sources */,
 				74DD0401298DC9C7002E379E /* FrameView.swift in Sources */,
 				7413948F28565EEB00159033 /* GameBoard.swift in Sources */,
@@ -471,6 +527,7 @@
 				74613E70285649BB00FF1EF2 /* AppDelegate.swift in Sources */,
 				74DD03F3298D761F002E379E /* InvItemView.swift in Sources */,
 				74700158285B49CB00CB7692 /* Turn.swift in Sources */,
+				74F99E1129ABE60F00CC071C /* UPDLBuilder.swift in Sources */,
 				746510E2292127CD003BD809 /* GoogleSignInButton.swift in Sources */,
 				74DD03FD298DC50D002E379E /* FThemeView.swift in Sources */,
 				743B299328CFBC4A00496D75 /* MainMenuVC.swift in Sources */,
@@ -479,10 +536,13 @@
 				7475D29328CA643100F9C97B /* AuthorizationVC.swift in Sources */,
 				746DB4CB28E1C73700DBA3E3 /* GameInfoTable.swift in Sources */,
 				744B4E04292293B70060527D /* AuthorizationView.swift in Sources */,
+				74F99E1329ABFA1D00CC071C /* AvatarsView.swift in Sources */,
 				74B06E55298E71C7006F1DD9 /* AdditionalButtons.swift in Sources */,
 				74DD0407298DCE2A002E379E /* AvatarView.swift in Sources */,
 				74613E72285649BB00FF1EF2 /* SceneDelegate.swift in Sources */,
 				7400C9362993FF41009BA248 /* GamesView.swift in Sources */,
+				74F99E0B29ABD76400CC071C /* RankInfoView.swift in Sources */,
+				74F99E1529ABFB2900CC071C /* UPAvatarView.swift in Sources */,
 				743E49EF298BCA9C00CD3FB2 /* MainMenuView.swift in Sources */,
 				74414E71291689C9008CBD1E /* UserProfileVC.swift in Sources */,
 				743C74D6297315F600763335 /* CustomImageItem.swift in Sources */,
