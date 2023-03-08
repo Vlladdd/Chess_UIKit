@@ -7,17 +7,17 @@
 
 import UIKit
 
-//class that represents builder for UPDataLine
+//class that represents builder for DataLine for user profile
 class UPDLBuilder: UPDataLineBuilder {
     
     // MARK: - Properties
     
-    private var product = UPDataLine()
+    private var product = DataLine()
     
     // MARK: - Methods
     
     func reset() {
-        product = UPDataLine()
+        product = DataLine()
     }
     
     func addLabel(with font: UIFont, and text: String) -> Self {
@@ -77,8 +77,8 @@ class UPDLBuilder: UPDataLineBuilder {
     }
     
     //returns product at current state and resets it
-    func build() -> UPDataLine {
-        let result = self.product
+    func build() -> DataLine {
+        let result = product
         reset()
         return result
     }

@@ -66,6 +66,10 @@
 		74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AB20D2295A02FB0076084C /* SmartTextField.swift */; };
 		74B06E55298E71C7006F1DD9 /* AdditionalButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B06E54298E71C7006F1DD9 /* AdditionalButtons.swift */; };
 		74B2CED328CD14510002D075 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B2CED228CD14510002D075 /* User.swift */; };
+		74C9A1FE29B640EF0073901B /* CreateGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C9A1FD29B640EF0073901B /* CreateGameView.swift */; };
+		74C9A20029B641A50073901B /* CGToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C9A1FF29B641A50073901B /* CGToolbar.swift */; };
+		74C9A20329B644740073901B /* GameInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C9A20229B644740073901B /* GameInfoView.swift */; };
+		74C9A20529B648210073901B /* CGDLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C9A20429B648210073901B /* CGDLBuilder.swift */; };
 		74DD03F1298D7065002E379E /* Showcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74DD03F0298D7065002E379E /* Showcase.swift */; };
 		74DD03F3298D761F002E379E /* InvItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74DD03F2298D761F002E379E /* InvItemView.swift */; };
 		74DD03F7298D8A8C002E379E /* ShopItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74DD03F6298D8A8C002E379E /* ShopItemView.swift */; };
@@ -84,7 +88,7 @@
 		74F99E0929ABCC1C00CC071C /* UPToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0829ABCC1C00CC071C /* UPToolbar.swift */; };
 		74F99E0B29ABD76400CC071C /* RankInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0A29ABD76400CC071C /* RankInfoView.swift */; };
 		74F99E0D29ABDDD500CC071C /* UserInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0C29ABDDD500CC071C /* UserInfoView.swift */; };
-		74F99E0F29ABE16F00CC071C /* UPDataLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0E29ABE16F00CC071C /* UPDataLine.swift */; };
+		74F99E0F29ABE16F00CC071C /* DataLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E0E29ABE16F00CC071C /* DataLine.swift */; };
 		74F99E1129ABE60F00CC071C /* UPDLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1029ABE60F00CC071C /* UPDLBuilder.swift */; };
 		74F99E1329ABFA1D00CC071C /* AvatarsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1229ABFA1D00CC071C /* AvatarsView.swift */; };
 		74F99E1529ABFB2900CC071C /* UPAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F99E1429ABFB2900CC071C /* UPAvatarView.swift */; };
@@ -147,6 +151,10 @@
 		74AB20D2295A02FB0076084C /* SmartTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTextField.swift; sourceTree = "<group>"; };
 		74B06E54298E71C7006F1DD9 /* AdditionalButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdditionalButtons.swift; sourceTree = "<group>"; };
 		74B2CED228CD14510002D075 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		74C9A1FD29B640EF0073901B /* CreateGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateGameView.swift; sourceTree = "<group>"; };
+		74C9A1FF29B641A50073901B /* CGToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGToolbar.swift; sourceTree = "<group>"; };
+		74C9A20229B644740073901B /* GameInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameInfoView.swift; sourceTree = "<group>"; };
+		74C9A20429B648210073901B /* CGDLBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGDLBuilder.swift; sourceTree = "<group>"; };
 		74DD03F0298D7065002E379E /* Showcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Showcase.swift; sourceTree = "<group>"; };
 		74DD03F2298D761F002E379E /* InvItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvItemView.swift; sourceTree = "<group>"; };
 		74DD03F6298D8A8C002E379E /* ShopItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShopItemView.swift; sourceTree = "<group>"; };
@@ -165,7 +173,7 @@
 		74F99E0829ABCC1C00CC071C /* UPToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPToolbar.swift; sourceTree = "<group>"; };
 		74F99E0A29ABD76400CC071C /* RankInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankInfoView.swift; sourceTree = "<group>"; };
 		74F99E0C29ABDDD500CC071C /* UserInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInfoView.swift; sourceTree = "<group>"; };
-		74F99E0E29ABE16F00CC071C /* UPDataLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPDataLine.swift; sourceTree = "<group>"; };
+		74F99E0E29ABE16F00CC071C /* DataLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLine.swift; sourceTree = "<group>"; };
 		74F99E1029ABE60F00CC071C /* UPDLBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPDLBuilder.swift; sourceTree = "<group>"; };
 		74F99E1229ABFA1D00CC071C /* AvatarsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarsView.swift; sourceTree = "<group>"; };
 		74F99E1429ABFB2900CC071C /* UPAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UPAvatarView.swift; sourceTree = "<group>"; };
@@ -245,7 +253,8 @@
 			isa = PBXGroup;
 			children = (
 				74F6CB6029A121B2002A6C7F /* Authorization */,
-				7470975128D350260089B483 /* CreateGameVC.swift */,
+				74F99E0E29ABE16F00CC071C /* DataLine.swift */,
+				74C9A1FC29B6405B0073901B /* GameCreator */,
 				74613E73285649BB00FF1EF2 /* GameViewController.swift */,
 				74F5102C291D5A40000689F2 /* LoadingSpinner.swift */,
 				74B06E53298E714B006F1DD9 /* MainMenu */,
@@ -342,6 +351,26 @@
 			path = ItemsView;
 			sourceTree = "<group>";
 		};
+		74C9A1FC29B6405B0073901B /* GameCreator */ = {
+			isa = PBXGroup;
+			children = (
+				74C9A1FF29B641A50073901B /* CGToolbar.swift */,
+				7470975128D350260089B483 /* CreateGameVC.swift */,
+				74C9A1FD29B640EF0073901B /* CreateGameView.swift */,
+				74C9A20129B644470073901B /* GameInfo */,
+			);
+			path = GameCreator;
+			sourceTree = "<group>";
+		};
+		74C9A20129B644470073901B /* GameInfo */ = {
+			isa = PBXGroup;
+			children = (
+				74C9A20429B648210073901B /* CGDLBuilder.swift */,
+				74C9A20229B644740073901B /* GameInfoView.swift */,
+			);
+			path = GameInfo;
+			sourceTree = "<group>";
+		};
 		74D993BB29AF953F00CB78D9 /* Avatars */ = {
 			isa = PBXGroup;
 			children = (
@@ -355,7 +384,6 @@
 		74D993BC29AF954800CB78D9 /* UserInfo */ = {
 			isa = PBXGroup;
 			children = (
-				74F99E0E29ABE16F00CC071C /* UPDataLine.swift */,
 				74F99E1029ABE60F00CC071C /* UPDLBuilder.swift */,
 				74F99E0C29ABDDD500CC071C /* UserInfoView.swift */,
 			);
@@ -482,7 +510,9 @@
 			files = (
 				7413948B2856563300159033 /* Square.swift in Sources */,
 				741394892856555900159033 /* GameLogic.swift in Sources */,
+				74C9A20529B648210073901B /* CGDLBuilder.swift in Sources */,
 				74660A9428591E22006FBF70 /* Figure.swift in Sources */,
+				74C9A20029B641A50073901B /* CGToolbar.swift in Sources */,
 				745D1C7728CB5DDC001E25D3 /* Storage.swift in Sources */,
 				743E49F3298C73E800CD3FB2 /* MMButtonView.swift in Sources */,
 				74F99E0729ABC9A400CC071C /* UserProfileView.swift in Sources */,
@@ -499,15 +529,17 @@
 				745CC22D29231CDF00CDFA10 /* ProtocolsExtensions.swift in Sources */,
 				7418FB6D291D2B9000DA2BDC /* ViewWithNotifIcon.swift in Sources */,
 				7470975428D36EB90089B483 /* Picker.swift in Sources */,
-				74F99E0F29ABE16F00CC071C /* UPDataLine.swift in Sources */,
+				74F99E0F29ABE16F00CC071C /* DataLine.swift in Sources */,
 				74F99E0D29ABDDD500CC071C /* UserInfoView.swift in Sources */,
 				7470975228D350270089B483 /* CreateGameVC.swift in Sources */,
 				74ED4B53297EC88E00987269 /* WSManager.swift in Sources */,
 				74DD03F9298DA2BB002E379E /* ItemsView.swift in Sources */,
 				74AB20D3295A02FC0076084C /* SmartTextField.swift in Sources */,
 				74DD0403298DCB32002E379E /* BKThemeView.swift in Sources */,
+				74C9A1FE29B640EF0073901B /* CreateGameView.swift in Sources */,
 				74F5102D291D5A40000689F2 /* LoadingSpinner.swift in Sources */,
 				7400C93F299445FF009BA248 /* BackButton.swift in Sources */,
+				74C9A20329B644740073901B /* GameInfoView.swift in Sources */,
 				74A1928929644EEB00AAC877 /* AudioPlayer.swift in Sources */,
 				74FAB3A42996B91B00015BF8 /* MMButtonsView.swift in Sources */,
 				74B2CED328CD14510002D075 /* User.swift in Sources */,

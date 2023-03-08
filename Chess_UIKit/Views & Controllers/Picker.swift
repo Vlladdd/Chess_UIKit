@@ -8,9 +8,11 @@
 import UIKit
 
 //class that represents picker for string enums
-class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPickerViewDelegate where T.RawValue == String {
+class Picker<T>: UITextField, UIPickerViewDataSource, UIPickerViewDelegate where T: RawRepresentable, T.RawValue == String {
     
     // MARK: - Properties
+    
+    weak var pickerDelegate: PickerDelegate?
     
     var pickedData: T?
     
@@ -19,9 +21,6 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     private let textView = UILabel()
     private let placeHolderView = UILabel()
     private let data: [T]
-    //could make a retain cycle
-    private var doneAction: (() -> ())?
-    private var cancelAction: (() -> ())?
     //size is random, without it, it will make unsatisfied constraints errors
     private let toolbar = UIToolbar(frame: CGRect(origin: .zero, size: CGSize(width: 100, height: 44.0)))
     
@@ -34,20 +33,18 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
         pickedData = pickedData == nil ? data.first : pickedData
         textView.text = pickedData?.asString
         placeHolderView.text = ""
-        doneAction?()
+        pickerDelegate?.doneAction(self)
     }
     
     @objc private func cancelPicker(_ sender: UIBarButtonItem? = nil) {
         resignFirstResponder()
-        cancelAction?()
+        pickerDelegate?.cancelAction(self)
     }
     
     // MARK: - Inits
     
-    init(placeholder: String, font: UIFont, data: [T], doneAction: (() -> ())? = nil, cancelAction: (() -> ())? = nil) {
+    init(placeholder: String, font: UIFont, data: [T]) {
         self.data = data
-        self.doneAction = doneAction
-        self.cancelAction = cancelAction
         super.init(frame: .zero)
         self.font = font
         setup(placeholder: placeholder)
@@ -118,11 +115,6 @@ class Picker<T: RawRepresentable>: UITextField, UIPickerViewDataSource, UIPicker
     
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
         pickedData = data[row]
-    }
-    
-    func breakRetainCycle() {
-        doneAction = nil
-        cancelAction = nil
     }
     
 }

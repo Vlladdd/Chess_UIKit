@@ -7,7 +7,7 @@
 
 import UIKit
 
-//class that represents view with user info, which is basically just multiple UPDataLines
+//class that represents view with user info, which is basically just multiple DataLines
 class UserInfoView: UIScrollView {
     
     // MARK: - Properties
@@ -80,7 +80,7 @@ class UserInfoView: UIScrollView {
         NSLayoutConstraint.activate(contentConstraints + dataConstraints)
     }
     
-    private func makeNicknameLine() -> UPDataLine {
+    private func makeNicknameLine() -> DataLine {
         let nicknameLine = UPDLBuilder()
             .addLabel(with: font, and: "Nickname")
             .addTextField(with: font, placeHolder: "Enter new nickname", and: storage.currentUser.nickname, isNotifView: true)
@@ -92,14 +92,14 @@ class UserInfoView: UIScrollView {
     }
     
     //currently user can`t change email, if signed in with Google account
-    private func makeEmailLineForGoogleSignIn() -> UPDataLine {
+    private func makeEmailLineForGoogleSignIn() -> DataLine {
         return UPDLBuilder()
             .addLabel(with: font, and: "Email")
             .addTextData(with: font, and: storage.currentUser.email)
             .build()
     }
     
-    private func makeEmailLineForEmailSignIn() -> UPDataLine {
+    private func makeEmailLineForEmailSignIn() -> DataLine {
         let emailLine = UPDLBuilder()
             .addLabel(with: font, and: "Email")
             .addTextField(with: font, placeHolder: "Enter new email", and: storage.currentUser.email, isNotifView: false)
@@ -110,7 +110,7 @@ class UserInfoView: UIScrollView {
         return emailLine
     }
     
-    private func makePasswordLine() -> UPDataLine {
+    private func makePasswordLine() -> DataLine {
         let passwordLine = UPDLBuilder()
             .addLabel(with: font, and: "Password")
             .addTextField(with: font, placeHolder: "Enter new password", and: nil, isNotifView: false)
@@ -121,14 +121,14 @@ class UserInfoView: UIScrollView {
         return passwordLine
     }
     
-    private func makeMusicLine() -> UPDataLine {
+    private func makeMusicLine() -> DataLine {
         return UPDLBuilder()
             .addLabel(with: font, and: "Music enabled")
             .addSwitch(with: audioPlayer.musicEnabled, and: #selector(toggleMusic))
             .build()
     }
     
-    private func makeSoundsLine() -> UPDataLine {
+    private func makeSoundsLine() -> DataLine {
         return UPDLBuilder()
             .addLabel(with: font, and: "Sounds enabled")
             .addSwitch(with: audioPlayer.soundsEnabled, and: #selector(toggleSounds))

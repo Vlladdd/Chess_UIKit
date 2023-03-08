@@ -15,7 +15,7 @@ class SmartTextField: UITextField, UITextFieldDelegate {
     private let maxCharacters: Int
     private let sendButton: UIButton
     
-    private typealias constants = ChatTextField_Constants
+    private typealias constants = SmartTextField_Constants
     
     // MARK: - Inits
     
@@ -68,6 +68,6 @@ class SmartTextField: UITextField, UITextFieldDelegate {
 
 // MARK: - Constants
 
-private struct ChatTextField_Constants {
+private struct SmartTextField_Constants {
     static let timeToRemoveLastCharacter = 0.1
 }

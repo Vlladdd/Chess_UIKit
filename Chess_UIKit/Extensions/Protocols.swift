@@ -115,3 +115,19 @@ protocol UPDataLineBuilder {
 protocol AvatarDelegate: UIView, NotificationIconsDelegate {
     func pickAvatar(_ avatar: Avatars) -> Void
 }
+
+protocol CreateGameDelegate: WSManagerDelegate {
+    func createGame() -> Void
+}
+
+protocol CGDataLineBuilder {
+    func addLabel(with font: UIFont, and text: String, isData: Bool) -> Self
+    func addPicker<T>(with placeholder: String, font: UIFont, data: [T]) -> Self where T: RawRepresentable, T.RawValue == String
+    func addSwitch(with currentState: Bool, and selector: Selector?) -> Self
+    func addStepper(with minValue: Double, maxValue: Double, stepValue: Double, and selector: Selector) -> Self
+}
+
+protocol PickerDelegate: UIView {
+    func doneAction<T>(_ picker: Picker<T>) -> Void where T: RawRepresentable, T.RawValue == String
+    func cancelAction<T>(_ picker: Picker<T>) -> Void where T: RawRepresentable, T.RawValue == String
+}

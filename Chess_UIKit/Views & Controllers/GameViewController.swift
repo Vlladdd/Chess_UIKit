@@ -285,6 +285,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         super.viewDidDisappear(animated)
         audioPlayer.pauseSound(Music.gameBackgroundMusic)
         deactivateMultiplayerTImers()
+        chessTimer?.cancel()
         if let mainMenuVC = UIApplication.getTopMostViewController() as? MainMenuVC {
             wsManager?.delegate = mainMenuVC
         }

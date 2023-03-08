@@ -144,3 +144,11 @@ extension SpecialItemView {
     }
     
 }
+
+extension PickerDelegate {
+    
+    func cancelAction<T>(_ picker: Picker<T>) where T: RawRepresentable, T.RawValue == String {
+        print("picker of type \(type(of: picker)) has been closed")
+    }
+    
+}

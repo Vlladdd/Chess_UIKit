@@ -1,5 +1,5 @@
 //
-//  UPDataLine.swift
+//  DataLine.swift
 //  Chess_UIKit
 //
 //  Created by Vlad Nechyporenko on 26.02.2023.
@@ -7,14 +7,15 @@
 
 import UIKit
 
-//class that represents line with 1 object of user info
+//class that represents line with 1 object of some info(e.g. game info, user info etc)
 //basically it is just a line with label, which represents name of field,
 //and field(data), where user can type new data or choose preferences, in case
 //of music/sound, for example, or it also can be not redactable
-class UPDataLine: UIStackView {
+class DataLine: UIStackView {
     
     // MARK: - Properties
     
+    //to be able to read and redact data
     private(set) var data: UIView?
     
     private typealias constants = UPDataLine_Constants
