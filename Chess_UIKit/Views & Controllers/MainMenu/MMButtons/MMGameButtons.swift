@@ -7,23 +7,31 @@
 
 import UIKit
 
+// MARK: - MMGameButtonsDelegate
+
+protocol MMGameButtonsDelegate: AnyObject {
+    func gameButtonsDidTriggerToggleCreateGameVC(_ gameButtons: MMGameButtons) -> Void
+    func gameButtonsDidTriggerUserGamesMenu(_ gameButtons: MMGameButtons) -> Void
+    func gameButtonsDidTriggerMPGamesMenu(_ gameButtons: MMGameButtons) -> Void
+    func gameButtonsDidTriggerBackAction(_ gameButtons: MMGameButtons) -> Void
+}
+
+// MARK: - MMGameButtons
+
 //class that represents game buttons in main menu
 class MMGameButtons: UIStackView {
     
     // MARK: - Properties
     
-    weak var delegate: MainMenuViewDelegate?
+    weak var delegate: MMGameButtonsDelegate?
     
     private typealias constants = MMGameButtons_Constants
     
-    private let storage = Storage.sharedInstance
-    
     // MARK: - Inits
     
-    init(delegate: MainMenuViewDelegate) {
-        self.delegate = delegate
+    init(font: UIFont, isGuestMode: Bool) {
         super.init(frame: .zero)
-        setup()
+        setup(with: font, isGuestMode: isGuestMode)
     }
     
     required init(coder: NSCoder) {
@@ -34,46 +42,36 @@ class MMGameButtons: UIStackView {
     
     //shows/hides view for game creation
     @objc private func showCreateGameVC(_ sender: UIButton? = nil) {
-        delegate?.mainMenuDelegate?.toggleCreateGameVC()
+        delegate?.gameButtonsDidTriggerToggleCreateGameVC(self)
     }
     
     //creates games for load, if they ended or in oneScreen mode
     @objc private func makeUserGamesList(_ sender: UIButton? = nil) {
-        if let delegate {
-            let gamesView = GamesView(games: storage.currentUser.games, delegate: delegate)
-            delegate.makeMenu(with: gamesView, reversed: false)
-        }
+        delegate?.gameButtonsDidTriggerUserGamesMenu(self)
     }
     
     //creates list of multiplayer games available for join
     @objc private func makeMultiplayerGamesList(_ sender: UIButton? = nil) {
-        if let delegate {
-            let gamesView = GamesView(games: nil, delegate: delegate)
-            delegate.makeMenu(with: gamesView, reversed: false)
-        }
+        delegate?.gameButtonsDidTriggerMPGamesMenu(self)
     }
     
     @objc private func goBack(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.makeMenu(with: MMBasicButtons(delegate: delegate), reversed: true)
-        }
+        delegate?.gameButtonsDidTriggerBackAction(self)
     }
     
     // MARK: - Local Methods
     
-    private func setup() {
-        if let delegate {
-            setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-            let createButton = MMButtonView(backgroundImageItem: MiscImages.createButtonBG, buttonImageItem: nil, buttontext: "Create", action: #selector(showCreateGameVC), fontSize: delegate.font.pointSize, needHeightConstraint: true)
-            let joinButton = MMButtonView(backgroundImageItem: MiscImages.joinButtonBG, buttonImageItem: nil, buttontext: "Join", action: #selector(makeMultiplayerGamesList), fontSize: delegate.font.pointSize, needHeightConstraint: true)
-            let loadButton = MMButtonView(backgroundImageItem: MiscImages.loadButtonBG, buttonImageItem: nil, buttontext: "Load", action: #selector(makeUserGamesList), fontSize: delegate.font.pointSize, needHeightConstraint: true)
-            if storage.currentUser.guestMode {
-                joinButton.button?.isEnabled = false
-            }
-            let backButton = MMButtonView(backgroundImageItem: nil, buttonImageItem: nil, buttontext: "Back", action: #selector(goBack), fontSize: delegate.font.pointSize, needHeightConstraint: true)
-            backButton.addBackButtonSFImage()
-            addArrangedSubviews([createButton, joinButton, loadButton, backButton])
+    private func setup(with font: UIFont, isGuestMode: Bool) {
+        setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        let createButton = MMButtonView(backgroundImageItem: MiscImages.createButtonBG, buttonImageItem: nil, buttontext: "Create", action: #selector(showCreateGameVC), font: font, needHeightConstraint: true)
+        let joinButton = MMButtonView(backgroundImageItem: MiscImages.joinButtonBG, buttonImageItem: nil, buttontext: "Join", action: #selector(makeMultiplayerGamesList), font: font, needHeightConstraint: true)
+        let loadButton = MMButtonView(backgroundImageItem: MiscImages.loadButtonBG, buttonImageItem: nil, buttontext: "Load", action: #selector(makeUserGamesList), font: font, needHeightConstraint: true)
+        if isGuestMode {
+            joinButton.button?.isEnabled = false
         }
+        let backButton = MMButtonView(backgroundImageItem: nil, buttonImageItem: nil, buttontext: "Back", action: #selector(goBack), font: font, needHeightConstraint: true)
+        backButton.addBackButtonSFImage()
+        addArrangedSubviews([createButton, joinButton, loadButton, backButton])
     }
     
 }

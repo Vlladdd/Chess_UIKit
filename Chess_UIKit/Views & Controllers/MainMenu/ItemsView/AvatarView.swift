@@ -23,7 +23,7 @@ class AvatarView: UIStackView, ItemView {
     init(avatar: Avatars, font: UIFont) {
         item = avatar
         super.init(frame: .zero)
-        setup(font: font)
+        setup(with: font)
     }
     
     required init(coder: NSCoder) {
@@ -32,7 +32,7 @@ class AvatarView: UIStackView, ItemView {
     
     // MARK: - Methods
     
-    private func setup(font: UIFont) {
+    private func setup(with font: UIFont) {
         let avatar = item as! Avatars
         setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
         let avatarImage = UIImageView()

@@ -10,16 +10,12 @@ import UIKit
 //class that represents view of frame theme
 class FrameView: PlayerFrame {
     
-    // MARK: - Properties
-    
-    private let storage = Storage.sharedInstance
-    
     // MARK: - Inits
     
-    init(frame: Frames, font: UIFont) {
+    init(frame: Frames, font: UIFont, background: Backgrounds) {
         let frameLabel = UILabel()
         frameLabel.setup(text: frame.getHumanReadableName(), alignment: .center, font: font)
-        super.init(background: storage.currentUser.playerBackground, playerFrame: frame, data: frameLabel)
+        super.init(background: background, playerFrame: frame, data: frameLabel)
     }
     
     required init(coder: NSCoder) {

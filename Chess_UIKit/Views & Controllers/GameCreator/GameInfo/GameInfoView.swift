@@ -7,35 +7,21 @@
 
 import UIKit
 
+// MARK: - GameInfoViewDelegate
+
+protocol GameInfoViewDelegate: AnyObject {
+    func gameInfoViewDidToggleViews(_ gameInfoView: GameInfoView) -> Void
+    func gameInfoViewDidToggleSwitchOrStepper(_ gameInfoView: GameInfoView) -> Void
+}
+
+// MARK: - GameInfoView
+
 //class that represents view with game info, which is basically just multiple DataLines
-class GameInfoView: UIScrollView, PickerDelegate {
-    
-    // MARK: - PickerDelegate
-    
-    func doneAction<T>(_ picker: Picker<T>) where T : RawRepresentable, T.RawValue == String {
-        if let picker = picker as? Picker<GameModes> {
-            if let rewindLine {
-                if let mode = picker.pickedData, mode as GameModes == .oneScreen {
-                    if rewindLine.isHidden {
-                        UIView.animate(withDuration: constants.animationDuration, animations: {
-                            rewindLine.isHidden = false
-                        })
-                        audioPlayer.playSound(Sounds.moveSound2)
-                    }
-                }
-                else {
-                    if !rewindLine.isHidden {
-                        UIView.animate(withDuration: constants.animationDuration, animations: {
-                            rewindLine.isHidden = true
-                        })
-                        audioPlayer.playSound(Sounds.moveSound2)
-                    }
-                }
-            }
-        }
-    }
-    
+class GameInfoView: UIScrollView {
+
     // MARK: - Properties
+    
+    weak var gameInfoViewDelegate: GameInfoViewDelegate?
     
     private typealias constants = GameInfoView_Constants
     
@@ -46,8 +32,6 @@ class GameInfoView: UIScrollView, PickerDelegate {
     private(set) var timerSwitch = UISwitch()
     
     private let font: UIFont
-    private let storage = Storage.sharedInstance
-    private let audioPlayer = AudioPlayer.sharedInstance
     
     private var totalTimeMinutesLine: DataLine!
     private var totalTimeSecondsLine: DataLine!
@@ -58,10 +42,10 @@ class GameInfoView: UIScrollView, PickerDelegate {
     
     // MARK: - Inits
     
-    init(font: UIFont) {
+    init(font: UIFont, isGuestMode: Bool) {
         self.font = font
         super.init(frame: .zero)
-        setup()
+        setup(isGuestMode: isGuestMode)
     }
     
     required init?(coder: NSCoder) {
@@ -70,8 +54,13 @@ class GameInfoView: UIScrollView, PickerDelegate {
     
     // MARK: - Buttons Methods
     
+    @objc private func toggleSwitch(_ sender: UISwitch) {
+        gameInfoViewDelegate?.gameInfoViewDidToggleSwitchOrStepper(self)
+    }
+    
     //shows/hides info about chess timer
     @objc private func toggleTimerInfo(_ sender: UISwitch? = nil) {
+        gameInfoViewDelegate?.gameInfoViewDidToggleSwitchOrStepper(self)
         let viewsToToggle = [totalTimeLine, totalTimeMinutesLine, totalTimeSecondsLine, additionalTimeLine, additionalTimeMinutesLine, additionalTimeSecondsLine]
         if let sender {
             UIView.animate(withDuration: constants.animationDuration, animations: {
@@ -79,29 +68,33 @@ class GameInfoView: UIScrollView, PickerDelegate {
                     view?.isHidden = !sender.isOn
                 }
             })
-            audioPlayer.playSound(Sounds.moveSound2)
+            gameInfoViewDelegate?.gameInfoViewDidToggleViews(self)
         }
     }
     
     @objc private func changeTotalMinutes(_ sender: UIStepper? = nil) {
+        gameInfoViewDelegate?.gameInfoViewDidToggleSwitchOrStepper(self)
         if let sender {
             (totalTimeMinutesLine.data as? UILabel)?.text = String(Int(sender.value))
         }
     }
     
     @objc private func changeTotalSeconds(_ sender: UIStepper? = nil) {
+        gameInfoViewDelegate?.gameInfoViewDidToggleSwitchOrStepper(self)
         if let sender {
             (totalTimeSecondsLine.data as? UILabel)?.text = String(Int(sender.value))
         }
     }
     
     @objc private func changeAdditionalMinutes(_ sender: UIStepper? = nil) {
+        gameInfoViewDelegate?.gameInfoViewDidToggleSwitchOrStepper(self)
         if let sender {
             (additionalTimeMinutesLine.data as? UILabel)?.text = String(Int(sender.value))
         }
     }
     
     @objc private func changeAdditionalSeconds(_ sender: UIStepper? = nil) {
+        gameInfoViewDelegate?.gameInfoViewDidToggleSwitchOrStepper(self)
         if let sender {
             (additionalTimeSecondsLine.data as? UILabel)?.text = String(Int(sender.value))
         }
@@ -109,12 +102,12 @@ class GameInfoView: UIScrollView, PickerDelegate {
     
     // MARK: - Local Methods
     
-    private func setup() {
+    private func setup(isGuestMode: Bool) {
         translatesAutoresizingMaskIntoConstraints = false
         delaysContentTouches = false
         let gameInfoStack = UIStackView()
         gameInfoStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-        let modeLine = makeModeLine()
+        let modeLine = makeModeLine(isGuestMode: isGuestMode)
         modePicker = modeLine.data as? Picker<GameModes>
         modePicker.pickerDelegate = self
         makeRewindLine()
@@ -141,17 +134,17 @@ class GameInfoView: UIScrollView, PickerDelegate {
         NSLayoutConstraint.activate(gameInfoStackConstraints)
     }
     
-    private func makeModeLine() -> DataLine {
+    private func makeModeLine(isGuestMode: Bool) -> DataLine {
         CGDLBuilder()
             .addLabel(with: font, and: "Mode")
-            .addPicker(with: "Pick mode", font: font, data: storage.currentUser.guestMode ? [GameModes.oneScreen] : GameModes.allCases)
+            .addPicker(with: "Pick mode", font: font, data: isGuestMode ? [GameModes.oneScreen] : GameModes.allCases)
             .build()
     }
     
     private func makeRewindLine() {
         rewindLine = CGDLBuilder()
             .addLabel(with: font, and: "Enable rewind")
-            .addSwitch(with: false, and: nil)
+            .addSwitch(with: false, and: #selector(toggleSwitch))
             .build()
         rewindLine.isHidden = (modePicker.pickedData ?? .multiplayer) != .oneScreen
     }
@@ -210,4 +203,33 @@ private struct GameInfoView_Constants {
     static let minSecondsForTimer = 0.0
     static let maxSecondsForTimer = 59.0
     static let stepValueForTimer = 1.0
+}
+
+// MARK: - PickerDelegate
+
+extension GameInfoView: PickerDelegate {
+    
+    func pickerDidTriggerDoneAction<T>(_ picker: Picker<T>) where T : RawRepresentable, T.RawValue == String {
+        if let picker = picker as? Picker<GameModes> {
+            if let rewindLine {
+                if let mode = picker.pickedData, mode as GameModes == .oneScreen {
+                    if rewindLine.isHidden {
+                        UIView.animate(withDuration: constants.animationDuration, animations: {
+                            rewindLine.isHidden = false
+                        })
+                        gameInfoViewDelegate?.gameInfoViewDidToggleViews(self)
+                    }
+                }
+                else {
+                    if !rewindLine.isHidden {
+                        UIView.animate(withDuration: constants.animationDuration, animations: {
+                            rewindLine.isHidden = true
+                        })
+                        gameInfoViewDelegate?.gameInfoViewDidToggleViews(self)
+                    }
+                }
+            }
+        }
+    }
+    
 }

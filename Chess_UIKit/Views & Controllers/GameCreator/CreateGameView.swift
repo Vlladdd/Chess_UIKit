@@ -14,16 +14,15 @@ class CreateGameView: UIView {
     
     private typealias constants = CreateGameView_Constants
     
-    private var loadingSpinner: LoadingSpinner?
+    private(set) var loadingSpinner: LoadingSpinner?
     
     let toolbar = CGToolbar()
     let gameInfoView: GameInfoView
     
     // MARK: - Inits
     
-    init(fontSize: CGFloat) {
-        let font = UIFont.systemFont(ofSize: fontSize)
-        gameInfoView = GameInfoView(font: font)
+    init(font: UIFont, isGuestMode: Bool) {
+        gameInfoView = GameInfoView(font: font, isGuestMode: isGuestMode)
         super.init(frame: .zero)
         setup()
     }
@@ -47,7 +46,6 @@ class CreateGameView: UIView {
     func makeLoadingSpinner() {
         loadingSpinner = LoadingSpinner()
         if let loadingSpinner {
-            loadingSpinner.waiting()
             addSubview(loadingSpinner)
             let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: centerXAnchor), loadingSpinner.widthAnchor.constraint(equalTo: widthAnchor), loadingSpinner.topAnchor.constraint(equalTo: toolbar.layoutMarginsGuide.bottomAnchor, constant: constants.optimalDistance), loadingSpinner.bottomAnchor.constraint(equalTo: bottomAnchor)]
             NSLayoutConstraint.activate(spinnerConstraints)

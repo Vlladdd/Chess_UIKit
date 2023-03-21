@@ -12,7 +12,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     
     // MARK: - WSManagerDelegate
     
-    func lostInternet() {
+    func managerDidLostInternetConnection(_ manager: WSManager) {
         if gameLogic.gameMode == .multiplayer {
             if gameLogic.currentPlayer.type == .player2 {
                 enemyAfkTimer?.invalidate()
@@ -22,18 +22,18 @@ class GameViewController: UIViewController, WSManagerDelegate {
         }
     }
     
-    func socketConnected(with headers: [String:String]) {
+    func managerDidConnectSocket(_ manager: WSManager, with headers: [String: String]) {
         wsManager?.writeText(storage.currentUser.email + Date().toStringDateHMS + "GameVC")
         if !finalError {
             websocketDidConnect()
         }
     }
     
-    func socketDisconnected(with reason: String, and code: UInt16) {
+    func managerDidDisconnectSocket(_ manager: WSManager, with reason: String, and code: UInt16) {
         makeErrorAlert(with: "websocket is disconnected: \(reason) with code: \(code)", addReconnectButton: true)
     }
     
-    func socketReceivedData(_ data: Data) {
+    func managerDidReceive(_ manager: WSManager, data: Data) {
         if let playerMessage = try? JSONDecoder().decode(PlayerMessage.self, from: data) {
             if playerMessage.gameID == gameLogic.gameID {
                 websocketDidReceive(playerMessage: playerMessage)
@@ -67,7 +67,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         }
     }
     
-    func webSocketError(with message: String) {
+    func managerDidEncounterError(_ manager: WSManager, with message: String) {
         if !suspendedState {
             serverError = true
             needToRequestLastAction = true
@@ -115,11 +115,11 @@ class GameViewController: UIViewController, WSManagerDelegate {
         //to be sure, that both players are connected
         //first player is always current user
         if !needToRequestLastAction {
-            wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, playerReady: true))
+            wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID, playerType: gameLogic.players.first!.multiplayerType!, playerReady: true))
         }
         //if app was in suspended state for too long, we need to request last action from opponent, or when start of the game,
         //to be sure, that both players are ready
-        wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true))
+        wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID, playerType: gameLogic.players.first!.multiplayerType!, requestLastAction: true))
     }
     
     private func websocketDidReceive(playerMessage: PlayerMessage) {
@@ -348,7 +348,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     // MARK: - User Initiated Methods
     
     @objc private func sendMessageToChat(_ sender: UIButton? = nil) {
-        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID!, timeLeft: gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft, userNickname: storage.currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: storage.currentUser.playerAvatar, userFrame: storage.currentUser.frame, message: chatMessageField.text!)
+        let chatMessage = ChatMessage(date: Date(), gameID: gameLogic.gameID, timeLeft: gameLogic.currentPlayer.type == .player1 ? gameLogic.timeLeft : gameLogic.players.first!.timeLeft, userNickname: storage.currentUser.nickname, playerType: gameLogic.players.first!.multiplayerType!, userAvatar: storage.currentUser.playerAvatar, userFrame: storage.currentUser.frame, message: chatMessageField.text!)
         addMessageToChat(chatMessage)
         wsManager?.writeObject(chatMessage)
         chatMessageField.text?.removeAll()
@@ -585,7 +585,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
                 sender?.isEnabled = false
                 if self.gameLogic.gameMode == .multiplayer && !self.gameLogic.gameEnded {
                     self.gameLogic.surrender(for: .player1)
-                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
+                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
                 }
                 else {
                     self.gameLogic.surrender()
@@ -617,7 +617,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
                             self.surrenderButton.backgroundColor = constants.notificationColor
                             self.additionalButton.backgroundColor = constants.notificationColor
                         })
-                        let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID!, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.storage.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.storage.currentUser.playerAvatar, userFrame: self.storage.currentUser.frame, message: "Wanna draw?")
+                        let chatMessage = ChatMessage(date: Date(), gameID: self.gameLogic.gameID, timeLeft: self.gameLogic.currentPlayer.type == .player1 ? self.gameLogic.timeLeft : self.gameLogic.players.first!.timeLeft, userNickname: self.storage.currentUser.nickname, playerType: self.gameLogic.players.first!.multiplayerType!, userAvatar: self.storage.currentUser.playerAvatar, userFrame: self.storage.currentUser.frame, message: "Wanna draw?")
                         self.addMessageToChat(chatMessage)
                         self.wsManager?.writeObject(chatMessage)
                         let timer = Timer.scheduledTimer(withTimeInterval: constants.timeToAcceptDraw, repeats: false, block: { _ in
@@ -630,7 +630,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
                         })
                         RunLoop.main.add(timer, forMode: .common)
                     }
-                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true))
+                    self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: self.opponentWantsDraw, gameDraw: self.opponentWantsDraw, opponentWantsDraw: true))
                 }
             }))
             surrenderAlert.addAction(UIAlertAction(title: "No", style: .cancel))
@@ -660,7 +660,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
                 self.gameLogic.surrender(for: .player1)
                 //gameLogic is a class, saveCurrentUser() will not triger, so we have to do it manually
                 self.storage.saveCurrentUser()
-                self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID!, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
+                self.wsManager?.writeObject(PlayerMessage(gameID: self.gameLogic.gameID, playerType: self.gameLogic.players.first!.multiplayerType!, gameEnded: true))
             }
             self.dismiss(animated: true)
         }))
@@ -918,7 +918,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
                     self.makeErrorAlert(with: "You are not connected to the internet", addReconnectButton: true)
                 }
                 else if !self.wsManager!.connectedToWSServer {
-                    self.webSocketError(with: "You are not connected to the server, maybe server is not working")
+                    self.managerDidEncounterError(self.wsManager!, with: "You are not connected to the server, maybe server is not working")
                 }
             }
         })
@@ -1026,7 +1026,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private func surrenderAction(for player: GamePlayers = .player1) {
         if gameLogic.gameMode == .multiplayer && !gameLogic.gameEnded {
             gameLogic.surrender(for: player)
-            wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID!, playerType: gameLogic.players.first!.multiplayerType!, gameEnded: true, playerToSurrender: player == .player1 ? .player2: .player1))
+            wsManager?.writeObject(PlayerMessage(gameID: gameLogic.gameID, playerType: gameLogic.players.first!.multiplayerType!, gameEnded: true, playerToSurrender: player == .player1 ? .player2: .player1))
         }
         else if !gameLogic.gameEnded {
             gameLogic.surrender()
@@ -3149,6 +3149,7 @@ class GameViewController: UIViewController, WSManagerDelegate {
         var wheelConstraints = [NSLayoutConstraint]()
         if !loadedEndedGame && gameLogic.gameMode != .oneScreen && !gameLogic.turns.isEmpty {
             let wheel = WheelOfFortune(figuresTheme: gameLogic.players.first!.user.figuresTheme, maximumCoins: gameLogic.maximumCoinsForWheel)
+            wheel.delegate = self
             wheel.translatesAutoresizingMaskIntoConstraints = false
             storage.currentUser.addCoins(wheel.winCoins)
             data.addSubview(wheel)
@@ -3236,7 +3237,8 @@ class GameViewController: UIViewController, WSManagerDelegate {
     private func makeLoadingSpinner() {
         loadingSpinner.removeFromSuperview()
         loadingSpinner = LoadingSpinner()
-        loadingSpinner.waiting()
+        loadingSpinner.delegate = self
+        audioPlayer.playSound(Music.waitingMusic, volume: constants.volumeForWaitingMusic)
         scrollContentOfGame.addSubview(loadingSpinner)
         let spinnerConstraints = [loadingSpinner.centerXAnchor.constraint(equalTo: gameBoard.centerXAnchor), loadingSpinner.centerYAnchor.constraint(equalTo: gameBoard.centerYAnchor), loadingSpinner.widthAnchor.constraint(equalTo: gameBoard.widthAnchor, multiplier: constants.sizeMultiplierForSpinnerView), loadingSpinner.heightAnchor.constraint(equalTo: gameBoard.heightAnchor, multiplier: constants.sizeMultiplierForSpinnerView)]
         NSLayoutConstraint.activate(spinnerConstraints)
@@ -3343,6 +3345,7 @@ private struct GameVC_Constants {
     static let dividerForDateFont = 3.0
     static let optimalPaddingForLabel = 5.0
     static let volumeForBackgroundMusic: Float = 0.5
+    static let volumeForWaitingMusic: Float = 0.3
     
     static func convertLogicColor(_ color: Colors) -> UIColor {
         switch color {
@@ -3360,5 +3363,25 @@ private struct GameVC_Constants {
             return .green
         }
     }
+}
+
+// MARK: - LoadingSpinnerDelegate
+
+extension GameViewController: LoadingSpinnerDelegate {
+    
+    func loadingSpinnerDidRemoveFromSuperview(_ loadingSpinner: LoadingSpinner) {
+        audioPlayer.pauseSound(Music.waitingMusic)
+    }
+    
+}
+
+// MARK: - WheelOfFortuneDelegate
+
+extension GameViewController: WheelOfFortuneDelegate {
+    
+    func wheelOfFortuneDidReachNewSegmentWhileSpinning(_ wheelOfFortune: WheelOfFortune) {
+        audioPlayer.playSound(Sounds.toggleSound)
+    }
+    
 }
 

@@ -7,19 +7,27 @@
 
 import UIKit
 
+// MARK: - LoadingSpinnerDelegate
+
+protocol LoadingSpinnerDelegate: AnyObject {
+    func loadingSpinnerDidRemoveFromSuperview(_ loadingSpinner: LoadingSpinner) -> Void
+}
+
+// MARK: - LoadingSpinner
+
 //class that represents loading spinner
 class LoadingSpinner: UIImageView {
     
     override func removeFromSuperview() {
         super.removeFromSuperview()
-        audioPlayer.pauseSound(Music.waitingMusic)
+        delegate?.loadingSpinnerDidRemoveFromSuperview(self)
     }
     
     // MARK: - Properties
     
-    private typealias constants = LoadingSpinner_Constants
+    weak var delegate: LoadingSpinnerDelegate?
     
-    private let audioPlayer = AudioPlayer.sharedInstance
+    private typealias constants = LoadingSpinner_Constants
     
     // MARK: - Inits
     
@@ -48,10 +56,6 @@ class LoadingSpinner: UIImageView {
         NSLayoutConstraint.activate(spinnerConstraints)
     }
     
-    func waiting() {
-        audioPlayer.playSound(Music.waitingMusic, volume: constants.volumeForWaitingMusic)
-    }
-    
 }
 
 // MARK: - Constants
@@ -60,7 +64,6 @@ private struct LoadingSpinner_Constants {
     static let optimalAlpha = 0.5
     static let speedForSpinner = 1.0
     static let sizeMultiplierForSpinner = 0.6
-    static let volumeForWaitingMusic: Float = 0.3
     static let spinningFigureLightMode = Figure(type: .king, color: .black)
     static let spinningFigureDarkMode = Figure(type: .king, color: .white)
 }

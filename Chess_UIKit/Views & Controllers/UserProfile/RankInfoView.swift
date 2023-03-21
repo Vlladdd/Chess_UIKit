@@ -14,15 +14,13 @@ class RankInfoView: UIStackView {
     
     private typealias constants = RankInfoView_Constants
     
-    private let storage = Storage.sharedInstance
-    
-    let userProgress = ProgressBar()
+    private let userProgress = ProgressBar()
     
     // MARK: - Inits
     
-    init(font: UIFont) {
+    init(font: UIFont, rank: Ranks, currentPoints: Int) {
         super.init(frame: .zero)
-        setup(font: font)
+        setup(with: font, rank: rank, currentPoints: currentPoints)
     }
     
     required init(coder: NSCoder) {
@@ -31,17 +29,20 @@ class RankInfoView: UIStackView {
     
     // MARK: - Methods
     
-    private func setup(font: UIFont) {
+    private func setup(with font: UIFont, rank: Ranks, currentPoints: Int) {
         setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         let userRank = UILabel()
-        userRank.setup(text: storage.currentUser.rank.asString, alignment: .center, font: font)
+        userRank.setup(text: rank.asString, alignment: .center, font: font)
         userProgress.backgroundColor = constants.backgroundColorForProgressBar
-        let currentUserRank = storage.currentUser.rank
         //how much percentage is filled
-        userProgress.progress = CGFloat(storage.currentUser.points - currentUserRank.minimumPoints) / CGFloat(currentUserRank.maximumPoints - currentUserRank.minimumPoints)
+        userProgress.progress = CGFloat(currentPoints - rank.minimumPoints) / CGFloat(rank.maximumPoints - rank.minimumPoints)
         let userPoints = UILabel()
-        userPoints.setup(text: String(storage.currentUser.points) + "/" + String(storage.currentUser.rank.maximumPoints), alignment: .center, font: font)
+        userPoints.setup(text: String(currentPoints) + "/" + String(rank.maximumPoints), alignment: .center, font: font)
         addArrangedSubviews([userRank, userProgress, userPoints])
+    }
+    
+    func onRotate() {
+        userProgress.setNeedsDisplay()
     }
     
 }

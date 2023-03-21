@@ -42,6 +42,7 @@ class SmartTextField: UITextField, UITextFieldDelegate {
         if count == 0 {
             sendButton.isEnabled = false
         }
+        // TODO: - Remove after GameVC will be refactored
         else if WSManager.getSharedInstance()?.connectedToWSServer ?? false {
             sendButton.isEnabled = true
         }

@@ -16,13 +16,11 @@ class AvatarInfoView: UIScrollView {
     
     let avatarInfo = UILabel()
     
-    private let storage = Storage.sharedInstance
-    
     // MARK: - Inits
     
-    init(font: UIFont) {
+    init(font: UIFont, avatarDescription: String) {
         super.init(frame: .zero)
-        setup(font: font)
+        setup(with: font, and: avatarDescription)
     }
     
     required init?(coder: NSCoder) {
@@ -31,10 +29,10 @@ class AvatarInfoView: UIScrollView {
     
     // MARK: - Methods
     
-    private func setup(font: UIFont) {
+    private func setup(with font: UIFont, and avatarDescription: String) {
         translatesAutoresizingMaskIntoConstraints = false
         backgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
-        avatarInfo.setup(text: storage.currentUser.playerAvatar.description, alignment: .center, font: font)
+        avatarInfo.setup(text: avatarDescription, alignment: .center, font: font)
         avatarInfo.numberOfLines = 0
         addSubview(avatarInfo)
         let heightConstraintForAvatarInfo = avatarInfo.heightAnchor.constraint(equalTo: heightAnchor)

@@ -7,15 +7,22 @@
 
 import UIKit
 
+// MARK: - UserDataViewDelegate
+
+protocol UserDataViewDelegate: AnyObject {
+    func userDataViewDidTriggerSignOut(_ userDataView: UserDataView) -> Void
+    func userDataViewDidTriggerToggleUserProfileVC(_ userDataView: UserDataView) -> Void
+}
+
+// MARK: - UserDataView
+
 //class that represents user data view in top of main menu view
 class UserDataView: UIStackView {
     
     // MARK: - Properties
     
-    weak var delegate: MainMenuDelegate?
+    weak var delegate: UserDataViewDelegate?
     
-    private let storage = Storage.sharedInstance
-    private let audioPlayer = AudioPlayer.sharedInstance
     private let userAvatar =  UIImageView()
     private let userName = UILabel()
     
@@ -23,9 +30,9 @@ class UserDataView: UIStackView {
     
     // MARK: - Inits
     
-    init(widthForAvatar: CGFloat, font: UIFont) {
+    init(widthForAvatar: CGFloat, font: UIFont, nickname: String, avatar: Avatars) {
         super.init(frame: .zero)
-        setup(widthForAvatar: widthForAvatar, font: font)
+        setup(with: widthForAvatar, font: font, nickname: nickname, avatar: avatar)
     }
     
     required init(coder: NSCoder) {
@@ -36,26 +43,17 @@ class UserDataView: UIStackView {
     
     //exits from current user`s account
     @objc private func signOut(_ sender: UIButton? = nil) {
-        let exitAlert = UIAlertController(title: "Exit", message: "Are you sure?", preferredStyle: .alert)
-        exitAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
-            guard let self else { return }
-            self.storage.signOut()
-            self.delegate?.signOut()
-            self.audioPlayer.playSound(Sounds.closePopUpSound)
-        }))
-        exitAlert.addAction(UIAlertAction(title: "No", style: .cancel))
-        delegate?.present(exitAlert, animated: true)
-        audioPlayer.playSound(Sounds.openPopUpSound)
+        delegate?.userDataViewDidTriggerSignOut(self)
     }
     
     //shows/hides view for redacting user profile
     @objc private func toggleUserProfileVC(_ sender: UITapGestureRecognizer? = nil) {
-        delegate?.toggleUserProfileVC()
+        delegate?.userDataViewDidTriggerToggleUserProfileVC(self)
     }
     
     // MARK: - Local Methods
     
-    private func setup(widthForAvatar: CGFloat, font: UIFont) {
+    private func setup(with widthForAvatar: CGFloat, font: UIFont, nickname: String, avatar: Avatars) {
         setup(axis: .horizontal, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
         defaultSettings()
         layer.masksToBounds = true
@@ -64,9 +62,9 @@ class UserDataView: UIStackView {
         userAvatar.rectangleView(width: widthForAvatar)
         userAvatar.contentMode = .scaleAspectFill
         userAvatar.layer.masksToBounds = true
-        userAvatar.setImage(with: storage.currentUser.playerAvatar)
+        userAvatar.setImage(with: avatar)
         userAvatar.addGestureRecognizer(tapGesture)
-        userName.setup(text: storage.currentUser.nickname, alignment: .center, font: font)
+        userName.setup(text: nickname, alignment: .center, font: font)
         let exitButton = UIButton()
         if #available(iOS 15.0, *) {
             exitButton.buttonWith(imageItem: SystemImages.exitImageiOS15, and: #selector(signOut))
@@ -79,14 +77,14 @@ class UserDataView: UIStackView {
     }
     
     //when changes made in user profile view
-    func updateUserData() {
+    func updateUserData(with avatar: Avatars, and nickname: String) {
         UIView.transition(with: userAvatar, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
             guard let self else { return }
-            self.userAvatar.setImage(with: self.storage.currentUser.playerAvatar)
+            self.userAvatar.setImage(with: avatar)
         })
         UIView.transition(with: userName, duration: constants.animationDuration, options: .transitionCrossDissolve, animations: { [weak self] in
             guard let self else { return }
-            self.userName.text = self.storage.currentUser.nickname
+            self.userName.text = nickname
             self.layoutIfNeeded()
         })
     }

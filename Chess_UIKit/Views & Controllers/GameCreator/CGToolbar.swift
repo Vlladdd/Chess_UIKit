@@ -7,12 +7,21 @@
 
 import UIKit
 
+// MARK: - CGToolbarDelegate
+
+protocol CGToolbarDelegate: AnyObject {
+    func toolbarDidTriggerCloseAction(_ toolbar: CGToolbar) -> Void
+    func toolbarDidTriggerCreateGameAction(_ toolbar: CGToolbar) -> Void
+}
+
+// MARK: - CGToolbar
+
 //class that represents toolbar of CreateGameView
 class CGToolbar: UIToolbar {
     
     // MARK: - Properties
     
-    weak var createGameDelegate: CreateGameDelegate?
+    weak var cgToolbarDelegate: CGToolbarDelegate?
     
     private typealias constants = CGToolbar_Constants
     
@@ -33,11 +42,11 @@ class CGToolbar: UIToolbar {
     // MARK: - Buttons Methods
     
     @objc private func close(_ sender: UIBarButtonItem? = nil) {
-        createGameDelegate?.dismiss(animated: true)
+        cgToolbarDelegate?.toolbarDidTriggerCloseAction(self)
     }
     
     @objc private func createGame(_ sender: UIBarButtonItem? = nil) {
-        createGameDelegate?.createGame()
+        cgToolbarDelegate?.toolbarDidTriggerCreateGameAction(self)
     }
     
     // MARK: - Local Methods

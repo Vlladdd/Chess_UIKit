@@ -10,13 +10,16 @@ import Foundation
 //struct that represents theme of the squares of the game
 struct SquaresTheme: Equatable, Codable {
     
-    let name: SquaresThemes
+    var name: SquaresThemes = .defaultTheme
     //e.g. black/white
-    let firstColor: Colors
-    let secondColor: Colors
-    let turnColor: Colors
-    let availableSquaresColor: Colors
-    let pickColor: Colors
-    let checkColor: Colors
+    var firstColor: Colors = .black
+    var secondColor: Colors = .black
+    var turnColor: Colors = .black
+    var availableSquaresColor: Colors = .black
+    var pickColor: Colors = .black
+    var checkColor: Colors = .black
+    
+    //to prevent big inits
+    init() {}
     
 }

@@ -7,6 +7,14 @@
 
 import UIKit
 
+// MARK: - UPAvatarViewDelegate
+
+protocol UPAvatarViewDelegate: AnyObject {
+    func avatarViewDidTriggerPickAction(_ avatarView: UPAvatarView)
+}
+
+// MARK: - UPAvatarView
+
 //class that represents view of avatar in user profile
 class UPAvatarView: UIImageView, ItemView {
     
@@ -16,21 +24,18 @@ class UPAvatarView: UIImageView, ItemView {
 
     // MARK: - Properties
     
-    weak var delegate: AvatarDelegate?
+    weak var delegate: UPAvatarViewDelegate?
     
     private typealias constants = UPAvatarView_Constants
     
-    private let storage = Storage.sharedInstance
-    private let audioPlayer = AudioPlayer.sharedInstance
-    
-    let backgroundView = UIView()
+    private let backgroundView = UIView()
     
     // MARK: - Inits
     
-    init(avatar: Avatars, startColor: UIColor) {
+    init(avatar: Avatars) {
         item = avatar
         super.init(frame: .zero)
-        setup(startColor: startColor)
+        setup()
     }
     
     required init?(coder: NSCoder) {
@@ -40,37 +45,43 @@ class UPAvatarView: UIImageView, ItemView {
     // MARK: - Buttons Methods
     
     @objc private func pickAvatar(_ sender: UITapGestureRecognizer? = nil) {
-        if let sender {
-            let avatar = item as! Avatars
-            audioPlayer.playSound(Sounds.pickItemSound)
-            storage.currentUser.addSeenItem(avatar)
-            if storage.currentUser.haveInInventory(item: avatar).inInventory {
-                storage.currentUser.setValue(with: avatar)
-            }
-            delegate?.pickAvatar(avatar)
-            sender.view?.layer.borderColor = constants.pickItemBorderColor
-            if let viewWithNotif = sender.view?.superview as? ViewWithNotifIcon {
-                viewWithNotif.removeNotificationIcon()
-            }
-        }
+        pickAvatar()
+        delegate?.avatarViewDidTriggerPickAction(self)
     }
     
     // MARK: - Local Methods
     
-    private func setup(startColor: UIColor) {
+    private func setup() {
         backgroundView.translatesAutoresizingMaskIntoConstraints = false
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(pickAvatar))
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(pickAvatar(_:)))
         defaultSettings()
         isUserInteractionEnabled = true
         setImage(with: item as! Avatars)
         addGestureRecognizer(tapGesture)
         addSubview(backgroundView)
-        backgroundView.backgroundColor = startColor
-        if storage.currentUser.playerAvatar == item as! Avatars {
-            layer.borderColor = constants.pickItemBorderColor
-        }
+        backgroundView.backgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         let avatarViewConstraints = [heightAnchor.constraint(equalTo: widthAnchor), backgroundView.heightAnchor.constraint(equalTo: heightAnchor), backgroundView.widthAnchor.constraint(equalTo: widthAnchor), backgroundView.centerXAnchor.constraint(equalTo: centerXAnchor), backgroundView.centerYAnchor.constraint(equalTo: centerYAnchor)]
         NSLayoutConstraint.activate(avatarViewConstraints)
+    }
+    
+    private func pickAvatar() {
+        layer.borderColor = constants.pickItemBorderColor
+    }
+    
+    private func unpickAvatar() {
+        layer.borderColor = (traitCollection.userInterfaceStyle == .dark ? constants.lightModeTextColor : constants.darkModeTextColor).cgColor
+    }
+    
+    func updateStatus(picked: Bool, chosen: Bool, inInventory: Bool) {
+        var color = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
+        if chosen {
+            color = constants.chosenItemColor
+        }
+        else if !inInventory {
+            color = constants.notAvailableColor
+        }
+        backgroundView.backgroundColor = color
+        picked ? pickAvatar() : unpickAvatar()
     }
     
 }
@@ -79,4 +90,11 @@ class UPAvatarView: UIImageView, ItemView {
 
 private struct UPAvatarView_Constants {
     static let pickItemBorderColor = UIColor.yellow.cgColor
+    static let darkModeTextColor = UIColor.black
+    static let lightModeTextColor = UIColor.white
+    static let optimalAlpha = 0.5
+    static let darkModeBackgroundColor = UIColor.black.withAlphaComponent(optimalAlpha)
+    static let lightModeBackgroundColor = UIColor.white.withAlphaComponent(optimalAlpha)
+    static let chosenItemColor = UIColor.green.withAlphaComponent(optimalAlpha)
+    static let notAvailableColor = UIColor.red.withAlphaComponent(optimalAlpha)
 }

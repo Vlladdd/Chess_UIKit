@@ -8,113 +8,26 @@
 import UIKit
 
 //class that represents main menu view
-class MainMenuView: UIView, MainMenuViewDelegate {
-
-    // MARK: - MainMenuViewDelegate
-    
-    weak var mainMenuDelegate: MainMenuDelegate? {
-        didSet {
-            (userDataView.mainView as? UserDataView)?.delegate = mainMenuDelegate
-        }
-    }
-    
-    //font for all views, that are part of main menu view
-    let font: UIFont
-    
-    //one buttonsStack goes up, another from down or vice versa(reversed)
-    //if backButton is not part of a stack it goes from left to right or vice versa
-    func makeMenu(with elements: UIStackView, reversed: Bool) {
-        let extraYForBSAnimation = buttonsView?.contentSize.height ?? 0
-        buttonsView?.removeWithAnimation(reversed: reversed)
-        additionalButtons?.removeWithAnimation()
-        if let elements = elements as? AdditionalButtonsDelegate {
-            makeAdditionalButtons(for: elements)
-        }
-        else {
-            additionalButtons = nil
-        }
-        makeButtonsView(with: elements)
-        layoutIfNeeded()
-        buttonsView?.animateAppearance(reversed: reversed, extraY: extraYForBSAnimation)
-        additionalButtons?.animateAppearance()
-        updateNotificationIcons()
-        audioPlayer.playSound(Sounds.moveSound1)
-    }
-    
-    func updateNotificationIcons() {
-        if storage.currentUser.haveNewAvatarsInInventory() || storage.currentUser.nickname.isEmpty {
-            userDataView.addNotificationIcon()
-        }
-        else {
-            userDataView.removeNotificationIcon()
-        }
-        if let buttonsStack = buttonsView?.buttonsStack as? NotificationIconsDelegate {
-            buttonsStack.updateNotificationIcons()
-        }
-        if let userProfileVC = mainMenuDelegate?.presentedViewController as? UserProfileVC {
-            userProfileVC.userProfileView.updateNotificationIcons()
-        }
-    }
-    
-    func buyItem(itemView: ItemView, additionalChanges: @escaping () -> Void) {
-        if let coinsText = additionalButtons?.coinsText {
-            let itemName = itemView.item.getHumanReadableName()
-            let alert = UIAlertController(title: "Buy \(itemName)", message: "Are you sure?", preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "No", style: .cancel, handler: nil))
-            alert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { [weak self] _ in
-                guard let self else { return }
-                self.audioPlayer.playSound(Sounds.buyItemSound)
-                self.storage.currentUser.addAvailableItem(itemView.item)
-                var startCoins = self.storage.currentUser.coins
-                self.storage.currentUser.addCoins(-itemView.item.cost)
-                let endCoins = self.storage.currentUser.coins
-                let snapshotOfItemView = itemView.snapshotView(afterScreenUpdates: true)!
-                self.addSubview(snapshotOfItemView)
-                let snapshotConstraints = [snapshotOfItemView.leadingAnchor.constraint(equalTo: self.leadingAnchor), snapshotOfItemView.topAnchor.constraint(equalTo: self.topAnchor)]
-                NSLayoutConstraint.activate(snapshotConstraints)
-                let actualPosOfSnapshot = snapshotOfItemView.convert(itemView.bounds, from: itemView)
-                snapshotOfItemView.transform = CGAffineTransform(translationX: actualPosOfSnapshot.minX, y: actualPosOfSnapshot.minY)
-                let coinsBoundsForAnimation = snapshotOfItemView.convert(coinsText.bounds, from: coinsText)
-                UIView.animate(withDuration: constants.animationDuration, animations: {
-                    additionalChanges()
-                    snapshotOfItemView.transform = constants.transformForItemWhenBought.concatenating(snapshotOfItemView.transform.translatedBy(x: coinsBoundsForAnimation.midX - snapshotOfItemView.bounds.midX, y: coinsBoundsForAnimation.midY - snapshotOfItemView.bounds.midY))
-                }) { _ in
-                    snapshotOfItemView.removeFromSuperview()
-                }
-                let interval = constants.animationDuration / Double(startCoins - endCoins)
-                let coinsTimer = Timer(timeInterval: interval, repeats: true, block: { timer in
-                    if startCoins == endCoins {
-                        timer.invalidate()
-                        return
-                    }
-                    startCoins -= 1
-                    coinsText.text = String(startCoins)
-                })
-                coinsTimer.fire()
-                RunLoop.main.add(coinsTimer, forMode: .common)
-            }))
-            mainMenuDelegate?.present(alert, animated: true)
-            audioPlayer.playSound(Sounds.openPopUpSound)
-        }
-    }
+class MainMenuView: UIView {
     
     // MARK: - Properties
     
     private typealias constants = MainMenuView_Constants
     
     private var additionalButtons: AdditionalButtons?
-    private var buttonsView: MMButtonsView?
-    private var userDataView: ViewWithNotifIcon!
     
-    private let storage = Storage.sharedInstance
-    private let audioPlayer = AudioPlayer.sharedInstance
+    //font for all views, that are part of main menu view
+    private let font: UIFont
+    
+    private(set) var buttonsView: MMButtonsView?
+    private(set) var userDataView: ViewWithNotifIcon!
     
     // MARK: - Inits
     
-    init(widthForAvatar: CGFloat, fontSize: CGFloat) {
-        font = UIFont.systemFont(ofSize: fontSize)
+    init(widthForAvatar: CGFloat, font: UIFont, userNickname: String, userAvatar: Avatars) {
+        self.font = font
         super.init(frame: .zero)
-        setup(widthForAvatar: widthForAvatar)
+        setup(with: widthForAvatar, userNickname: userNickname, userAvatar: userAvatar)
     }
     
     required init?(coder: NSCoder) {
@@ -123,12 +36,25 @@ class MainMenuView: UIView, MainMenuViewDelegate {
     
     // MARK: - Methods
     
-    private func setup(widthForAvatar: CGFloat) {
+    private func setup(with widthForAvatar: CGFloat, userNickname: String, userAvatar: Avatars) {
         translatesAutoresizingMaskIntoConstraints = false
         backgroundColor = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
         makeBackground()
-        makeUserData(widthForAvatar: widthForAvatar, font: font)
-        makeMenu(with: MMBasicButtons(delegate: self), reversed: false)
+        makeUserData(with: widthForAvatar, userNickname: userNickname, userAvatar: userAvatar)
+    }
+    
+    //one buttonsStack goes up, another from down or vice versa(reversed)
+    //if backButton is not part of a stack it goes from left to right or vice versa
+    func makeMenu(with elements: UIStackView, reversed: Bool, additionalButtons: AdditionalButtons?) {
+        let extraYForBSAnimation = buttonsView?.contentSize.height ?? 0
+        buttonsView?.removeWithAnimation(reversed: reversed)
+        self.additionalButtons?.removeWithAnimation()
+        self.additionalButtons = additionalButtons
+        setupAdditionalButtons()
+        makeButtonsView(with: elements)
+        layoutIfNeeded()
+        buttonsView?.animateAppearance(reversed: reversed, extraY: extraYForBSAnimation)
+        additionalButtons?.animateAppearance()
     }
     
     //makes background of the view
@@ -143,8 +69,8 @@ class MainMenuView: UIView, MainMenuViewDelegate {
         NSLayoutConstraint.activate(backgroundConstraints)
     }
     
-    private func makeUserData(widthForAvatar: CGFloat, font: UIFont) {
-        let userData = UserDataView(widthForAvatar: widthForAvatar, font: font)
+    private func makeUserData(with widthForAvatar: CGFloat, userNickname: String, userAvatar: Avatars) {
+        let userData = UserDataView(widthForAvatar: widthForAvatar, font: font, nickname: userNickname, avatar: userAvatar)
         userDataView = ViewWithNotifIcon(mainView: userData, height: nil)
         addSubview(userDataView)
         let userDataConstraints = [userDataView.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor, constant: constants.optimalDistance), userDataView.trailingAnchor.constraint(lessThanOrEqualTo: layoutMarginsGuide.trailingAnchor, constant: -constants.optimalDistance), userDataView.leadingAnchor.constraint(greaterThanOrEqualTo: layoutMarginsGuide.leadingAnchor, constant: constants.optimalDistance), userDataView.centerXAnchor.constraint(equalTo: layoutMarginsGuide.centerXAnchor)]
@@ -159,17 +85,24 @@ class MainMenuView: UIView, MainMenuViewDelegate {
             if let additionalButtons {
                 buttonsViewBottomConstraint = buttonsView.bottomAnchor.constraint(lessThanOrEqualTo: additionalButtons.topAnchor, constant: -constants.optimalDistance)
             }
-            let centerXForButtonsView = buttonsView.centerXAnchor.constraint(equalTo: layoutMarginsGuide.centerXAnchor)
-            centerXForButtonsView.priority = .defaultLow
-            let centerYForButtonsView = buttonsView.centerYAnchor.constraint(equalTo: layoutMarginsGuide.centerYAnchor)
-            centerYForButtonsView.priority = .defaultLow
-            let buttonsViewConstraints = [buttonsView.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor), buttonsView.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor), buttonsView.topAnchor.constraint(greaterThanOrEqualTo: userDataView.bottomAnchor, constant: constants.optimalDistance), centerXForButtonsView, centerYForButtonsView, buttonsViewBottomConstraint]
+            if let buttonsStack = buttonsStack as? GamesView, buttonsStack.isMultiplayerGames {
+                buttonsView.topAnchor.constraint(equalTo: userDataView.bottomAnchor, constant: constants.optimalDistance).isActive = true
+            }
+            else {
+                let centerXForButtonsView = buttonsView.centerXAnchor.constraint(equalTo: layoutMarginsGuide.centerXAnchor)
+                centerXForButtonsView.priority = .defaultLow
+                let centerYForButtonsView = buttonsView.centerYAnchor.constraint(equalTo: layoutMarginsGuide.centerYAnchor)
+                centerYForButtonsView.priority = .defaultLow
+                centerXForButtonsView.isActive = true
+                centerYForButtonsView.isActive = true
+                buttonsView.topAnchor.constraint(greaterThanOrEqualTo: userDataView.bottomAnchor, constant: constants.optimalDistance).isActive = true
+            }
+            let buttonsViewConstraints = [buttonsView.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor), buttonsView.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor), buttonsViewBottomConstraint]
             NSLayoutConstraint.activate(buttonsViewConstraints)
         }
     }
     
-    private func makeAdditionalButtons(for elements: AdditionalButtonsDelegate) {
-        additionalButtons = elements.makeAdditionalButtons()
+    private func setupAdditionalButtons() {
         if let additionalButtons {
             addSubview(additionalButtons)
             let additionalButtonsConstraints = [additionalButtons.bottomAnchor.constraint(equalTo: layoutMarginsGuide.bottomAnchor), additionalButtons.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor), additionalButtons.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor)]
@@ -188,20 +121,41 @@ class MainMenuView: UIView, MainMenuViewDelegate {
             additionalButtons.randomAAnimation(with: constants.animationDuration)
         }
         userDataView.randomAAnimation(with: constants.animationDuration)
-        audioPlayer.playSound(Sounds.moveSound2)
-    }
-    
-    //when changes made in user profile view
-    func updateUserData() {
-        if let userDataView = userDataView.mainView as? UserDataView {
-            userDataView.updateUserData()
-        }
     }
     
     //when device changed orientation
     func onRotate() {
         if let buttonsStack = buttonsView?.buttonsStack as? ItemsView {
             buttonsStack.onRotate()
+        }
+    }
+    
+    func buyItem(itemView: ItemView, startCoins: Int, endCoins: Int) {
+        if let coinsText = additionalButtons?.coinsText {
+            var startCoins = startCoins
+            let snapshotOfItemView = itemView.snapshotView(afterScreenUpdates: true)!
+            addSubview(snapshotOfItemView)
+            let snapshotConstraints = [snapshotOfItemView.leadingAnchor.constraint(equalTo: leadingAnchor), snapshotOfItemView.topAnchor.constraint(equalTo: topAnchor)]
+            NSLayoutConstraint.activate(snapshotConstraints)
+            let actualPosOfSnapshot = snapshotOfItemView.convert(itemView.bounds, from: itemView)
+            snapshotOfItemView.transform = CGAffineTransform(translationX: actualPosOfSnapshot.minX, y: actualPosOfSnapshot.minY)
+            let coinsBoundsForAnimation = snapshotOfItemView.convert(coinsText.bounds, from: coinsText)
+            UIView.animate(withDuration: constants.animationDuration, animations: {
+                snapshotOfItemView.transform = constants.transformForItemWhenBought.concatenating(snapshotOfItemView.transform.translatedBy(x: coinsBoundsForAnimation.midX - snapshotOfItemView.bounds.midX, y: coinsBoundsForAnimation.midY - snapshotOfItemView.bounds.midY))
+            }) { _ in
+                snapshotOfItemView.removeFromSuperview()
+            }
+            let interval = constants.animationDuration / Double(startCoins - endCoins)
+            let coinsTimer = Timer(timeInterval: interval, repeats: true, block: { timer in
+                if startCoins == endCoins {
+                    timer.invalidate()
+                    return
+                }
+                startCoins -= 1
+                coinsText.text = String(startCoins)
+            })
+            coinsTimer.fire()
+            RunLoop.main.add(coinsTimer, forMode: .common)
         }
     }
     

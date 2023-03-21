@@ -92,7 +92,6 @@ class CGDLBuilder: CGDataLineBuilder {
 // MARK: - Constants
 
 private struct CGDLBuilder_Constants {
-    static let optimalSpacing = 5.0
     static let distanceForSwitchInSpecialView = 3.0
 }
 

@@ -7,10 +7,20 @@
 
 import UIKit
 
+// MARK: - WheelOfFortuneDelegate
+
+protocol WheelOfFortuneDelegate: AnyObject {
+    func wheelOfFortuneDidReachNewSegmentWhileSpinning(_ wheelOfFortune: WheelOfFortune) -> Void
+}
+
+// MARK: - WheelOfFortune
+
 //view that represents Wheel Of Fortune
 class WheelOfFortune: UIView {
     
     // MARK: - Properties
+    
+    weak var delegate: WheelOfFortuneDelegate?
     
     private typealias constants = WheelOfFortune_Constants
     
@@ -21,7 +31,6 @@ class WheelOfFortune: UIView {
     private let coinsText = UILabel()
     private let figureView = UIImageView()
     private let wheelContainer = UIView()
-    private let audioPlayer = AudioPlayer.sharedInstance
     
     private(set) var winCoins = 0
     
@@ -172,7 +181,7 @@ class WheelOfFortune: UIView {
         let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false, block: { [weak self] _ in
             guard let self else { return }
             if self.isVisible() {
-                self.audioPlayer.playSound(Sounds.toggleSound)
+                self.delegate?.wheelOfFortuneDidReachNewSegmentWhileSpinning(self)
             }
             self.coinsText.text = String(segmentData.coinsPrize) + " coins"
             //changes stroke color of wheel segment

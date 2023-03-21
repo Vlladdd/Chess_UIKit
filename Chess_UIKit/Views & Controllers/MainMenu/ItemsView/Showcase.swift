@@ -23,7 +23,7 @@ class Showcase: UIScrollView, ItemView {
     init(items: UIStackView, item: GameItem, axis: NSLayoutConstraint.Axis) {
         self.item = item
         super.init(frame: .zero)
-        setup(items: items, axis: axis)
+        setup(with: items, and: axis)
     }
     
     required init(coder: NSCoder) {
@@ -32,7 +32,7 @@ class Showcase: UIScrollView, ItemView {
     
     // MARK: - Methods
     
-    private func setup(items: UIStackView, axis: NSLayoutConstraint.Axis) {
+    private func setup(with items: UIStackView, and axis: NSLayoutConstraint.Axis) {
         translatesAutoresizingMaskIntoConstraints = false
         addSubview(items)
         let widthConstraint = items.widthAnchor.constraint(equalTo: widthAnchor)

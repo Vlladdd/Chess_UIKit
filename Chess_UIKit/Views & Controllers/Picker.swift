@@ -7,6 +7,23 @@
 
 import UIKit
 
+// MARK: - PickerDelegate
+
+protocol PickerDelegate: AnyObject {
+    func pickerDidTriggerDoneAction<T>(_ picker: Picker<T>) -> Void where T: RawRepresentable, T.RawValue == String
+    func pickerDidTriggerCancelAction<T>(_ picker: Picker<T>) -> Void where T: RawRepresentable, T.RawValue == String
+}
+
+extension PickerDelegate {
+    
+    func pickerDidTriggerCancelAction<T>(_ picker: Picker<T>) where T: RawRepresentable, T.RawValue == String {
+        print("picker of type \(type(of: picker)) has been closed")
+    }
+    
+}
+
+// MARK: - Picker
+
 //class that represents picker for string enums
 class Picker<T>: UITextField, UIPickerViewDataSource, UIPickerViewDelegate where T: RawRepresentable, T.RawValue == String {
     
@@ -33,12 +50,12 @@ class Picker<T>: UITextField, UIPickerViewDataSource, UIPickerViewDelegate where
         pickedData = pickedData == nil ? data.first : pickedData
         textView.text = pickedData?.asString
         placeHolderView.text = ""
-        pickerDelegate?.doneAction(self)
+        pickerDelegate?.pickerDidTriggerDoneAction(self)
     }
     
     @objc private func cancelPicker(_ sender: UIBarButtonItem? = nil) {
         resignFirstResponder()
-        pickerDelegate?.cancelAction(self)
+        pickerDelegate?.pickerDidTriggerCancelAction(self)
     }
     
     // MARK: - Inits

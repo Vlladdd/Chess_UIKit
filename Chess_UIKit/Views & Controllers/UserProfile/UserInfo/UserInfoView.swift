@@ -7,16 +7,40 @@
 
 import UIKit
 
+// MARK: - UserInfoViewDelegate
+
+protocol UserInfoViewDelegate: AnyObject {
+    func userInfoViewDidToggleMusic(_ userInfoView: UserInfoView) -> Void
+    func userInfoViewDidToggleSounds(_ userInfoView: UserInfoView) -> Void
+}
+
+// MARK: - UserInfoView
+
 //class that represents view with user info, which is basically just multiple DataLines
 class UserInfoView: UIScrollView {
     
     // MARK: - Properties
     
+    //just to simplify init
+    struct Data {
+        
+        var isGuestMode = false
+        var isGoogleSignIn = false
+        var musicEnabled = false
+        var soundsEnabled = false
+        var nickname = ""
+        var email = ""
+        
+        //to prevent big inits
+        init() {}
+        
+    }
+    
+    weak var userInfoViewDelegate: UserInfoViewDelegate?
+    
     private typealias constants = UserInfoView_Constants
     
     private let font: UIFont
-    private let storage = Storage.sharedInstance
-    private let audioPlayer = AudioPlayer.sharedInstance
     
     private(set) var nicknameView: ViewWithNotifIcon!
     //not everytime email and password will be available
@@ -26,10 +50,10 @@ class UserInfoView: UIScrollView {
     
     // MARK: - Inits
     
-    init(font: UIFont) {
+    init(font: UIFont, data: UserInfoView.Data) {
         self.font = font
         super.init(frame: .zero)
-        setup()
+        setup(with: data)
     }
     
     required init(coder: NSCoder) {
@@ -39,36 +63,33 @@ class UserInfoView: UIScrollView {
     // MARK: - Buttons Methods
     
     @objc private func toggleMusic(_ sender: UISwitch? = nil) {
-        audioPlayer.musicEnabled.toggle()
-        audioPlayer.musicEnabled ? audioPlayer.playSound(Music.menuBackgroundMusic) : audioPlayer.pauseSound(Music.menuBackgroundMusic)
-        storage.currentUser.updateMusicEnabled(newValue: audioPlayer.musicEnabled)
+        userInfoViewDelegate?.userInfoViewDidToggleMusic(self)
     }
     
     @objc private func toggleSounds(_ sender: UISwitch? = nil) {
-        audioPlayer.soundsEnabled.toggle()
-        storage.currentUser.updateSoundsEnabled(newValue: audioPlayer.soundsEnabled)
+        userInfoViewDelegate?.userInfoViewDidToggleSounds(self)
     }
     
     // MARK: - Local Methods
     
-    private func setup() {
+    private func setup(with data: UserInfoView.Data) {
         translatesAutoresizingMaskIntoConstraints = false
         delaysContentTouches = false
         let userInfoStack = UIStackView()
         userInfoStack.setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-        if storage.currentUser.guestMode {
-            userInfoStack.addArrangedSubview(makeNicknameLine())
+        if data.isGuestMode {
+            userInfoStack.addArrangedSubview(makeNicknameLine(with: data.nickname))
         }
-        else if storage.checkIfGoogleSignIn() {
-            userInfoStack.addArrangedSubviews([makeNicknameLine(), makeEmailLineForGoogleSignIn()])
+        else if data.isGoogleSignIn {
+            userInfoStack.addArrangedSubviews([makeNicknameLine(with: data.nickname), makeEmailLineForGoogleSignIn(with: data.email)])
         }
         else {
-            userInfoStack.addArrangedSubviews([makeNicknameLine(), makeEmailLineForEmailSignIn(), makePasswordLine()])
+            userInfoStack.addArrangedSubviews([makeNicknameLine(with: data.nickname), makeEmailLineForEmailSignIn(with: data.email), makePasswordLine()])
         }
-        if storage.currentUser.nickname.isEmpty {
+        if data.nickname.isEmpty {
             nicknameView.addNotificationIcon()
         }
-        userInfoStack.addArrangedSubviews([makeMusicLine(), makeSoundsLine()])
+        userInfoStack.addArrangedSubviews([makeMusicLine(musicEnabled: data.musicEnabled), makeSoundsLine(soundsEnabled: data.soundsEnabled)])
         let contentView = UIView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         let contentHeight = contentView.heightAnchor.constraint(equalTo: heightAnchor)
@@ -80,10 +101,10 @@ class UserInfoView: UIScrollView {
         NSLayoutConstraint.activate(contentConstraints + dataConstraints)
     }
     
-    private func makeNicknameLine() -> DataLine {
+    private func makeNicknameLine(with nickname: String) -> DataLine {
         let nicknameLine = UPDLBuilder()
             .addLabel(with: font, and: "Nickname")
-            .addTextField(with: font, placeHolder: "Enter new nickname", and: storage.currentUser.nickname, isNotifView: true)
+            .addTextField(with: font, placeHolder: "Enter new nickname", and: nickname, isNotifView: true)
             .build()
         if let nicknameView = nicknameLine.data as? ViewWithNotifIcon {
             self.nicknameView = nicknameView
@@ -92,17 +113,17 @@ class UserInfoView: UIScrollView {
     }
     
     //currently user can`t change email, if signed in with Google account
-    private func makeEmailLineForGoogleSignIn() -> DataLine {
+    private func makeEmailLineForGoogleSignIn(with email: String) -> DataLine {
         return UPDLBuilder()
             .addLabel(with: font, and: "Email")
-            .addTextData(with: font, and: storage.currentUser.email)
+            .addTextData(with: font, and: email)
             .build()
     }
     
-    private func makeEmailLineForEmailSignIn() -> DataLine {
+    private func makeEmailLineForEmailSignIn(with email: String) -> DataLine {
         let emailLine = UPDLBuilder()
             .addLabel(with: font, and: "Email")
-            .addTextField(with: font, placeHolder: "Enter new email", and: storage.currentUser.email, isNotifView: false)
+            .addTextField(with: font, placeHolder: "Enter new email", and: email, isNotifView: false)
             .build()
         if let emailView = emailLine.data as? UITextField {
             self.emailView = emailView
@@ -121,17 +142,17 @@ class UserInfoView: UIScrollView {
         return passwordLine
     }
     
-    private func makeMusicLine() -> DataLine {
+    private func makeMusicLine(musicEnabled: Bool) -> DataLine {
         return UPDLBuilder()
             .addLabel(with: font, and: "Music enabled")
-            .addSwitch(with: audioPlayer.musicEnabled, and: #selector(toggleMusic))
+            .addSwitch(with: musicEnabled, and: #selector(toggleMusic))
             .build()
     }
     
-    private func makeSoundsLine() -> DataLine {
+    private func makeSoundsLine(soundsEnabled: Bool) -> DataLine {
         return UPDLBuilder()
             .addLabel(with: font, and: "Sounds enabled")
-            .addSwitch(with: audioPlayer.soundsEnabled, and: #selector(toggleSounds))
+            .addSwitch(with: soundsEnabled, and: #selector(toggleSounds))
             .build()
     }
     

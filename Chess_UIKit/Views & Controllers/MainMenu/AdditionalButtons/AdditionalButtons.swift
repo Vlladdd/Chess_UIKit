@@ -16,6 +16,7 @@ class AdditionalButtons: UIStackView {
 
     //sometimes additional buttons might not contain view about coins
     private(set) var coinsText: UILabel?
+    private(set) var backButton: BackButton?
     
     // MARK: - Inits
     
@@ -36,6 +37,10 @@ class AdditionalButtons: UIStackView {
     
     func updateCoinsText(with newValue: UILabel) {
         coinsText = newValue
+    }
+    
+    func updateBackButton(with newValue: BackButton) {
+        backButton = newValue
     }
     
     func removeWithAnimation() {

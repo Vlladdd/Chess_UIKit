@@ -7,43 +7,33 @@
 
 import UIKit
 
+// MARK: - MMBasicButtonsDelegate
+
+protocol MMBasicButtonsDelegate: AnyObject {
+    func basicButtonsDidTriggerInventoryMenu(_ basicButtons: MMBasicButtons) -> Void
+    func basicButtonsDidTriggerShopMenu(_ basicButtons: MMBasicButtons) -> Void
+    func basicButtonsDidTriggerGameMenu(_ basicButtons: MMBasicButtons) -> Void
+}
+
+// MARK: - MMBasicButtons
+
 //class that represents first buttons in main menu
-class MMBasicButtons: UIStackView, NotificationIconsDelegate {
-    
-    // MARK: - NotificationIconsDelegate
-    
-    func updateNotificationIcons() {
-        if storage.currentUser.haveNewItemsInShop() {
-            shopButtonView.addNotificationIcon()
-        }
-        else {
-            shopButtonView.removeNotificationIcon()
-        }
-        if storage.currentUser.haveNewItemsInInventory() {
-            inventoryButtonView.addNotificationIcon()
-        }
-        else {
-            inventoryButtonView.removeNotificationIcon()
-        }
-    }
+class MMBasicButtons: UIStackView {
     
     // MARK: - Properties
     
-    weak var delegate: MainMenuViewDelegate?
+    weak var delegate: MMBasicButtonsDelegate?
     
     private typealias constants = MMBasicButtons_Constants
     
-    private let storage = Storage.sharedInstance
-    
-    private var shopButtonView: ViewWithNotifIcon!
-    private var inventoryButtonView: ViewWithNotifIcon!
+    private(set) var shopButtonView: ViewWithNotifIcon!
+    private(set) var inventoryButtonView: ViewWithNotifIcon!
     
     // MARK: - Inits
     
-    init(delegate: MainMenuViewDelegate) {
-        self.delegate = delegate
+    init(font: UIFont) {
         super.init(frame: .zero)
-        setup()
+        setup(with: font)
     }
     
     required init(coder: NSCoder) {
@@ -53,35 +43,27 @@ class MMBasicButtons: UIStackView, NotificationIconsDelegate {
     // MARK: - Buttons Methods
     
     @objc private func makeInventoryMenu(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.makeMenu(with: MMItemsButtons(delegate: delegate, isShopItems: false), reversed: false)
-        }
+        delegate?.basicButtonsDidTriggerInventoryMenu(self)
     }
     
     @objc private func makeShopMenu(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.makeMenu(with: MMItemsButtons(delegate: delegate, isShopItems: true), reversed: false)
-        }
+        delegate?.basicButtonsDidTriggerShopMenu(self)
     }
     
     @objc private func makeGameMenu(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.makeMenu(with: MMGameButtons(delegate: delegate), reversed: false)
-        }
+        delegate?.basicButtonsDidTriggerGameMenu(self)
     }
     
     // MARK: - Local Methods
     
-    private func setup() {
-        if let delegate {
-            setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
-            let gameButton = MMButtonView(backgroundImageItem: MiscImages.gameButtonBG, buttonImageItem: nil, buttontext: "Game", action: #selector(makeGameMenu), fontSize: delegate.font.pointSize, needHeightConstraint: true)
-            let inventoryButton = MMButtonView(backgroundImageItem: MiscImages.inventoryButtonBG, buttonImageItem: nil, buttontext: "Inventory", action: #selector(makeInventoryMenu), fontSize: delegate.font.pointSize, needHeightConstraint: false)
-            inventoryButtonView = ViewWithNotifIcon(mainView: inventoryButton, height: MMButtonView.getOptimalHeight(with: delegate.font.pointSize))
-            let shopButton = MMButtonView(backgroundImageItem: MiscImages.shopButtonBG, buttonImageItem: nil, buttontext: "Shop", action: #selector(makeShopMenu), fontSize: delegate.font.pointSize, needHeightConstraint: false)
-            shopButtonView = ViewWithNotifIcon(mainView: shopButton, height: MMButtonView.getOptimalHeight(with: delegate.font.pointSize))
-            addArrangedSubviews([gameButton, inventoryButtonView, shopButtonView])
-        }
+    private func setup(with font: UIFont) {
+        setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
+        let gameButton = MMButtonView(backgroundImageItem: MiscImages.gameButtonBG, buttonImageItem: nil, buttontext: "Game", action: #selector(makeGameMenu), font: font, needHeightConstraint: true)
+        let inventoryButton = MMButtonView(backgroundImageItem: MiscImages.inventoryButtonBG, buttonImageItem: nil, buttontext: "Inventory", action: #selector(makeInventoryMenu), font: font, needHeightConstraint: false)
+        inventoryButtonView = ViewWithNotifIcon(mainView: inventoryButton, height: MMButtonView.getOptimalHeight(with: font.pointSize))
+        let shopButton = MMButtonView(backgroundImageItem: MiscImages.shopButtonBG, buttonImageItem: nil, buttontext: "Shop", action: #selector(makeShopMenu), font: font, needHeightConstraint: false)
+        shopButtonView = ViewWithNotifIcon(mainView: shopButton, height: MMButtonView.getOptimalHeight(with: font.pointSize))
+        addArrangedSubviews([gameButton, inventoryButtonView, shopButtonView])
     }
     
 }

@@ -45,3 +45,5 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 }
 
+// TODO: -
+// Refactor big inits

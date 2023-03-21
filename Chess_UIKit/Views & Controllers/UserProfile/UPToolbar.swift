@@ -7,12 +7,21 @@
 
 import UIKit
 
+// MARK: - UPToolbarDelegate
+
+protocol UPToolbarDelegate: AnyObject {
+    func toolbarDidTriggerCloseAction(_ toolbar: UPToolbar) -> Void
+    func toolbarDidTriggerUpdateAction(_ toolbar: UPToolbar) -> Void
+}
+
+// MARK: - UPToolbar
+
 //class that represents toolbar of user profile
 class UPToolbar: UIToolbar {
     
     // MARK: - Properties
     
-    weak var userProfileViewDelegate: UserProfileViewDelegate?
+    weak var upToolbarDelegate: UPToolbarDelegate?
     
     private typealias constants = UPToolbar_Constants
     
@@ -33,11 +42,11 @@ class UPToolbar: UIToolbar {
     // MARK: - Buttons Methods
     
     @objc private func close(_ sender: UIBarButtonItem? = nil) {
-        userProfileViewDelegate?.userProfileDelegate?.dismiss(animated: true)
+        upToolbarDelegate?.toolbarDidTriggerCloseAction(self)
     }
     
     @objc private func updateUserInfo(_ sender: UIBarButtonItem? = nil) {
-        userProfileViewDelegate?.updateUserInfo()
+        upToolbarDelegate?.toolbarDidTriggerUpdateAction(self)
     }
     
     // MARK: - Local Methods

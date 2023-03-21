@@ -14,14 +14,14 @@ class MMButtonView: UIImageView {
     
     private typealias constants = MMButtons_Constants
     
-    private let font: UIFont
+    let font: UIFont
     
     private(set) var button: UIButton?
     
     // MARK: - Inits
     
-    init(backgroundImageItem: ImageItem?, buttonImageItem: ImageItem?, buttontext: String, action: Selector?, fontSize: CGFloat, needHeightConstraint: Bool) {
-        font = UIFont.systemFont(ofSize: fontSize)
+    init(backgroundImageItem: ImageItem?, buttonImageItem: ImageItem?, buttontext: String, action: Selector?, font: UIFont, needHeightConstraint: Bool) {
+        self.font = font
         super.init(frame: .zero)
         setup(with: backgroundImageItem, buttonImageItem: buttonImageItem, buttontext: buttontext, and: action, needHeightConstraint: needHeightConstraint)
     }

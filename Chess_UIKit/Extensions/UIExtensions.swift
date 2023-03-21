@@ -58,10 +58,6 @@ extension UIApplication {
 
 extension UISwitch {
     
-    @objc private func playToggleSound(_ sender: UISwitch? = nil) {
-        AudioPlayer.sharedInstance.playSound(Sounds.toggleSound)
-    }
-    
     func defaultSettings(with function: Selector? = nil, isOn: Bool = true) {
         translatesAutoresizingMaskIntoConstraints = false
         self.isOn = isOn
@@ -69,7 +65,6 @@ extension UISwitch {
         if let function {
             addTarget(nil, action: function, for: .valueChanged)
         }
-        addTarget(nil, action: #selector(playToggleSound), for: .valueChanged)
     }
 
     func set(offTint color: UIColor ) {
@@ -89,6 +84,23 @@ extension UIView {
     
     var rootView: UIView {
         superview?.rootView ?? self
+    }
+    
+    static func convertLogicColor(_ color: Colors) -> UIColor {
+        switch color {
+        case .white:
+            return .white
+        case .black:
+            return .black
+        case .blue:
+            return .blue
+        case .orange:
+            return .orange
+        case .red:
+            return .red
+        case .green:
+            return .green
+        }
     }
     
     func rotate360Degrees(duration: CFTimeInterval = 3) {
@@ -156,6 +168,37 @@ extension UIView {
                 guard let self else { return }
                 self.transform = .identity
             })
+        }
+    }
+    
+    func applyBlurEffect(withAnimation: Bool, duration: TimeInterval = 0) {
+        let blurEffect = UIBlurEffect(style: traitCollection.userInterfaceStyle == .dark ? .dark : .light)
+        let blurEffectView = UIVisualEffectView(effect: blurEffect)
+        blurEffectView.frame = bounds
+        blurEffectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(blurEffectView)
+        if withAnimation {
+            blurEffectView.alpha = 0
+            UIView.animate(withDuration: duration, animations: {
+                blurEffectView.alpha = 1
+            })
+        }
+    }
+    
+    func removeBlurEffects(withAnimation: Bool, duration: TimeInterval = 0) {
+        for subview in subviews {
+            if let blurEffectView = subview as? UIVisualEffectView {
+                if withAnimation {
+                    UIView.animate(withDuration: duration, animations: {
+                        blurEffectView.alpha = 0
+                    }) { _ in
+                        blurEffectView.removeFromSuperview()
+                    }
+                }
+                else {
+                    blurEffectView.removeFromSuperview()
+                }
+            }
         }
     }
     
@@ -375,6 +418,10 @@ extension UIImageView {
         translatesAutoresizingMaskIntoConstraints = false
         let constraints = [widthAnchor.constraint(equalToConstant: width), heightAnchor.constraint(equalTo: widthAnchor)]
         NSLayoutConstraint.activate(constraints)
+        addBorder()
+    }
+    
+    func addBorder() {
         layer.borderWidth = Constants.borderWidth
         if traitCollection.userInterfaceStyle == .dark {
             layer.borderColor = Constants.darkModeBorderColor
@@ -383,18 +430,22 @@ extension UIImageView {
         }
     }
     
-    func makeSquareView(with imageItem: ImageItem?) {
+    func makeSquareView(with imageItem: ImageItem?, sideLength: CGFloat? = nil) {
+        contentMode = .scaleAspectFit
         translatesAutoresizingMaskIntoConstraints = false
         if let imageItem {
             setImage(with: imageItem)
+        }
+        if let sideLength {
+            heightAnchor.constraint(equalToConstant: sideLength).isActive = true
         }
         widthAnchor.constraint(equalTo: heightAnchor).isActive = true
     }
     
     //in case if square and element in square is 2 different images
     //right now only used for gameBoard, cuz default numbers is not part of square image
-    func makeSpecialSquareView(with firstItem: ImageItem, and secondItem: ImageItem, multiplier: CGFloat) {
-        makeSquareView(with: firstItem)
+    func makeSpecialSquareView(with firstItem: ImageItem, and secondItem: ImageItem, multiplier: CGFloat, sideLength: CGFloat? = nil) {
+        makeSquareView(with: firstItem, sideLength: sideLength)
         let secondSquare = UIImageView()
         secondSquare.makeSquareView(with: secondItem)
         addSubview(secondSquare)
@@ -435,14 +486,9 @@ extension UIImageView {
 
 extension UIStepper {
     
-    @objc private func playToggleSound(_ sender: UISwitch? = nil) {
-        AudioPlayer.sharedInstance.playSound(Sounds.toggleSound)
-    }
-    
     func stepperWith(minValue: Double, maxValue: Double, stepValue: Double, and action: Selector) {
         translatesAutoresizingMaskIntoConstraints = false
         wraps = true
-        addTarget(nil, action: #selector(playToggleSound), for: .valueChanged)
         addTarget(nil, action: action, for: .valueChanged)
         minimumValue = minValue
         maximumValue = maxValue

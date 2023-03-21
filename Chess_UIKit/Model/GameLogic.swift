@@ -35,8 +35,7 @@ class GameLogic: Codable {
     
     let gameMode: GameModes
     let timerEnabled: Bool
-    //useful for multiplayer games
-    let gameID: String?
+    let gameID: String
     let squaresTheme: SquaresThemes
     let boardTheme: BoardThemes
     let maximumCoinsForWheel: Int
@@ -89,7 +88,7 @@ class GameLogic: Codable {
     
     // MARK: - Inits
     
-    init(firstUser: User, secondUser: User?, gameMode: GameModes, firstPlayerColor: GameColors, rewindEnabled: Bool = false, totalTime: Int, additionalTime: Int, gameID: String? = nil) {
+    init(firstUser: User, secondUser: User?, gameMode: GameModes, firstPlayerColor: GameColors, rewindEnabled: Bool = false, totalTime: Int, additionalTime: Int, gameID: String) {
         self.gameID = gameID
         var firstPlayerColor = firstPlayerColor
         if firstPlayerColor == .random {
@@ -141,7 +140,7 @@ class GameLogic: Codable {
         gameBoard = try values.decode(GameBoard.self, forKey: .gameBoard)
         firstTurn = try values.decode(Bool.self, forKey: .firstTurn)
         lastTurn = try values.decode(Bool.self, forKey: .lastTurn)
-        gameID = try? values.decode(String.self, forKey: .gameID)
+        gameID = (try? values.decode(String.self, forKey: .gameID)) ?? startDate.toStringDateHMS
     }
     
     // MARK: - Methods

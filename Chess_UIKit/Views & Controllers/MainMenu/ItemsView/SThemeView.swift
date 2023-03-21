@@ -47,7 +47,7 @@ class SThemeView: Showcase {
         colorLabel.setup(text: text, alignment: .center, font: font)
         let colorView = UIImageView()
         colorView.defaultSettings()
-        colorView.backgroundColor = constants.convertLogicColor(color)
+        colorView.backgroundColor = UIView.convertLogicColor(color)
         let colorViewConstraints = [colorView.widthAnchor.constraint(equalTo: colorView.heightAnchor)]
         NSLayoutConstraint.activate(colorViewConstraints)
         colorData.addArrangedSubviews([colorLabel, colorView])
@@ -60,21 +60,4 @@ class SThemeView: Showcase {
 
 private struct SThemeView_Constants {
     static let optimalSpacing = 5.0
-    
-    static func convertLogicColor(_ color: Colors) -> UIColor {
-        switch color {
-        case .white:
-            return .white
-        case .black:
-            return .black
-        case .blue:
-            return .blue
-        case .orange:
-            return .orange
-        case .red:
-            return .red
-        case .green:
-            return .green
-        }
-    }
 }

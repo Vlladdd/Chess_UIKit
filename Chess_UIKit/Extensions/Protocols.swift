@@ -18,21 +18,6 @@ protocol GameItem: Item {
     static var purchasable: [Self] { get }
 }
 
-protocol AuthorizationDelegate: UIViewController {
-    func prepareForAuthorizationProcess() -> Void
-    func authorizationErrorWith(errorMessage: String) -> Void
-    func successAuthorization() -> Void
-}
-
-protocol WSManagerDelegate: UIViewController {
-    func socketConnected(with headers: [String: String])
-    func socketDisconnected(with reason: String, and code: UInt16)
-    func socketReceivedData(_ data: Data)
-    func socketReceivedText(_ text: String)
-    func webSocketError(with message: String)
-    func lostInternet()
-}
-
 protocol StorageItem: Item {
     
     var folderName: Item? { get }
@@ -50,59 +35,20 @@ protocol Item {
     var name: String { get }
 }
 
-protocol MainMenuDelegate: UIViewController {
-    func signOut() -> Void
-    func toggleUserProfileVC() -> Void
-    func toggleCreateGameVC() -> Void
-    func showGameVC(with game: GameLogic) -> Void
-    func makeErrorAlert(with message: String) -> Void
-}
-
-protocol NotificationIconsDelegate: UIView {
-    func updateNotificationIcons() -> Void
-}
-
-protocol MainMenuViewDelegate: UIView, NotificationIconsDelegate {
-    var font: UIFont { get }
-    var mainMenuDelegate: MainMenuDelegate? { get set }
-    
-    func makeMenu(with elements: UIStackView, reversed: Bool) -> Void
-    func buyItem(itemView: ItemView, additionalChanges: @escaping () -> Void) -> Void
-}
-
 protocol ItemView: UIView {
     var item: GameItem { get }
 }
 
 protocol SpecialItemView: ItemView {
     var itemView: ItemView { get }
-}
-
-//if view need additional buttons
-protocol AdditionalButtonsDelegate: UIView {
-    func makeAdditionalButtons() -> AdditionalButtons
-}
-
-protocol InvItemDelegate: AdditionalButtonsDelegate, NotificationIconsDelegate {
-    var font: UIFont { get }
     
-    func updateItemsColor(inShop: Bool) -> Void
-}
-
-protocol MPGamesDelegate: AdditionalButtonsDelegate {
-    var searchingForMPgames: Task<Void, Error>? { get set }
+    func unpickItem() -> Void
+    func onRotate() -> Void
 }
 
 protocol AdditionalButtonsBuilder {
-    func addBackButton(type: BackButtonType) -> Self
-    func addCoinsView() -> Self
-}
-
-protocol UserProfileViewDelegate: UIView, NotificationIconsDelegate {
-    var userProfileDelegate: UIViewController? { get set }
-    
-    func updateUserInfo() -> Void
-    func updateAvatar(with newValue: Avatars) -> Void
+    func addBackButton(with font: UIFont) -> Self
+    func addCoinsView(with font: UIFont, and coins: Int) -> Self
 }
 
 protocol UPDataLineBuilder {
@@ -112,22 +58,9 @@ protocol UPDataLineBuilder {
     func addSwitch(with currentState: Bool, and selector: Selector) -> Self
 }
 
-protocol AvatarDelegate: UIView, NotificationIconsDelegate {
-    func pickAvatar(_ avatar: Avatars) -> Void
-}
-
-protocol CreateGameDelegate: WSManagerDelegate {
-    func createGame() -> Void
-}
-
 protocol CGDataLineBuilder {
     func addLabel(with font: UIFont, and text: String, isData: Bool) -> Self
     func addPicker<T>(with placeholder: String, font: UIFont, data: [T]) -> Self where T: RawRepresentable, T.RawValue == String
     func addSwitch(with currentState: Bool, and selector: Selector?) -> Self
     func addStepper(with minValue: Double, maxValue: Double, stepValue: Double, and selector: Selector) -> Self
-}
-
-protocol PickerDelegate: UIView {
-    func doneAction<T>(_ picker: Picker<T>) -> Void where T: RawRepresentable, T.RawValue == String
-    func cancelAction<T>(_ picker: Picker<T>) -> Void where T: RawRepresentable, T.RawValue == String
 }

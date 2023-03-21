@@ -8,12 +8,20 @@
 import UIKit
 import GoogleSignIn
 
+// MARK: - GoogleSignInButtonDelegate
+
+protocol GoogleSignInButtonDelegate: AnyObject {
+    func googleSignInButtonDidTriggerSignIn(_ googleSignInButton: GoogleSignInButton) -> Void
+}
+
+// MARK: - GoogleSignInButton
+
 //class that represents custom Google Sign In button
 class GoogleSignInButton: GIDSignInButton {
     
     // MARK: - Properties
     
-    weak var delegate: AuthorizationDelegate?
+    weak var delegate: GoogleSignInButtonDelegate?
     
     // MARK: - Inits
     
@@ -29,35 +37,7 @@ class GoogleSignInButton: GIDSignInButton {
     // MARK: - Buttons Methods
     
     @objc private func signIn(_ sender: GoogleSignInButton? = nil) {
-        if let delegate {
-            guard let clientID = delegate.storage.clientID else { return }
-            // Create Google Sign In configuration object.
-            let config = GIDConfiguration(clientID: clientID)
-            // Start the sign in flow!
-            delegate.prepareForAuthorizationProcess()
-            GIDSignIn.sharedInstance.signIn(with: config, presenting: delegate) { user, error in
-                guard error == nil else {
-                    delegate.authorizationErrorWith(errorMessage: error!.localizedDescription)
-                    return
-                }
-                guard let authentication = user?.authentication, let idToken = authentication.idToken else {
-                    delegate.authorizationErrorWith(errorMessage: "Can`t find idToken")
-                    return
-                }
-                Task {
-                    do {
-                        let result = try await delegate.storage.signInWith(idToken: idToken, and: authentication.accessToken)
-                        delegate.loginOperation(with: result.resolver, displayNameString: result.displayNameString)
-                    }
-                    catch {
-                        delegate.authorizationErrorWith(errorMessage: error.localizedDescription)
-                    }
-                }
-            }
-        }
-        else {
-            fatalError("delegate is nil")
-        }
+        delegate?.googleSignInButtonDidTriggerSignIn(self)
     }
     
     // MARK: - Local Methods

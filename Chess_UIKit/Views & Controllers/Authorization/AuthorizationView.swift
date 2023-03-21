@@ -7,21 +7,28 @@
 
 import UIKit
 
+// MARK: - AuthorizationViewDelegate
+
+protocol AuthorizationViewDelegate: AnyObject {
+    func authorizationViewDidTriggerSignUp(_ authorizationView: AuthorizationView) -> Void
+    func authorizationViewDidTriggerSignIn(_ authorizationView: AuthorizationView) -> Void
+    func authorizationViewDidTriggerSignInAsGuest(_ authorizationView: AuthorizationView) -> Void
+}
+
+// MARK: - AuthorizationView
+
 //class that represents authorization view
 class AuthorizationView: UIStackView {
     
     // MARK: - Properties
     
-    weak var delegate: AuthorizationDelegate? {
-        didSet {
-            goggleSignInButton.delegate = delegate
-        }
-    }
+    weak var delegate: AuthorizationViewDelegate?
 
-    private let emailField = UITextField()
-    private let passwordField = UITextField()
-    private let goggleSignInButton = GoogleSignInButton()
     private let font: UIFont
+    
+    let emailField = UITextField()
+    let passwordField = UITextField()
+    let goggleSignInButton = GoogleSignInButton()
     
     private typealias constants = LoginView_Constants
     
@@ -40,49 +47,15 @@ class AuthorizationView: UIStackView {
     // MARK: - Buttons Methods
     
     @objc private func signUp(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.prepareForAuthorizationProcess()
-            Task {
-                do {
-                    try await delegate.storage.createUser(with: emailField.text!, and: passwordField.text!)
-                    delegate.successAuthorization()
-                }
-                catch {
-                    delegate.authorizationErrorWith(errorMessage: error.localizedDescription)
-                }
-            }
-        }
-        else {
-            fatalError("delegate is nil")
-        }
+        delegate?.authorizationViewDidTriggerSignUp(self)
     }
     
     @objc private func signIn(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.prepareForAuthorizationProcess()
-            Task {
-                do {
-                    let result = try await delegate.storage.signInWith(email: emailField.text!, and: passwordField.text!)
-                    delegate.loginOperation(with: result.resolver, displayNameString: result.displayNameString)
-                }
-                catch {
-                    delegate.authorizationErrorWith(errorMessage: error.localizedDescription)
-                }
-            }
-        }
-        else {
-            fatalError("delegate is nil")
-        }
+        delegate?.authorizationViewDidTriggerSignIn(self)
     }
     
     @objc private func signInViaGuestMode(_ sender: UIButton? = nil) {
-        if let delegate {
-            delegate.storage.signInAsGuest()
-            delegate.successAuthorization()
-        }
-        else {
-            fatalError("delegate is nil")
-        }
+        delegate?.authorizationViewDidTriggerSignInAsGuest(self)
     }
     
     // MARK: - Local Methods

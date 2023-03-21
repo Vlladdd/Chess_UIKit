@@ -7,22 +7,25 @@
 
 import UIKit
 
+// MARK: - BackButtonDelegate
+
+protocol BackButtonDelegate: AnyObject {
+    func backButtonDidTriggerBackAction(_ backButton: BackButton) -> Void
+}
+
+// MARK: - BackButton
+
 //class that represents back button
 class BackButton: MMButtonView {
     
     // MARK: - Properties
     
-    weak var delegate: MainMenuViewDelegate?
-    
-    //view to go back to
-    private let backView: UIStackView
+    weak var delegate: BackButtonDelegate?
     
     // MARK: - Inits
     
-    init(backView: UIStackView, delegate: MainMenuViewDelegate) {
-        self.delegate = delegate
-        self.backView = backView
-        super.init(backgroundImageItem: nil, buttonImageItem: nil, buttontext: "Back", action: #selector(back), fontSize: delegate.font.pointSize, needHeightConstraint: true)
+    init(font: UIFont) {
+        super.init(backgroundImageItem: nil, buttonImageItem: nil, buttontext: "Back", action: #selector(back), font: font, needHeightConstraint: true)
         setup()
     }
     
@@ -33,7 +36,7 @@ class BackButton: MMButtonView {
     // MARK: - Button Methods
     
     @objc private func back(_ sender: UIButton? = nil) {
-        delegate?.makeMenu(with: backView, reversed: true)
+        delegate?.backButtonDidTriggerBackAction(self)
     }
     
     // MARK: - Local Methods

@@ -8,134 +8,35 @@
 import UIKit
 
 //class that represents items view
-class ItemsView: UIStackView, InvItemDelegate {
-    
-    // MARK: - InvItemDelegate
-    
-    var font: UIFont {
-        delegate?.font ?? UIFont.systemFont(ofSize: constants.defaultFontSize)
-    }
-    
-    func updateNotificationIcons() {
-        for button in arrangedSubviews {
-            if let viewWithNotifIcon = button as? ViewWithNotifIcon {
-                if let specialItemView = viewWithNotifIcon.mainView as? SpecialItemView {
-                    if storage.currentUser.containsNewItemIn(items: [specialItemView.item]) {
-                        viewWithNotifIcon.addNotificationIcon()
-                    }
-                    else {
-                        viewWithNotifIcon.removeNotificationIcon()
-                    }
-                    if let frameView = specialItemView.itemView as? FrameView {
-                        frameView.setNeedsDisplay()
-                    }
-                }
-            }
-        }
-    }
-    
-    func makeAdditionalButtons() -> AdditionalButtons {
-        if let delegate {
-            return ABBuilder(delegate: delegate)
-                .addBackButton(type: isShopItems ? .toShopMenu : .toInventoryMenu)
-                .addCoinsView()
-                .build()
-        }
-        else {
-            fatalError("delegate is nil")
-        }
-    }
-    
-    func updateItemsColor(inShop: Bool) {
-        for button in arrangedSubviews {
-            if let viewWithNotifIcon = button as? ViewWithNotifIcon, let itemView = viewWithNotifIcon.mainView as? ItemView {
-                let itemInfo = storage.currentUser.haveInInventory(item: itemView.item)
-                let inInventory = itemInfo.inInventory
-                let chosen = itemInfo.chosen
-                let available = itemInfo.available
-                var color = traitCollection.userInterfaceStyle == .dark ? constants.darkModeBackgroundColor : constants.lightModeBackgroundColor
-                let textColor = defaultTextColor
-                var isEnabled = false
-                if inShop {
-                    if inInventory {
-                        color = constants.inInventoryColor
-                    }
-                    else if !available {
-                        color = constants.notAvailableColor
-                    }
-                    isEnabled = !inInventory && available
-                }
-                else {
-                    if chosen {
-                        color = constants.chosenItemColor
-                    }
-                    else if !inInventory {
-                        color = constants.notAvailableColor
-                    }
-                    isEnabled = inInventory && !chosen
-                }
-                var button: UIButton?
-                if let itemView = itemView as? InvItemView {
-                    button = itemView.chooseButton
-                }
-                else if let itemView = itemView as? ShopItemView {
-                    button = itemView.buyButton
-                }
-                UIView.animate(withDuration: constants.animationDuration, animations: {
-                    itemView.backgroundColor = color
-                    button?.backgroundColor = color
-                    button?.isEnabled = isEnabled
-                    if inShop && !isEnabled {
-                        button?.setTitleColor(textColor, for: .normal)
-                    }
-                })
-            }
-        }
-    }
+class ItemsView: UIStackView {
     
     // MARK: - Properties
     
-    weak var delegate: MainMenuViewDelegate?
+    let isShopItems: Bool
+    
+    var pickedItemView: SpecialItemView?
+    var chosenItemView: InvItemView?
     
     private typealias constants = ItemsView_Constants
     
-    private let isShopItems: Bool
-    private let items: [GameItem]
-    private let storage = Storage.sharedInstance
-    private let audioPlayer = AudioPlayer.sharedInstance
-    
-    private lazy var defaultTextColor = traitCollection.userInterfaceStyle == .dark ? constants.lightModeTextColor : constants.darkModeTextColor
+    private let font: UIFont
     
     // MARK: - Inits
     
-    init(items: [GameItem], isShopItems: Bool, delegate: MainMenuViewDelegate) {
-        self.items = items
+    init(items: [GameItem], isShopItems: Bool, font: UIFont, playerBackground: Backgrounds) {
         self.isShopItems = isShopItems
-        self.delegate = delegate
+        self.font = font
         super.init(frame: .zero)
-        setup()
+        setup(with: playerBackground, and: items)
     }
     
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    // MARK: - Buttons Methods
-    
-    //highlights picked item and removes notification icon from him
-    @objc private func pickitem(_ sender: UITapGestureRecognizer? = nil) {
-        if let viewWithNotifIcon = (sender?.view as? ViewWithNotifIcon), let specialItemView = viewWithNotifIcon.mainView as? SpecialItemView {
-            audioPlayer.playSound(Sounds.pickItemSound)
-            storage.currentUser.addSeenItem(specialItemView.item)
-            unpickAllItems()
-            specialItemView.layer.borderColor = constants.pickItemBorderColor
-            delegate?.updateNotificationIcons()
-        }
-    }
-    
     // MARK: - Methods
     
-    private func setup() {
+    private func setup(with playerBackground: Backgrounds, and items: [GameItem]) {
         var itemsViews = [ItemView]()
         setup(axis: .vertical, alignment: .fill, distribution: .fillEqually, spacing: constants.optimalSpacing)
         if items.count > 0 {
@@ -154,7 +55,7 @@ class ItemsView: UIStackView, InvItemDelegate {
                 }
             case .frames:
                 if let frames = items as? [Frames] {
-                    itemsViews = makeFramesView(frames: frames)
+                    itemsViews = makeFramesView(frames: frames, background: playerBackground)
                 }
             case .backgrounds:
                 if let backgroundThemes = items as? [Backgrounds] {
@@ -171,21 +72,18 @@ class ItemsView: UIStackView, InvItemDelegate {
             }
         }
         createItemsView(with: itemsViews)
-        updateItemsColor(inShop: isShopItems)
     }
     
     private func createItemsView(with views: [ItemView]) {
         for view in views {
             var itemView: MMButtonView!
-            if isShopItems, let delegate {
-                itemView = ShopItemView(itemView: view, delegate: delegate, needHeightConstraint: false)
+            if isShopItems {
+                itemView = ShopItemView(itemView: view, font: font, needHeightConstraint: false)
             }
             else {
-                itemView = InvItemView(itemView: view, delegate: self, needHeightConstraint: false)
+                itemView = InvItemView(itemView: view, font: font, needHeightConstraint: false)
             }
             let itemViewWithNI = ViewWithNotifIcon(mainView: itemView, height: MMButtonView.getOptimalHeight(with: font.pointSize))
-            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(pickitem))
-            itemViewWithNI.addGestureRecognizer(tapGesture)
             addArrangedSubview(itemViewWithNI)
         }
     }
@@ -217,10 +115,10 @@ class ItemsView: UIStackView, InvItemDelegate {
         return boardThemesViews
     }
     
-    private func makeFramesView(frames: [Frames]) -> [ItemView] {
+    private func makeFramesView(frames: [Frames], background: Backgrounds) -> [ItemView] {
         var framesViews = [ItemView]()
         for frame in frames {
-            let itemView = FrameView(frame: frame, font: font)
+            let itemView = FrameView(frame: frame, font: font, background: background)
             framesViews.append(itemView)
         }
         return framesViews
@@ -253,22 +151,12 @@ class ItemsView: UIStackView, InvItemDelegate {
         return avatarsViews
     }
     
-    private func unpickAllItems() {
-        for button in arrangedSubviews {
-            if let viewWithNotifIcon = button as? ViewWithNotifIcon {
-                viewWithNotifIcon.mainView.layer.borderColor = defaultTextColor.cgColor
-            }
-        }
-    }
-    
     //when device changed orientation
     func onRotate() {
         for button in arrangedSubviews {
             if let viewWithNotifIcon = button as? ViewWithNotifIcon {
                 if let specialItemView = viewWithNotifIcon.mainView as? SpecialItemView {
-                    if let itemView = specialItemView.itemView as? FrameView {
-                        itemView.setNeedsDisplay()
-                    }
+                    specialItemView.onRotate()
                 }
             }
         }
@@ -279,16 +167,5 @@ class ItemsView: UIStackView, InvItemDelegate {
 // MARK: - Constants
 
 private struct ItemsView_Constants {
-    static let optimalAlpha = 0.5
-    static let animationDuration = 0.5
     static let optimalSpacing = 5.0
-    static let darkModeBackgroundColor = UIColor.black.withAlphaComponent(optimalAlpha)
-    static let lightModeBackgroundColor = UIColor.white.withAlphaComponent(optimalAlpha)
-    static let darkModeTextColor = UIColor.black
-    static let lightModeTextColor = UIColor.white
-    static let inInventoryColor = UIColor.green.withAlphaComponent(optimalAlpha)
-    static let notAvailableColor = UIColor.red.withAlphaComponent(optimalAlpha)
-    static let chosenItemColor = UIColor.green.withAlphaComponent(optimalAlpha)
-    static let pickItemBorderColor = UIColor.yellow.cgColor
-    static let defaultFontSize: CGFloat = 10
 }

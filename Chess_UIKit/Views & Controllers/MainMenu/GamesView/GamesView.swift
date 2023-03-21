@@ -7,52 +7,45 @@
 
 import UIKit
 
+// MARK: - GamesViewDelegate
+
+protocol GamesViewDelegate: AnyObject {
+    func gamesViewDidRemoveFromSuperview(_ gamesView: GamesView) -> Void
+    func gamesViewDidChangeLayout(_ gamesView: GamesView) -> Void
+}
+
+// MARK: - GamesView
+
 //class that represents games view
-class GamesView: UIStackView, MPGamesDelegate {
+class GamesView: UIStackView {
 
     override func removeFromSuperview() {
         super.removeFromSuperview()
-        searchingForMPgames?.cancel()
-    }
-    
-    // MARK: - MPGamesDelegate
-    
-    var searchingForMPgames: Task<Void, Error>?
-    
-    func makeAdditionalButtons() -> AdditionalButtons {
-        if let delegate {
-            return ABBuilder(delegate: delegate)
-                .addBackButton(type: .toGameMenu)
-                .build()
-        }
-        else {
-            fatalError("delegate is nil")
-        }
+        delegate?.gamesViewDidRemoveFromSuperview(self)
     }
     
     // MARK: - Properties
     
-    weak var delegate: MainMenuViewDelegate?
+    let isMultiplayerGames: Bool
+    
+    weak var delegate: GamesViewDelegate?
     
     private typealias constants = GamesView_Constants
     
-    private let storage = Storage.sharedInstance
+    private let font: UIFont
     
-    private var games: [GameLogic] = []
+    //for multiplayer
+    private(set) var loadingSpinner: LoadingSpinner?
+    
+    private var reduntantGameViews = [MMGameInfoView]()
     
     // MARK: - Inits
-    
-    //when games is nil, it is for multiplayer
-    init(games: [GameLogic]?, delegate: MainMenuViewDelegate) {
-        self.delegate = delegate
+
+    init(gamesInfo: [MMGameInfoView.Data], currentUserNickname: String, font: UIFont, isMultiplayerGames: Bool) {
+        self.font = font
+        self.isMultiplayerGames = isMultiplayerGames
         super.init(frame: .zero)
-        if let games {
-            self.games = games
-        }
-        else {
-            searchForMPGames()
-        }
-        setup()
+        setup(with: gamesInfo, and: currentUserNickname)
     }
     
     required init(coder: NSCoder) {
@@ -61,63 +54,82 @@ class GamesView: UIStackView, MPGamesDelegate {
     
     // MARK: - Methods
     
-    private func setup() {
-        if let delegate {
-            setup(axis: .vertical, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
-            let gamesViews = games.sorted(by: {$0.startDate > $1.startDate}).map({GameView(game: $0, mainMenuViewDelegate: delegate)})
-            for gameView in gamesViews {
-                gameView.mpGamesDelegate = self
-            }
-            addArrangedSubviews(gamesViews)
+    private func setup(with gamesInfo: [MMGameInfoView.Data], and currentUserNickname: String) {
+        setup(axis: .vertical, alignment: .fill, distribution: .fill, spacing: constants.optimalSpacing)
+        let gamesViews = gamesInfo.sorted(by: {$0.startDate > $1.startDate}).map({MMGameInfoView(gameInfo: $0, font: font, currentUserNickname: currentUserNickname)})
+        addArrangedSubviews(gamesViews)
+        if isMultiplayerGames && gamesInfo.isEmpty {
+            makeLoadingSpinner()
         }
     }
     
-    private func searchForMPGames() {
-        if let delegate {
-            searchingForMPgames = Task {
-                do {
-                    for try await games in storage.getMultiplayerGames() {
-                        updateGames(with: games)
-                    }
+    func updateGameViews(with gamesInfo: [MMGameInfoView.Data], and currentUserNickname: String) {
+        loadingSpinner?.removeFromSuperview()
+        loadingSpinner = nil
+        for gameView in arrangedSubviews.map({$0 as? MMGameInfoView}) {
+            if let gameView {
+                if !gamesInfo.contains(where: {$0.id == gameView.gameID}) {
+                    gameView.makeUnavailable()
+                    reduntantGameViews.append(gameView)
                 }
-                catch {
-                    delegate.mainMenuDelegate?.makeErrorAlert(with: error.localizedDescription)
-                    let gameButtons = MMGameButtons(delegate: delegate)
-                    delegate.makeMenu(with: gameButtons, reversed: true)
+            }
+        }
+        for gameInfo in gamesInfo {
+            if !arrangedSubviews.contains(where: {
+                if let gameID = ($0 as? MMGameInfoView)?.gameID {
+                    return gameID == gameInfo.id
+                }
+                return false
+            }) {
+                let gameView = MMGameInfoView(gameInfo: gameInfo, font: font, currentUserNickname: currentUserNickname)
+                //to prevent user randomly pressing on it, while it is animating
+                gameView.isUserInteractionEnabled = false
+                addArrangedSubview(gameView)
+                UIView.animate(withDuration: constants.animationDuration, delay: 0, options: .allowUserInteraction, animations: { [weak self] in
+                    guard let self else { return }
+                    self.delegate?.gamesViewDidChangeLayout(self)
+                }) { _ in
+                    gameView.isUserInteractionEnabled = true
                 }
             }
         }
     }
     
-    private func updateGames(with games: [GameLogic]) {
-        if let delegate {
-            for gameView in arrangedSubviews.map({$0 as? GameView}) {
-                if let gameView {
-                    if !games.contains(where: {$0.gameID == gameView.game.gameID}) {
-                        UIView.animate(withDuration: constants.animationDuration, animations: {
-                            gameView.isHidden = true
-                        }) { _ in
-                            gameView.removeFromSuperview()
-                        }
-                    }
-                }
+    //we are not removing games straight away, cuz it will trigger scrolling,
+    //when this view is inside UIScrollView, and it won`t be comfortable for the user
+    func removeReduntantGameViews() {
+        for gameView in reduntantGameViews {
+            removeGameView(gameView)
+        }
+        reduntantGameViews = []
+    }
+    
+    func removeGameView(_ gameView: MMGameInfoView) {
+        NSLayoutConstraint.deactivate(gameView.constraints.filter({$0.firstItem === gameView || $0.secondItem === gameView}))
+        gameView.heightAnchor.constraint(equalToConstant: 0).isActive = true
+        UIView.animate(withDuration: constants.animationDuration, delay: 0, options: .allowUserInteraction, animations: { [weak self] in
+            guard let self else { return }
+            //there is a spacing in UIStackView
+            //without this, it will remove gameView with glitch
+            //we can also use default isHidden animation in UIStackView, but
+            //by playing with constraints, it looks even better
+            gameView.isHidden = true
+            self.delegate?.gamesViewDidChangeLayout(self)
+        }) { _ in
+            gameView.removeFromSuperview()
+        }
+    }
+    
+    private func makeLoadingSpinner() {
+        loadingSpinner = LoadingSpinner()
+        if let loadingSpinner {
+            addSubview(loadingSpinner)
+            let loadingSpinnerConstraints = [loadingSpinner.leadingAnchor.constraint(equalTo: leadingAnchor), loadingSpinner.trailingAnchor.constraint(equalTo: trailingAnchor), loadingSpinner.topAnchor.constraint(equalTo: topAnchor), loadingSpinner.bottomAnchor.constraint(equalTo: bottomAnchor)]
+            NSLayoutConstraint.activate(loadingSpinnerConstraints)
+            if arrangedSubviews.isEmpty {
+                let loadingSpinnerHeight = MMButtonView.getOptimalHeight(with: font.pointSize)
+                loadingSpinner.heightAnchor.constraint(equalToConstant: loadingSpinnerHeight).isActive = true
             }
-            for game in games {
-                if !arrangedSubviews.contains(where: {
-                    if let gameToCompare = ($0 as? GameView)?.game {
-                        return gameToCompare.gameID == game.gameID
-                    }
-                    return false
-                }) {
-                    let gameView = GameView(game: game, mainMenuViewDelegate: delegate)
-                    gameView.mpGamesDelegate = self
-                    addArrangedSubview(gameView)
-                    UIView.animate(withDuration: constants.animationDuration, animations: {
-                        delegate.mainMenuDelegate?.view.layoutIfNeeded()
-                    })
-                }
-            }
-            self.games = games
         }
     }
     

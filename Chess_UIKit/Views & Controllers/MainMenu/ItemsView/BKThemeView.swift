@@ -23,7 +23,7 @@ class BKThemeView: UIImageView, ItemView {
     init(backgroundTheme: Backgrounds, font: UIFont) {
         item = backgroundTheme
         super.init(frame: .zero)
-        setup(font: font)
+        setup(with: font)
     }
     
     required init(coder: NSCoder) {
@@ -32,7 +32,7 @@ class BKThemeView: UIImageView, ItemView {
     
     // MARK: - Methods
     
-    private func setup(font: UIFont) {
+    private func setup(with font: UIFont) {
         let backgroundTheme = item as! Backgrounds
         defaultSettings()
         setImage(with: backgroundTheme)

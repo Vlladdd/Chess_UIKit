@@ -9,6 +9,47 @@ import Foundation
 import Starscream
 import Network
 
+// MARK: - WSManagerDelegate
+
+protocol WSManagerDelegate: AnyObject {
+    func managerDidConnectSocket(_ manager: WSManager, with headers: [String: String])
+    func managerDidDisconnectSocket(_ manager: WSManager, with reason: String, and code: UInt16)
+    func managerDidReceive(_ manager: WSManager, data: Data)
+    func managerDidReceive(_ manager: WSManager, text: String)
+    func managerDidEncounterError(_ manager: WSManager, with message: String)
+    func managerDidLostInternetConnection(_ manager: WSManager)
+}
+
+extension WSManagerDelegate {
+    
+    func managerDidConnectSocket(_ manager: WSManager, with headers: [String: String]) {
+        print("websocket is connected: \(headers)")
+    }
+    
+    func managerDidDisconnectSocket(_ manager: WSManager, with reason: String, and code: UInt16) {
+        print("websocket is disconnected: \(reason) with code: \(code)")
+    }
+    
+    func managerDidReceive(_ manager: WSManager, data: Data) {
+        print("Received data: \(data.count)")
+    }
+    
+    func managerDidReceive(_ manager: WSManager, text: String) {
+        print("Received text: \(text)")
+    }
+    
+    func managerDidEncounterError(_ manager: WSManager, with message: String) {
+        print(message)
+    }
+    
+    func managerDidLostInternetConnection(_ manager: WSManager) {
+        print("Lost internet connection")
+    }
+    
+}
+
+// MARK: - WSManager
+
 //class that represents logic of the client side of WebSocket
 class WSManager: WebSocketDelegate {
     
@@ -18,15 +59,15 @@ class WSManager: WebSocketDelegate {
         switch event {
         case .connected(let headers):
             connectedToWSServer = true
-            delegate?.socketConnected(with: headers)
+            delegate?.managerDidConnectSocket(self, with: headers)
             activatePingTimer()
         case .disconnected(let reason, let code):
             connectedToWSServer = false
-            delegate?.socketDisconnected(with: reason, and: code)
+            delegate?.managerDidDisconnectSocket(self, with: reason, and: code)
         case .text(let string):
-            delegate?.socketReceivedText(string)
+            delegate?.managerDidReceive(self, text: string)
         case .binary(let data):
-            delegate?.socketReceivedData(data)
+            delegate?.managerDidReceive(self, data: data)
         case .ping(_):
             break
         case .pong(_):
@@ -65,6 +106,7 @@ class WSManager: WebSocketDelegate {
     private var socket: Starscream.WebSocket!
     //checks connection to the server
     private var pingTimer: Timer?
+    private var reconnectTimer: Timer?
     private var monitorTask: Task<Void,Error>?
     
     private typealias constants = WSManager_Constants
@@ -82,6 +124,28 @@ class WSManager: WebSocketDelegate {
             sharedInstance = WSManager()
         }
         return sharedInstance
+    }
+    
+    func startReconnecting() {
+        if !connectedToWSServer && reconnectTimer == nil {
+            reconnectTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] timer in
+                guard let self else { return }
+                if !self.connectedToWSServer {
+                    self.connectToWebSocketServer()
+                }
+                else {
+                    timer.invalidate()
+                }
+            })
+        }
+        if let reconnectTimer {
+            RunLoop.main.add(reconnectTimer, forMode: .common)
+        }
+    }
+    
+    func stopReconnecting() {
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
     }
     
     func connectToWebSocketServer() {
@@ -113,7 +177,7 @@ class WSManager: WebSocketDelegate {
     }
     
     func activatePingTimer() {
-        if !(pingTimer?.isValid ?? false) {
+        if pingTimer == nil {
             pingTimer = Timer.scheduledTimer(withTimeInterval: constants.requestTimeout, repeats: true, block: { [weak self] _ in
                 guard let self else { return }
                 Task {
@@ -130,17 +194,18 @@ class WSManager: WebSocketDelegate {
     
     func deactivatePingTimer() {
         pingTimer?.invalidate()
+        pingTimer = nil
     }
     
     private func handleWebSocketError(_ error: Error?) {
         if let error = error as? WSError {
-            delegate?.webSocketError(with: "websocket encountered an error: \(error.message)")
+            delegate?.managerDidEncounterError(self, with: "websocket encountered an error: \(error.message)")
         }
         else if let error {
-            delegate?.webSocketError(with: "websocket encountered an error: \(error.localizedDescription)")
+            delegate?.managerDidEncounterError(self, with: "websocket encountered an error: \(error.localizedDescription)")
         }
         else {
-            delegate?.webSocketError(with: "websocket encountered an error")
+            delegate?.managerDidEncounterError(self, with: "websocket encountered an error")
         }
     }
     
@@ -155,7 +220,7 @@ class WSManager: WebSocketDelegate {
                 else {
                     connectedToWSServer = false
                     connectedToTheInternet = false
-                    delegate?.lostInternet()
+                    delegate?.managerDidLostInternetConnection(self)
                 }
             }
         }

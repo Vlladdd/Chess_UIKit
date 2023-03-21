@@ -179,7 +179,7 @@ class Storage {
     private func checkIfMultifactorRequired(error: Error) throws -> (resolver: MultiFactorResolver, displayNameString: String) {
         let authError = error as NSError
         if authError.code == AuthErrorCode.secondFactorRequired.rawValue {
-            // The user is a multi-factor user. Second factor challenge is required.
+            //The user is a multi-factor user. Second factor challenge is required.
             let resolver = authError.userInfo[AuthErrorUserInfoMultiFactorResolverKey] as! MultiFactorResolver
             var displayNameString = ""
             for tmpFactorInfo in resolver.hints {
@@ -227,13 +227,11 @@ class Storage {
     }
     
     func saveGameForMultiplayer(_ game: GameLogic) {
-        if let gameID = game.gameID {
-            do {
-                try firebaseDatabase.child(constants.keyForMultiplayerGames).child(gameID).setValue(from: game)
-            }
-            catch {
-                print(error.localizedDescription)
-            }
+        do {
+            try firebaseDatabase.child(constants.keyForMultiplayerGames).child(game.gameID).setValue(from: game)
+        }
+        catch {
+            print(error.localizedDescription)
         }
     }
     

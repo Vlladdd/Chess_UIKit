@@ -127,10 +127,18 @@ enum SquaresThemes: String, Codable, CaseIterable, GameItem {
     }
     
     func getTheme() -> SquaresTheme {
+        var squaresTheme = SquaresTheme()
         switch self {
         case .defaultTheme:
-            return SquaresTheme(name: .defaultTheme, firstColor: .white, secondColor: .black, turnColor: .orange, availableSquaresColor: .green, pickColor: .red, checkColor: .blue)
+            squaresTheme.name = .defaultTheme
+            squaresTheme.firstColor = .white
+            squaresTheme.secondColor = .black
+            squaresTheme.turnColor = .orange
+            squaresTheme.availableSquaresColor = .green
+            squaresTheme.pickColor = .red
+            squaresTheme.checkColor = .blue
         }
+        return squaresTheme
     }
     
 }
@@ -648,9 +656,7 @@ enum OtherItems: String, Item {
     case misc
 }
 
-enum BackButtonType: String {
-    case toMainMenu
-    case toInventoryMenu
-    case toShopMenu
-    case toGameMenu
+enum CustomAlertType: String {
+    case error
+    case success
 }

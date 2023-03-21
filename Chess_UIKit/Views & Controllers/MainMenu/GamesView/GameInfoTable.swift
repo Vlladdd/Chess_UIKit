@@ -12,6 +12,20 @@ class GameInfoTable: UITableView, UITableViewDelegate, UITableViewDataSource {
     
     // MARK: - Properties
     
+    //just to simplify init
+    struct Data {
+    
+        var mode = GameModes.oneScreen
+        var rewindEnabled = false
+        var timerEnabled = false
+        var totalTime = 0
+        var additionalTime = 0
+        
+        //to prevent big inits
+        init() {}
+        
+    }
+    
     private var data: [Int: [String]] = [:]
     private let dataFont: UIFont
     
@@ -19,14 +33,14 @@ class GameInfoTable: UITableView, UITableViewDelegate, UITableViewDataSource {
     
     // MARK: - Inits
     
-    init(gameData: GameLogic, dataFont: UIFont) {
+    init(additionalGameInfo: GameInfoTable.Data, dataFont: UIFont) {
         self.dataFont = dataFont
         super.init(frame: .zero, style: .insetGrouped)
-        data[0] = ["Game mode", gameData.gameMode.asString]
-        data[1] = ["Rewind enabled", gameData.rewindEnabled ? Answers.yes.asString : Answers.no.asString]
-        if gameData.timerEnabled {
-            data[2] = ["Total time", gameData.totalTime.timeAsString]
-            data[3] = ["+Time per turn", gameData.additionalTime.timeAsString]
+        data[0] = ["Game mode", additionalGameInfo.mode.asString]
+        data[1] = ["Rewind enabled", additionalGameInfo.rewindEnabled ? Answers.yes.asString : Answers.no.asString]
+        if additionalGameInfo.timerEnabled {
+            data[2] = ["Total time", additionalGameInfo.totalTime.timeAsString]
+            data[3] = ["+Time per turn", additionalGameInfo.additionalTime.timeAsString]
         }
         setup()
     }
